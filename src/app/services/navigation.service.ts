@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Service, signal } from '@angular/core';
 
 import { AuthService } from '@app/services/auth.service';
 import { RouterService } from '@app/services/router.service';
@@ -25,11 +25,8 @@ export interface MenuButton {
   bgClass?: string;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class NavigationService {
-  private readonly currentRoute$signal = signal('');
   private readonly navbarWidthPx$$ = signal(0);
 
   public readonly isCollapsed$$ = computed(() => this.settingsService.navbarCollapsed$$());
@@ -38,14 +35,11 @@ export class NavigationService {
     return `${this.navbarWidthPx$$()}px`;
   });
 
-  public readonly currentRoute$$ = computed(() => this.currentRoute$signal());
-
   private readonly buttons: MenuButton[] = [
     {
       label: 'Дневник питания',
       place: MenuPlace.Both,
       link: '/food',
-      selected: false,
       chapterSettingName: 'selectedChapterFood',
       iconName: IconName.Restaurant,
       bgClass: 'food-bg',
@@ -54,7 +48,6 @@ export class NavigationService {
       label: 'Дневник финансов',
       place: MenuPlace.Both,
       link: '/money',
-      selected: false,
       chapterSettingName: 'selectedChapterMoney',
       iconName: IconName.Paid,
       bgClass: 'money-bg',
@@ -63,7 +56,6 @@ export class NavigationService {
       label: 'Метрики',
       place: MenuPlace.Both,
       link: '/metrics',
-      selected: false,
       adminOnly: true,
       iconName: IconName.Analytics,
       bgClass: 'settings-bg',
@@ -78,7 +70,6 @@ export class NavigationService {
       label: 'Настройки',
       place: MenuPlace.Both,
       link: '/settings',
-      selected: false,
       iconName: IconName.Settings,
       bgClass: 'settings-bg',
     },
@@ -88,10 +79,6 @@ export class NavigationService {
   private readonly settingsService = inject(SettingsService);
   private readonly authService = inject(AuthService);
 
-  constructor() {
-    this.subscribeToRouteChanges();
-  }
-
   public toggleCollapse(): void {
     this.settingsService.navbarCollapsed$$.update((collapsed) => !collapsed);
   }
@@ -100,28 +87,22 @@ export class NavigationService {
     this.navbarWidthPx$$.set(Math.max(0, Math.ceil(width)));
   }
 
+  // Reads the settings, the admin flag and the current route, so a computed that calls it
+  // re-evaluates on any of them — `selected` is derived here, never stored on the buttons.
   public prepButtons(place: 'mobile' | 'desktop'): MenuButton[] {
-    return this.buttons.filter((button) => {
-      const chapterName: SettingsChapterNames = button.chapterSettingName as SettingsChapterNames;
-      const chapterSelected = chapterName ? this.settingsService.settings$$()[chapterName] : true;
-      const adminAllowed = !button.adminOnly || this.authService.isAdmin$$();
-      return (button.place === place || button.place === 'both') && chapterSelected && adminAllowed;
-    });
+    const route = this.routerService.currentRoute$$();
+    return this.buttons
+      .filter((button) => {
+        const chapterName: SettingsChapterNames = button.chapterSettingName as SettingsChapterNames;
+        const chapterSelected = chapterName ? this.settingsService.settings$$()[chapterName] : true;
+        const adminAllowed = !button.adminOnly || this.authService.isAdmin$$();
+        return (button.place === place || button.place === 'both') && chapterSelected && adminAllowed;
+      })
+      .map((button) => ({ ...button, selected: this.isLinkActive(button.link, route) }));
   }
 
-  private subscribeToRouteChanges() {
-    this.routerService.currentRoute$.subscribe((route) => {
-      this.currentRoute$signal.set(route);
-
-      this.buttons.forEach((btn) => {
-        if (btn.hasOwnProperty('selected')) {
-          if (Array.isArray(btn.link)) {
-            btn.selected = btn.link.some((link) => route.includes(link));
-          } else {
-            btn.selected = route.includes(btn.link);
-          }
-        }
-      });
-    });
+  private isLinkActive(link: string | string[], route: string): boolean {
+    const links = Array.isArray(link) ? link : [link];
+    return links.some((item) => item !== '' && route.includes(item));
   }
 }

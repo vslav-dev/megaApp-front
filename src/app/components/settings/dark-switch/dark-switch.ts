@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { SettingsService } from '@app/services/settings.service';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -7,8 +6,8 @@ import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 @Component({
   selector: 'dark-switch',
   templateUrl: './dark-switch.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [CommonModule, VButton, VIcon],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VButton, VIcon],
 })
 export class DarkSwitch {
   protected readonly settingsService = inject(SettingsService);
