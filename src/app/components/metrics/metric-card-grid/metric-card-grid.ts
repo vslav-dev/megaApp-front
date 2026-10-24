@@ -99,7 +99,7 @@ export class MetricCardGrid implements OnInit, OnDestroy {
   public readonly cardChartModeChangeOutput = output<{ technicalName: string; chartMode: MetricChartMode }>();
 
   private readonly expansionService = inject(MetricCardExpansionService);
-  private readonly hostElement: HTMLElement;
+  private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly containerWidthPx$$ = signal(0);
   private readonly gapPx$$ = signal(0);
   private resizeObserver: ResizeObserver | null = null;
@@ -175,10 +175,6 @@ export class MetricCardGrid implements OnInit, OnDestroy {
     }
     return items;
   });
-
-  public constructor(elementRef: ElementRef<HTMLElement>) {
-    this.hostElement = elementRef.nativeElement;
-  }
 
   public ngOnInit(): void {
     this.gapPx$$.set(parseFloat(getComputedStyle(this.hostElement).columnGap) || 0);

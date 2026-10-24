@@ -1,4 +1,4 @@
-import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { Service, Signal, computed, inject, signal } from '@angular/core';
 import { SeriesColor, SeriesColorInput, assignSeriesColors } from '../shared/categorical-palette';
 import { EXPENSE_SERIES_ORDER, INCOME_SERIES_ORDER, seriesOrderIndex } from '../shared/chart-config';
 import {
@@ -68,7 +68,7 @@ function toSeriesShares(
     .map(([id, name]) => ({ id, name, share: totals.get(id)! / grandTotal }));
 }
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class MoneyComputeService {
   private readonly moneyService = inject(MoneyService);
   private readonly telemetry = inject(TelemetryService);

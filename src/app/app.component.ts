@@ -9,7 +9,7 @@ import { TelemetryService } from '@app/services/telemetry.service';
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [Navigation, RouterOutlet, Notifications],
 })
 export class MainAppComponent implements OnInit {

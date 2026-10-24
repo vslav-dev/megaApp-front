@@ -1,25 +1,17 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Service } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { filter, map } from 'rxjs/operators';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class RouterService {
-  private readonly currentRouteSubject: BehaviorSubject<string> = new BehaviorSubject<string>('');
-  public readonly currentRoute$ = this.currentRouteSubject.asObservable();
-
   private readonly router = inject(Router);
 
-  constructor() {
-    this.subscribeToRouteChanges();
-  }
-
-  private subscribeToRouteChanges(): void {
-    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe((event) => {
-      const navEndEvent = event as NavigationEnd;
-      this.currentRouteSubject.next(navEndEvent.urlAfterRedirects);
-    });
-  }
+  public readonly currentRoute$$ = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => event.urlAfterRedirects),
+    ),
+    { initialValue: '' },
+  );
 }

@@ -288,7 +288,7 @@ export class MetricChartCard implements OnInit, OnDestroy {
   // The card's own rendered width — not the grid's — decides whether round ticks
   // need thinning, so it's tracked directly on this component's host rather than
   // derived from the grid's column-fitting math.
-  private readonly hostElement: HTMLElement;
+  private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly cardWidthPx$$ = signal(0);
   private resizeObserver: ResizeObserver | null = null;
   private readonly chartThemeService = inject(ChartThemeService);
@@ -335,10 +335,6 @@ export class MetricChartCard implements OnInit, OnDestroy {
     this.ensureChart(canvasElem.nativeElement, chartMode, color, unit, granularity, tooltipMode, colors);
     this.updateChart(series);
   });
-
-  public constructor(elementRef: ElementRef<HTMLElement>) {
-    this.hostElement = elementRef.nativeElement;
-  }
 
   public ngOnInit(): void {
     this.resizeObserver = new ResizeObserver(([entry]) => {

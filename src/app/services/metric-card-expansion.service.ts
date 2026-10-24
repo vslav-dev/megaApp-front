@@ -1,4 +1,4 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, Service, signal } from '@angular/core';
 
 const EMPTY_KEY_SET: ReadonlySet<string> = new Set();
 
@@ -8,7 +8,7 @@ const EMPTY_KEY_SET: ReadonlySet<string> = new Set();
 // independently while a single "collapse all" control can still reach all of them.
 // Card keys are already globally unique (`service:name`, see metricPointsIndexKey),
 // so no per-grid namespacing is needed.
-@Injectable({ providedIn: 'root' })
+@Service()
 export class MetricCardExpansionService {
   private readonly expandedKeysState$$ = signal<ReadonlySet<string>>(EMPTY_KEY_SET);
 

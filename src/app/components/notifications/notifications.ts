@@ -6,7 +6,7 @@ import { VToast } from '@ui-kit/components/v-toast/v-toast';
 @Component({
   selector: 'notifications',
   templateUrl: './notifications.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VToast],
 })
 export class Notifications {

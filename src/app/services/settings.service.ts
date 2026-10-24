@@ -1,4 +1,4 @@
-import { effect, inject, Injectable, Signal, WritableSignal } from '@angular/core';
+import { effect, inject, Service, Signal, WritableSignal } from '@angular/core';
 import { ANIMATION_DURATION_MS, ANIMATION_DURATION_MS_STRING } from '@app/shared/animations';
 import { DEFAULT_SETTINGS } from '@app/shared/const';
 import { UserSettings } from '@app/shared/types';
@@ -6,9 +6,7 @@ import { NetworkService } from './network.service';
 import { NamespaceSettingsStore } from './settings/namespace-settings-store';
 import { persistedSignal } from './settings/persisted-signal';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class SettingsService {
   private readonly networkService = inject(NetworkService);
   private readonly store = new NamespaceSettingsStore<UserSettings>('core', DEFAULT_SETTINGS);

@@ -1,5 +1,5 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Service, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { IndexedDbCacheService } from '@app/services/indexed-db-cache.service';
 import { NetworkService } from '@app/services/network.service';
@@ -8,8 +8,8 @@ import { SyncEngineService } from '@app/services/sync-engine.service';
 import { clearAllUserScopedCaches, clearCacheUserId, setCacheUserId } from '@app/shared/cache';
 import { SESSION_BOOTSTRAP_TIMEOUT_MS } from '@app/shared/const';
 import { SessionResponse, UserCreds } from '@app/shared/types';
-import { firstValueFrom, Observable, throwError } from 'rxjs';
-import { catchError, tap, timeout } from 'rxjs/operators';
+import { firstValueFrom } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 
 export const AuthSessionState = {
   Unknown: 'unknown',
@@ -21,7 +21,7 @@ export type AuthSessionState = (typeof AuthSessionState)[keyof typeof AuthSessio
 
 const RENEW_RETRY_MS = 5 * 60 * 1000;
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class AuthService {
   public readonly sessionState$$ = signal<AuthSessionState>(AuthSessionState.Unknown);
   public readonly isAuthenticated$$ = computed(() => this.sessionState$$() === AuthSessionState.Authenticated);
@@ -56,14 +56,13 @@ export class AuthService {
     return this.ensureBootstrapped();
   }
 
-  public login(user: UserCreds): Observable<SessionResponse> {
-    return this.http.post<SessionResponse>('/api/auth/login', user).pipe(
-      tap((session) => this.applySession(session)),
-    );
+  public async login(user: UserCreds): Promise<void> {
+    const session = await firstValueFrom(this.http.post<SessionResponse>('/api/auth/login', user));
+    this.applySession(session);
   }
 
-  public register(user: UserCreds): Observable<unknown> {
-    return this.http.post('/api/auth/register', user);
+  public async register(user: UserCreds): Promise<void> {
+    await firstValueFrom(this.http.post('/api/auth/register', user));
   }
 
   public logout(): void {
@@ -125,19 +124,18 @@ export class AuthService {
   private scheduleRenewal(expiresAt: string): void {
     this.clearRenewTimer();
     const delay = Math.max(0, Date.parse(expiresAt) - Date.now() - 7 * 24 * 60 * 60 * 1000);
-    this.renewTimer = setTimeout(() => this.renew(), delay);
+    this.renewTimer = setTimeout(() => void this.renew(), delay);
   }
 
-  private renew(): void {
-    this.http.post<SessionResponse>('/api/auth/renew', {}).pipe(
-      tap((session) => this.applySession(session)),
-      catchError((error: unknown) => {
-        if (!(error instanceof HttpErrorResponse) || error.status !== 401) {
-          this.renewTimer = setTimeout(() => this.renew(), RENEW_RETRY_MS);
-        }
-        return throwError(() => error);
-      }),
-    ).subscribe({ error: () => undefined });
+  private async renew(): Promise<void> {
+    try {
+      const session = await firstValueFrom(this.http.post<SessionResponse>('/api/auth/renew', {}));
+      this.applySession(session);
+    } catch (error) {
+      if (!(error instanceof HttpErrorResponse) || error.status !== 401) {
+        this.renewTimer = setTimeout(() => void this.renew(), RENEW_RETRY_MS);
+      }
+    }
   }
 
   private clearRenewTimer(): void {

@@ -3,6 +3,7 @@ import {
   Component,
   effect,
   ElementRef,
+  inject,
   input,
   output,
   signal,
@@ -26,12 +27,13 @@ export class OrganizationForm {
   public readonly savedOutput = output<void>();
   public readonly cancelledOutput = output<void>();
 
+  private readonly moneyService = inject(MoneyService);
   private readonly fileInputElem = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
   protected readonly title$$ = signal('');
   protected readonly logoBase64$$ = signal<string | null>(null);
 
-  constructor(private moneyService: MoneyService) {
+  constructor() {
     effect(() => {
       const current = this.organizationInput();
       if (current) {
@@ -84,7 +86,7 @@ export class OrganizationForm {
     return `data:image/png;base64,${logo}`;
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     if (!this.isFormValid()) return;
 
     const organizationData: Organization = {
@@ -95,17 +97,13 @@ export class OrganizationForm {
     const current = this.organizationInput();
     if (current?.id) {
       organizationData.id = current.id;
-      this.moneyService.updateOrganization(organizationData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.updateOrganization(organizationData)) {
+        this.savedOutput.emit();
+      }
     } else {
-      this.moneyService.createOrganization(organizationData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.createOrganization(organizationData)) {
+        this.savedOutput.emit();
+      }
     }
   }
 

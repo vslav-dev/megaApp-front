@@ -12,7 +12,6 @@
 - ✅ Авто-миграции CLI применились: `ChangeDetectionStrategy.Eager` расставлен явно на 42 компонентах без прежней явной стратегии; `withXhr()` добавлен в `provideHttpClient()` в `main.ts` (миграция сохранила старое поведение через XHR, не переключила на Fetch — переход на Fetch намеренно отложен, это отдельное идиоматичное решение, не часть авто-апдейта); в `tsconfig.app.json`/`tsconfig.spec.json` добавлено подавление `nullishCoalescingNotNullable`/`optionalChainNotNullable`, чтобы сохранить старую семантику optional chaining
 - ✅ Проверка после апгрейда: `tsc --noEmit` — 0 ошибок, `ng build --configuration dev` — чисто, `vitest` — 212/212 тестов, 23/23 файлов
 - ⚠️ **`src/ui-kit` — git submodule** (`angular-ui-kit`, branch `release`). Авто-миграция `Eager` задела и его — 20 файлов внутри submodule изменены и не закоммичены. Это отдельный репозиторий, нужно отдельно просмотреть и закоммитить там же.
-- ⏳ Ручной прогон приложения по экранам (food/money/settings/metrics) — сознательно не делал сам, по договорённости это делает пользователь
 - Не трогал: `@angular/cdk` в `overrides` остался на `21.1.0` — сейчас это не проблема (peer-диапазон `^21.0.0 || ^22.0.0` покрывает текущий core), но при следующем мажоре потребует ручного bump
 
 ## `angular-ui-kit` — где используется и что с ним
@@ -127,7 +126,6 @@
 - ✅ `HttpClient`/`AuthInterceptor` — авто-миграция добавила `withXhr()`, поведение сохранено как было (переход на Fetch — осознанное решение, не часть авто-апдейта, см. Группа 2/3)
 - ✅ Optional chaining на строгих `=== null` — авто-миграция подавила `nullishCoalescingNotNullable`/`optionalChainNotNullable` в `tsconfig.app.json`/`tsconfig.spec.json`, старая семантика сохранена без ручной правки шаблонов
 - ✅ `vitest`-сьют — 212/212 тестов, `tsc --noEmit` и `ng build` чистые
-- ⭕ Ручной smoke-тест ключевых экранов (food/money/settings/metrics) — за пользователем
 
 ### Группа 2 — идиоматический синтаксис, низкий риск, точечно
 - ⭕ Заменить авто-`Eager` на осознанный `OnPush` во всех 43 компонентах (или наоборот — `Eager` там, где обоснованно, но по умолчанию — `OnPush`)
@@ -188,7 +186,7 @@
 - ✅ `ng update @angular/core@22 @angular/cli@22`, TypeScript → 6.x, прогнать авто-миграции (сделано 2026-09-17 для всего проекта, включая метрики — build/tsc/vitest чистые, ждём ручной прогон экранов)
 - ⭕ Переписать `auth.interceptor.ts` на `HttpInterceptorFn` + `withInterceptors()` в `main.ts` (задействовано всеми HTTP-запросами метрик)
 - ⭕ Включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и package.json
-- ⭕ Целевой ручной smoke-тест zoneless именно на экране метрик, по каждому механизму отдельно:
+- Механизмы метрик, которые затрагивает zoneless (учесть при включении, Блок 5):
   - `ResizeObserver` в `metric-card-grid.ts`/`metric-chart-card.ts` (ресайз карточек/графиков)
   - `IntersectionObserver` в `metric-chart-card.ts` (`isVisible$$`, скролл дашборда)
   - `chartUpdateEffect` и `resetExpandedOnDisableEffect` в этих же файлах
@@ -196,9 +194,110 @@
   - Chart.js перерисовка/hover (`category-hover-highlight.ts`, `metrics-sync-crosshair.ts`)
 
 ### Модульные шаги — специфичные доработки раздела
-- ⭕ Перевести 5 сервисов раздела с `@Injectable({ providedIn: 'root' })` на `@Service()`
-- ⭕ `metric-card-grid.ts`/`metric-chart-card.ts`: заменить constructor-инъекцию `ElementRef` на `inject(ElementRef)`
+- ✅ Перевести 5 сервисов раздела с `@Injectable({ providedIn: 'root' })` на `@Service()` (сделано для 4 реально существующих, см. «Блок 1» ниже)
+- ✅ `metric-card-grid.ts`/`metric-chart-card.ts`: заменить constructor-инъекцию `ElementRef` на `inject(ElementRef)`
 - ⭕ `metrics.service.ts` (~строка 287): одноразовый `POST /api/metrics/history` (`arraybuffer`, ручной `.subscribe({...})`) — кандидат на `httpResource()`/`resource()`. Внутри коллбэка сейчас нетривиальные побочные эффекty (merge точек, продвижение курсоров, уведомления, запись в кэш) — при миграции вынести их в `effect()`, реагирующий на статус ресурса, а не переносить как есть
-- ⭕ `metricsBinaryFrames$`-подписки (`metrics.service.ts`, `metrics-health.service.ts`) — оставить на RxJS: это continuous WebSocket-поток, а не request/response, под `resource()` не подходит по форме API
-- ⭕ Оценить `@defer` для `metric-chart-card` внутри `metrics-dashboard.html` — сейчас грузится сразу вместе с chart.js, тяжёлый компонент, потенциальный выигрыш по first paint дашборда
+- ✅ `metricsBinaryFrames$`-подписки (`metrics.service.ts`, `metrics-health.service.ts`) — оставить на RxJS: это continuous WebSocket-поток, а не request/response, под `resource()` не подходит по форме API
+- ✅ Оценить `@defer` для `metric-chart-card` внутри `metrics-dashboard.html` (оценено, отказ — см. «Блок 1» ниже) — сейчас грузится сразу вместе с chart.js, тяжёлый компонент, потенциальный выигрыш по first paint дашборда
 - ⭕ Angular Aria — отдельно не внедрять именно в метриках: expand/collapse панелей идёт через общий `ui-kit`-компонент `v-expand`, доработка попадёт туда одним заходом для всех разделов сразу
+
+## Смена подхода: блоки по разделам, глобальное — в конец (24.10.2026)
+
+Заменяет порядок исполнения. «Группы 0–4», «Порядок переноса по разделам» и «Блок 1» выше остаются как аудит и история; делать — по блокам ниже. Что из старого пункта устарело, помечено в «Уточнениях».
+
+### Почему
+- Цена ошибки разная: метрики — только админы, деньги — пара человек, еда — реальные пользователи.
+- Глобальные шаги (zoneless, interceptor, общий ui-kit) нельзя откатить «только в одном разделе» — они бьют по всем сразу. Идут последними, когда разделы уже обкатаны.
+
+### Принципы
+- Блок = раздел. В блок входит всё, что меняет только файлы этого раздела.
+- Общее (ui-kit, сервисы общего пользования, `main.ts`, `angular.json`) блоки не трогают — оно целиком в финальном блоке.
+- Порядок: Метрики → Деньги → Настройки/auth/навигация/уведомления → Еда → Глобальный.
+- Исполнение блока: правки → `tsc` + `vitest` + `ng build` → отметки в плане.
+
+### Состояние на 24.10.2026
+- ✅ `ng update` 21→22 закоммичен (`a45bee9`), Angular `22.1.7`, TS `6.0.3`.
+- ✅ ui-kit: `Eager` закоммичен в сабмодуле (`d7f5728`), сабмодуль чистый на `release`. Пункт «20 файлов не закоммичены» выше устарел.
+- Ветка `037-angular-ver-upgrade` на 27 коммитов впереди origin, не запушена.
+- На npm: `@angular/core` 22.2.3, `@angular/aria` 22.2.4.
+- `Eager` по разделам: метрики 0, деньги 0, настройки 2, auth 1, навигация 1, уведомления 1, еда 13, shared 3, ui-kit 20.
+
+### Уточнения к старому плану (по факту кода)
+- **История метрик не ложится на `httpResource()`.** Это цепочка последовательных батчей с продвижением курсоров после каждого и сохранением прогресса при сбое посередине; `resource` — один запрос, один результат. Остаётся RxJS. Пункт «history → httpResource» из Блока 1 выше снят. WS-потоки метрик остаются на RxJS, как и было.
+- **Критерий для `subscribe` (24.10.2026).** Из 48 вызовов: ~25 мутации (create/update/delete в деньгах), ~17 потоки событий (WS, `connected$`, `router.events`, `mutationApplied$`, resize, `valueChanges`), 3–4 чтение GET, остальное — fire-and-forget. Цель — не «убрать `subscribe`», а убрать его там, где он остался по привычке («подписался + флаг загрузки»). RxJS остаётся там, где он по смыслу нужен.
+  - Чтение по ключу (GET, зависит от сигналов) → `httpResource()` / `rxResource()`.
+  - Поток, который лишь превращается в состояние (resize → `isMobile`, текущий роут) → `toSignal()`.
+  - Мутация (POST/PUT/DELETE с обработкой результата) → `await firstValueFrom(...)` в `async`-обработчике; `resource` для записи не подходит.
+  - Непрерывные потоки с побочным эффектом (WS-сообщения, `mutationApplied$`, `router.events`, `valueChanges`), батч-цепочки (история метрик), fire-and-forget (telemetry) → остаются на RxJS `subscribe`.
+  - Каждое место решается отдельно, в блоке своего раздела (порядок и момент обновлений меняются).
+- **Формы денег уже наполовину сигнальные.** Источник правды — сигналы, `ngModel` лишь мост (значение читается из сигнала, изменение пишется в сигнал). Контролы ui-kit (`v-input`, `v-dropdown`, `v-wheel-input`, `v-date-wheel-input`) — `ControlValueAccessor`. Signal Forms потребуют перевести эти 4 компонента на signal-интерфейс контрола — это общая часть, не раздельная.
+- **`@Service()` и `provideCheckNoChangesConfig` есть в установленном 22.1.7** (проверено по типам). Второй — developer preview, только для dev-режима.
+- **`@angular/aria` в зависимостях нет.** Его peer — `@angular/cdk` той же версии, а у нас `@angular/cdk` в `overrides` на 21.1.0 → перед Aria cdk нужно поднять.
+- Для zoneless вместо россыпи дебаг-логов — `provideCheckNoChangesConfig({ exhaustive: true })`: dev-проверка ловит «состояние изменилось без уведомления Angular». Логи — только точечно (ResizeObserver, IntersectionObserver, приход WS-фрейма, перерисовка Chart.js), как временные, с общим эмодзи-префиксом для удаления одним поиском.
+- `v-color-picker` без явной стратегии CD — в v22 это уже `OnPush` по умолчанию; миграция его не тронула.
+
+### Блок 0 — подготовка
+- ✅ Поднять Angular/CLI/build до актуального `22.2.x` (24.10.2026): `@angular/*` → `22.2.3`, `cli`/`build` → `22.2.4`, TS остался `6.0.3`; авто-миграций кода `ng update` не применил, изменились только `package.json` и `package-lock.json`. `tsc` (app, spec), `ng test` — 39 файлов / 447 тестов, `ng build --configuration dev` — чисто
+- ✅ `@angular/cdk` в `overrides` поднят `21.1.0` → `22.2.4` (под Aria). cdk тянет только `ng2-charts@5.0.4` как peer, в коде проекта cdk не импортируется. Override — костыль: `ng2-charts@5` не объявляет поддержку cdk 22. Чистое решение — `ng2-charts@11` (peer `>=22`), это мажорный апгрейд графиков, отдельное решение, не часть Блока 0
+
+### Блок 1 — Метрики
+Малый по объёму: компоненты уже `OnPush`, форм и легаси-декораторов нет.
+- ✅ Сервисы раздела: `@Injectable({ providedIn: 'root' })` → `@Service()` (`metrics`, `metrics-health`, `metrics-settings`, `metric-card-expansion`) — 24.10.2026
+- ✅ `metric-card-grid` и `metric-chart-card`: конструкторная инъекция `ElementRef` → `inject()`, конструкторы удалены
+- ✅ `metrics-dashboard.html`: `@let` для повторяющегося `isServiceExpanded(...)` в шапке (кнопка Dashboard и цикл по сервисам)
+- ✅ `@defer` для карточек — **отказ**: маршрут метрик уже ленивый (`loadComponent`), всё содержимое страницы — карточки; `@defer` лишь сдвинул бы chart.js на один кадр, добавив мигание/сдвиг вёрстки ради раздела для админов. Карточки и так гейтятся `IntersectionObserver`
+- ✅ `window:scroll` через `host` вместо ручных `addEventListener`/`removeEventListener` в `metrics-dashboard` — **отказ**: host-listener помечает компонент грязным на каждый scroll-event и перепроверяет большой шаблон; ручной слушатель пишет сигнал только при смене `scrollY > 0`, под zoneless это точнее
+- ✅ `device-info` (resize → сигнал) — **перенесён в Блок 5**: сервис общий для всех разделов, не метрик
+- ✅ `ResizeObserver`/`IntersectionObserver` и `ngOnInit`/`ngOnDestroy` в компонентах метрик оставлены: нужна синхронная начальная замеровка после вставки в DOM, замена на `afterNextRender` не даёт выигрыша
+- ✅ Проверки: `tsc` (app, spec) 0 ошибок, `ng test` 39/447, `ng build --configuration dev` чисто; в живом приложении (`localhost:4200/metrics`, Chrome) прогнаны: дашборд, переключение сервиса (SCB4), раскрытие карточки (полноширинный график, кнопка «свернуть все»), прокрутка (карточки при появлении рисуются, тень sticky-шапки), перезагрузка (45/45 карточек нарисованы). Ошибок в консоли не поймано, но запись консоли стартует с первого вызова, поэтому ошибки при загрузке страницы этим прогоном не покрыты
+### Блок 2 — Деньги
+- ✅ Сервисы раздела на `@Service()` (`money`, `money-compute`); в `money.service` конструкторная инъекция (`HttpClient`, `SyncEngineService`) → `inject()`
+- ✅ Мутации справочников (валюты, категории, организации, счета, активы — по 3 метода) → `async`/`Promise<boolean>` через один приватный хелпер `send()` с `firstValueFrom`; ~15 копий `pipe(map, catchError)` схлопнуты. Вызовы в формах и списках: `if (await …) savedOutput.emit()`, удаление — `void …`
+- ✅ Транзакции и переводы (create/update/delete/transfer) — оптимистичные через sync engine, ничего асинхронного не возвращали (`of(true)`) → методы стали `void`, в `transaction-form` и `transactions-list` убраны `subscribe`
+- ✅ Удалён мёртвый `requestResult$` (Subject, в нём только `next`, подписчиков во всём проекте нет) и закомментированный отладочный код в конструкторе `money.service`
+- ✅ Начальный GET snapshot: `subscribe` → `async` `fetchSnapshot` с `firstValueFrom` и `try/catch`. `httpResource` — **отказ**: снапшот грузится императивно при каждом входе на экран, мёржится с очередью несохранённых транзакций и кэшем и раскладывается в 7 сигналов; ресурсу пришлось бы писать их через `effect`, это лишний слой
+- ✅ Конструкторная инъекция `moneyService` → `inject()` в `category-form`, `organization-form`, `currency-form`, `account-form`
+- ✅ `subscribe` в `transactions-list` (горячая клавиша N через `keyboardService.shortcut$`) оставлен: поток событий, с `takeUntilDestroyed`
+- ✅ `ngClass`/`ngStyle`, `@Input`/`@Output`, `Eager`, `standalone: true` в разделе не встречаются — трогать нечего
+- ⭕ Формы (12 файлов) — к Signal Forms готовы как есть (сигналы — источник правды, `ngModel` лишь мост); фактический перевод ждёт общих контролов ui-kit (Блок 5)
+- ✅ Проверки: `tsc` (app, spec) 0 ошибок, `ng test` 39/447, `ng build --configuration dev` чисто. В браузере (`localhost:4200/money`) проверены загрузка snapshot (балансы, транзакции, три графика), вкладка Setup со списками, открытие и отмена формы «New Organization». Создание/изменение/удаление в браузере **не** проверялись: данные на экране похожи на реальные финансы
+
+### Блок 3 — Настройки, auth, навигация, уведомления
+- ✅ `Eager` → `OnPush`: `settings`, `dark-switch`, `auth-form`, `navigation`, `notifications` и корневой `app.component` (оболочка; весь шаблон на сигналах). `shared/components` (`toolbar-group`, `default-modal`, `form-modal`) — общие для всех разделов, остаются в Блоке 5
+- ✅ **Выбор пункта меню — не механическая замена.** `navigation.service` писал `selected` в обычные поля общих объектов-кнопок из `subscribe` на роутер: при `OnPush` подсветка активного раздела перестала бы обновляться. Теперь `selected` вычисляется в `prepButtons()` из сигнала текущего роута (кнопки-конфиг не мутируются), а `RouterService` отдаёт `currentRoute$$` через `toSignal()` вместо `BehaviorSubject` + `subscribe`. Удалены неиспользуемые `NavigationService.currentRoute$$` и пустой `ngOnInit` в `navigation`
+- ✅ `navigation.html`: `ngClass` → `[class]`, убраны `NgClass`; из `dark-switch` убран лишний `CommonModule`
+- ✅ **Форма настроек разделов — на сигналах.** `FormGroup` из трёх булевых + `effect`, который писал в форму мимо сигналов (при `OnPush` откат после отказа сохранения и обновление из `settings$$` не перерисовались бы), заменены двумя `linkedSignal`: значение следует за сохранёнными настройками, при клике меняется сразу, при отказе сервера откатывается. Убраны `ReactiveFormsModule`, обёртка `<form>`, метод темы (в шаблоне `settingsService.setDarkTheme($event)`) и привязки `isDisabled` (контролы никогда не отключались)
+- ✅ Сервисы раздела на `@Service()`: `auth`, `settings`, `navigation`, `notification`, `router`. Общие инфраструктурные — в Блоке 5
+- ✅ `subscribe` по критерию: `auth.service` — `login`/`register` теперь `async` (`Promise<void>`, `firstValueFrom` ушёл из `auth-form`), `renew` — `async` с `try/catch` вместо `pipe(tap, catchError, throwError)` + `subscribe({ error: () => undefined })`; роутер — `toSignal()`
+- ✅ `auth-form` остаётся на Reactive Forms: сигнальные статус и touched в `FormControl` v22 делают `OnPush` безопасным; перевод на Signal Forms — Блок 5
+- ✅ Проверки: `tsc` (app, spec) 0 ошибок, `ng test` 39/447, `ng build --configuration dev` чисто. В браузере: тёмная тема в настройках (переключение туда-обратно, иконка в навигации меняется), снятие и возврат галочки «Дневник питания» (пункт меню исчезает и возвращается), подсветка активного пункта меню при переходах настройки → деньги → метрики, экран входа на `127.0.0.1:4200/auth` (оболочка выходит из «Загрузка...» в форму, переключатель «Войти/Зарегистрироваться», кнопка отправки включается по валидности формы). Отправка формы входа/регистрации и откат галочки при отказе сохранения в браузере **не** проверялись (нужны реальные учётные данные и обрыв сети)
+
+### Блок 4 — Еда
+Последним из разделов, самый рискованный (реальные пользователи).
+- ⭕ `Eager` → `OnPush` на 13 компонентах
+- ⭕ `diary-entry-edit-form`: `@Input`/`@Output` → `input()`/`output()`; `camera-preview`: `@ViewChild` → `viewChild()`
+- ⭕ `diary-entry-product-info`: убрать `standalone: true`
+- ⭕ `food-diary.html` и `food-product-picker.html`: `ngStyle`/`ngClass` → `[style.]`/`[class.]`
+- ⭕ Сервисы раздела на `@Service()` (`services/food/*`)
+- ⭕ `subscribe` в еде — по критерию выше: `food-product-history-state` (запрос истории продукта) — кандидат на `resource`; WS-подписки (`food-diary`, `food-catalogue`, `food-sync-coordinator`, `food-stats`, `mutationApplied$`) остаются на RxJS; сложное с ретраями/дебаунсом не трогать без выгоды
+- ⭕ Формы еды (5 файлов) — после Блока 2/5
+
+### Блок 5 — Глобальный (в самом конце)
+Всё, что нельзя разделить по разделам.
+- ⭕ ui-kit: `Eager` → `OnPush` на 20 компонентах, `@HostListener` → `host: {}` (`v-modal`, `v-wheel-select`), `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`
+- ⭕ ui-kit: 4 контрола форм на signal-интерфейс контрола Signal Forms
+- ⭕ Signal Forms: перевод форм всех разделов, затем удаление `FormsModule`/`ReactiveFormsModule`
+- ⭕ Functional interceptor: `auth.interceptor.ts` → `HttpInterceptorFn` + `withInterceptors()`
+- ⭕ Общие сервисы на `@Service()` (`network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`)
+- ⭕ Zoneless: `provideZonelessChangeDetection()`, убрать `zone.js` из polyfills и зависимостей, `provideCheckNoChangesConfig` в dev, точечные временные логи; обкатка на метриках, затем деньги, еда
+- ⭕ Решить `withXhr()` → Fetch
+- ⭕ Angular Aria для `v-dropdown`, `v-expand`, `v-modal` (после поднятия cdk)
+- ⭕ Группа 4 выше (selectorless, `injectAsync`, ESLint) — по желанию
+
+## Поправка про `@angular/cdk` (24.10.2026)
+
+Заменяет утверждения про cdk в Блоке 0 выше.
+- Было неверно: «`ng2-charts@5` не заявляет поддержку cdk 22, чистое решение — `ng2-charts@11`». Peer у `ng2-charts@5.0.4` — `@angular/cdk >=16.0.0`, cdk 22 подходит; апгрейд графиков не нужен.
+- Проверено: cdk в проекте не нужен вообще. В `src`/`ui-kit`/конфигах нет ни одной ссылки; `ng2-charts` в рантайм-коде cdk не импортирует (упоминание только в `package.json` как peer и в schematics генерации). В изолированной копии с `overrides` без cdk (`npm install --omit=peer`) прошли `tsc`, 447 тестов и `ng build`.
+- Override (появился 19.08.2026 при Angular 21.1.0) обходил конфликт: npm ставил свежий cdk 22 как peer `ng2-charts`, а ядро было 21. На Angular 22 конфликта нет.
+- ✅ Блок `overrides` удалён из `package.json`. npm по-прежнему ставит cdk сам как peer `ng2-charts` (сейчас `22.2.4`), файл lock не изменился. Для Aria отдельная правка cdk не нужна.

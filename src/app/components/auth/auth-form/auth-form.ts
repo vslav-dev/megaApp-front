@@ -8,12 +8,11 @@ import { UserCreds } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { VInput } from '@ui-kit/components/v-input/v-input';
-import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'auth-form',
   templateUrl: './auth-form.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, VCard, VInput, VButton],
 })
 export class AuthForm {
@@ -54,12 +53,12 @@ export class AuthForm {
 
     try {
       if (this.isLoginMode$$()) {
-        await firstValueFrom(this.authService.login(user));
+        await this.authService.login(user);
         await this.settingsService.ensureReady();
         this.authForm.reset();
         await this.router.navigateByUrl(this.resolveLandingUrl());
       } else {
-        await firstValueFrom(this.authService.register(user));
+        await this.authService.register(user);
         this.authForm.reset();
         this.isLoginMode$$.set(true);
         this.justRegistered$$.set(true);

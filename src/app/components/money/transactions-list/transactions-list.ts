@@ -502,7 +502,7 @@ export class TransactionsList {
     this.isDeleteConfirmOpen$$.set(false);
     this.pendingDeleteId$$.set(null);
     if (!id) return;
-    this.moneyService.deleteTransaction(id).subscribe((success) => {});
+    this.moneyService.deleteTransaction(id);
   }
 
   private groupTransactionsByDate(): TransactionGroup[] {

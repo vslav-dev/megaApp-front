@@ -1,39 +1,33 @@
 <div class="p-2">
   <div class="mx-auto flex max-w-[400px] flex-col gap-2 md:gap-4">
 
-    <form [formGroup]="settingsForm">
-
-      <v-card class="flex flex-col text-lg"
-              [padding]="4">
-        <div class="mb-0 font-bold text-right"> Основные настройки </div>
-        <div class="mb-4"> Выбор разделов: </div>
-        <div class="flex flex-col gap-4 mb-4 ml-5">
-          <v-checkbox [isDisabled]="settingsForm.controls.selectedChapterFood.disabled"
-                      [size]="7"
-                      [checkIconSize]="7"
-                      [value]="settingsForm.controls.selectedChapterFood.value"
-                      (valueChange)="onSelectedChapterCheckboxChange(KeyOfSettings.selectedChapterFood, $event)">
-            Дневник питания
-          </v-checkbox>
-
-          <v-checkbox [isDisabled]="settingsForm.controls.selectedChapterMoney.disabled"
-                      [size]="7"
-                      [checkIconSize]="7"
-                      [value]="settingsForm.controls.selectedChapterMoney.value"
-                      (valueChange)="onSelectedChapterCheckboxChange(KeyOfSettings.selectedChapterMoney, $event)">
-            Дневник финансов
-          </v-checkbox>
-        </div>
-
-        <v-checkbox mode="switch"
-                    [isDisabled]="settingsForm.controls.darkTheme.disabled"
-                    labelPosition="left"
-                    [value]="settingsForm.controls.darkTheme.value"
-                    (valueChange)="onThemeToggleChange($event)">
-          Тёмная тема:
+    <v-card class="flex flex-col text-lg"
+            [padding]="4">
+      <div class="mb-0 font-bold text-right"> Основные настройки </div>
+      <div class="mb-4"> Выбор разделов: </div>
+      <div class="flex flex-col gap-4 mb-4 ml-5">
+        <v-checkbox [size]="7"
+                    [checkIconSize]="7"
+                    [value]="isFoodChapterSelected$$()"
+                    (valueChange)="onChapterChange(KeyOfSettings.selectedChapterFood, isFoodChapterSelected$$, $event)">
+          Дневник питания
         </v-checkbox>
-      </v-card>
-    </form>
+
+        <v-checkbox [size]="7"
+                    [checkIconSize]="7"
+                    [value]="isMoneyChapterSelected$$()"
+                    (valueChange)="onChapterChange(KeyOfSettings.selectedChapterMoney, isMoneyChapterSelected$$, $event)">
+          Дневник финансов
+        </v-checkbox>
+      </div>
+
+      <v-checkbox mode="switch"
+                  labelPosition="left"
+                  [value]="settingsService.darkTheme$$()"
+                  (valueChange)="settingsService.setDarkTheme($event)">
+        Тёмная тема:
+      </v-checkbox>
+    </v-card>
 
     <v-card [padding]="4">
       <div class="flex flex-col gap-2">

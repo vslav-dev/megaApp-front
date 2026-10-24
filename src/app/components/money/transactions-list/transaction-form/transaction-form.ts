@@ -214,38 +214,27 @@ export class TransactionForm {
       const currentTwinId = currentTransaction?.twinId;
 
       if (currentTransaction?.id && currentTwinId) {
-        this.moneyService
-          .updateTransfer({
-            id: currentTransaction.id,
-            twinId: currentTwinId,
-            dateISO: this.dateISO$$(),
-            accountId: Number(this.accountId$$()),
-            amount: normalizedFromAmount,
-            twinAccountId: Number(this.accountToId$$()),
-            twinAmount: normalizedToAmount,
-            notes: this.notes$$() || undefined,
-          })
-          .subscribe((success) => {
-            if (success) {
-              this.savedOutput.emit();
-            }
-          });
+        this.moneyService.updateTransfer({
+          id: currentTransaction.id,
+          twinId: currentTwinId,
+          dateISO: this.dateISO$$(),
+          accountId: Number(this.accountId$$()),
+          amount: normalizedFromAmount,
+          twinAccountId: Number(this.accountToId$$()),
+          twinAmount: normalizedToAmount,
+          notes: this.notes$$() || undefined,
+        });
       } else {
-        this.moneyService
-          .createTransfer({
-            dateISO: this.dateISO$$(),
-            accountId: Number(this.accountId$$()),
-            amount: normalizedFromAmount,
-            twinAccountId: Number(this.accountToId$$()),
-            twinAmount: normalizedToAmount,
-            notes: this.notes$$() || undefined,
-          })
-          .subscribe((success) => {
-            if (success) {
-              this.savedOutput.emit();
-            }
-          });
+        this.moneyService.createTransfer({
+          dateISO: this.dateISO$$(),
+          accountId: Number(this.accountId$$()),
+          amount: normalizedFromAmount,
+          twinAccountId: Number(this.accountToId$$()),
+          twinAmount: normalizedToAmount,
+          notes: this.notes$$() || undefined,
+        });
       }
+      this.savedOutput.emit();
 
       return;
     }
@@ -300,18 +289,11 @@ export class TransactionForm {
 
       if (currentTransaction?.id) {
         transactionData.id = currentTransaction.id;
-        this.moneyService.updateTransaction(transactionData).subscribe((success) => {
-          if (success) {
-            this.savedOutput.emit();
-          }
-        });
+        this.moneyService.updateTransaction(transactionData);
       } else {
-        this.moneyService.createTransaction(transactionData).subscribe((success) => {
-          if (success) {
-            this.savedOutput.emit();
-          }
-        });
+        this.moneyService.createTransaction(transactionData);
       }
+      this.savedOutput.emit();
 
       return;
     }
@@ -337,18 +319,11 @@ export class TransactionForm {
 
     if (currentTransaction?.id) {
       transactionData.id = currentTransaction.id;
-      this.moneyService.updateTransaction(transactionData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      this.moneyService.updateTransaction(transactionData);
     } else {
-      this.moneyService.createTransaction(transactionData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      this.moneyService.createTransaction(transactionData);
     }
+    this.savedOutput.emit();
   }
 
   protected cancel(): void {

@@ -1,4 +1,4 @@
-import { computed, Injectable, Signal, WritableSignal } from '@angular/core';
+import { computed, Service, Signal, WritableSignal } from '@angular/core';
 import { NamespaceSettingsStore } from '@app/services/settings/namespace-settings-store';
 import { persistedSignal } from '@app/services/settings/persisted-signal';
 import { DEFAULT_METRIC_CHART_MODE, MetricChartMode } from '@app/shared/metrics-chart-mode';
@@ -98,9 +98,7 @@ const DEFAULTS: StoredMetricsSettings = {
   anomalyCorridorPercent: DEFAULT_ANOMALY_CORRIDOR_PERCENT,
 };
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class MetricsSettingsService {
   private readonly store = new NamespaceSettingsStore<StoredMetricsSettings>('metrics', DEFAULTS);
 

@@ -83,7 +83,7 @@ export class AssetsList {
     this.showForm$$.set(true);
   }
 
-  protected saveAsset(): void {
+  protected async saveAsset(): Promise<void> {
     if (!this.title$$() || !this.ticker$$() || !this.type$$() || this.selectedAccountIds$$().length === 0) return;
 
     const assetData: Asset = {
@@ -98,19 +98,15 @@ export class AssetsList {
     const currentAsset = this.editingAsset$$();
     if (currentAsset?.id) {
       assetData.id = currentAsset.id;
-      this.moneyService.updateAsset(assetData).subscribe((success) => {
-        if (success) {
-          this.onSaved();
-        }
-      });
+      if (await this.moneyService.updateAsset(assetData)) {
+        this.onSaved();
+      }
       return;
     }
 
-    this.moneyService.createAsset(assetData).subscribe((success) => {
-      if (success) {
-        this.onSaved();
-      }
-    });
+    if (await this.moneyService.createAsset(assetData)) {
+      this.onSaved();
+    }
   }
 
   protected deleteAsset(id: number): void {
@@ -134,7 +130,7 @@ export class AssetsList {
     this.pendingDeleteId$$.set(null);
     if (!id) return;
     if (!this.canDeleteAsset(id)) return;
-    this.moneyService.deleteAsset(id).subscribe((success) => {});
+    void this.moneyService.deleteAsset(id);
   }
 
   protected onSaved(): void {

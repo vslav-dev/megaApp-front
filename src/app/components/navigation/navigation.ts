@@ -1,4 +1,3 @@
-import { NgClass } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -6,7 +5,6 @@ import {
   effect,
   ElementRef,
   inject,
-  OnInit,
   signal,
   viewChild,
 } from '@angular/core';
@@ -24,10 +22,10 @@ import { DarkSwitch } from '../settings/dark-switch/dark-switch';
   selector: 'navigation',
   templateUrl: './navigation.html',
   styleUrl: './navigation.scss',
-  changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [VButton, VIcon, NgClass, DarkSwitch, MetricsHealthDot],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VButton, VIcon, DarkSwitch, MetricsHealthDot],
 })
-export class Navigation implements OnInit {
+export class Navigation {
   protected readonly desktopNav = viewChild<ElementRef>('desktopNav');
   protected readonly fader = viewChild.required<ElementRef>('fader');
 
@@ -79,8 +77,6 @@ export class Navigation implements OnInit {
     const place = this.isDesktop$$() ? 'desktop' : 'mobile';
     return this.navigationService.prepButtons(place);
   });
-
-  public ngOnInit(): void {}
 
   protected toggleMenuCollapse(): void {
     this.navigationService.toggleCollapse();
