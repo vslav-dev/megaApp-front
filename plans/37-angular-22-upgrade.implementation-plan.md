@@ -202,3 +202,100 @@
 - ⭕ `metricsBinaryFrames$`-подписки (`metrics.service.ts`, `metrics-health.service.ts`) — оставить на RxJS: это continuous WebSocket-поток, а не request/response, под `resource()` не подходит по форме API
 - ⭕ Оценить `@defer` для `metric-chart-card` внутри `metrics-dashboard.html` — сейчас грузится сразу вместе с chart.js, тяжёлый компонент, потенциальный выигрыш по first paint дашборда
 - ⭕ Angular Aria — отдельно не внедрять именно в метриках: expand/collapse панелей идёт через общий `ui-kit`-компонент `v-expand`, доработка попадёт туда одним заходом для всех разделов сразу
+
+## Смена подхода: блоки по разделам, глобальное — в конец (24.10.2026)
+
+Заменяет порядок исполнения. «Группы 0–4», «Порядок переноса по разделам» и «Блок 1» выше остаются как аудит и история; делать — по блокам ниже. Что из старого пункта устарело, помечено в «Уточнениях».
+
+### Почему
+- Цена ошибки разная: метрики — только админы, деньги — пара человек, еда — реальные пользователи.
+- Глобальные шаги (zoneless, interceptor, общий ui-kit) нельзя откатить «только в одном разделе» — они бьют по всем сразу. Идут последними, когда разделы уже обкатаны.
+
+### Принципы
+- Блок = раздел. В блок входит всё, что меняет только файлы этого раздела.
+- Общее (ui-kit, сервисы общего пользования, `main.ts`, `angular.json`) блоки не трогают — оно целиком в финальном блоке.
+- Порядок: Метрики → Деньги → Настройки/auth/навигация/уведомления → Еда → Глобальный.
+- Zoneless в продакшен только после ручного прохода food и money.
+- Исполнение блока: правки → `tsc` + `vitest` + `ng build` → ручной прогон раздела пользователем → отметки в плане.
+
+### Состояние на 24.10.2026
+- ✅ `ng update` 21→22 закоммичен (`a45bee9`), Angular `22.1.7`, TS `6.0.3`.
+- ✅ ui-kit: `Eager` закоммичен в сабмодуле (`d7f5728`), сабмодуль чистый на `release`. Пункт «20 файлов не закоммичены» выше устарел.
+- Ветка `037-angular-ver-upgrade` на 27 коммитов впереди origin, не запушена.
+- На npm: `@angular/core` 22.2.3, `@angular/aria` 22.2.4.
+- `Eager` по разделам: метрики 0, деньги 0, настройки 2, auth 1, навигация 1, уведомления 1, еда 13, shared 3, ui-kit 20.
+
+### Уточнения к старому плану (по факту кода)
+- **История метрик не ложится на `httpResource()`.** Это цепочка последовательных батчей с продвижением курсоров после каждого и сохранением прогресса при сбое посередине; `resource` — один запрос, один результат. Остаётся RxJS. Пункт «history → httpResource» из Блока 1 выше снят. WS-потоки метрик остаются на RxJS, как и было.
+- **Критерий для `subscribe` (24.10.2026).** Из 48 вызовов: ~25 мутации (create/update/delete в деньгах), ~17 потоки событий (WS, `connected$`, `router.events`, `mutationApplied$`, resize, `valueChanges`), 3–4 чтение GET, остальное — fire-and-forget. Цель — не «убрать `subscribe`», а убрать его там, где он остался по привычке («подписался + флаг загрузки»). RxJS остаётся там, где он по смыслу нужен.
+  - Чтение по ключу (GET, зависит от сигналов) → `httpResource()` / `rxResource()`.
+  - Поток, который лишь превращается в состояние (resize → `isMobile`, текущий роут) → `toSignal()`.
+  - Мутация (POST/PUT/DELETE с обработкой результата) → `await firstValueFrom(...)` в `async`-обработчике; `resource` для записи не подходит.
+  - Непрерывные потоки с побочным эффектом (WS-сообщения, `mutationApplied$`, `router.events`, `valueChanges`), батч-цепочки (история метрик), fire-and-forget (telemetry) → остаются на RxJS `subscribe`.
+  - Каждое место решается отдельно, в блоке своего раздела; после каждого — ручной прогон (порядок и момент обновлений меняются).
+- **Формы денег уже наполовину сигнальные.** Источник правды — сигналы, `ngModel` лишь мост (значение читается из сигнала, изменение пишется в сигнал). Контролы ui-kit (`v-input`, `v-dropdown`, `v-wheel-input`, `v-date-wheel-input`) — `ControlValueAccessor`. Signal Forms потребуют перевести эти 4 компонента на signal-интерфейс контрола — это общая часть, не раздельная.
+- **`@Service()` и `provideCheckNoChangesConfig` есть в установленном 22.1.7** (проверено по типам). Второй — developer preview, только для dev-режима.
+- **`@angular/aria` в зависимостях нет.** Его peer — `@angular/cdk` той же версии, а у нас `@angular/cdk` в `overrides` на 21.1.0 → перед Aria cdk нужно поднять.
+- Для zoneless вместо россыпи дебаг-логов — `provideCheckNoChangesConfig({ exhaustive: true })`: dev-проверка ловит «состояние изменилось без уведомления Angular». Логи — только точечно (ResizeObserver, IntersectionObserver, приход WS-фрейма, перерисовка Chart.js), как временные, с общим эмодзи-префиксом для удаления одним поиском.
+- `v-color-picker` без явной стратегии CD — в v22 это уже `OnPush` по умолчанию; миграция его не тронула.
+
+### Блок 0 — подготовка
+- ✅ Поднять Angular/CLI/build до актуального `22.2.x` (24.10.2026): `@angular/*` → `22.2.3`, `cli`/`build` → `22.2.4`, TS остался `6.0.3`; авто-миграций кода `ng update` не применил, изменились только `package.json` и `package-lock.json`. `tsc` (app, spec), `ng test` — 39 файлов / 447 тестов, `ng build --configuration dev` — чисто
+- ✅ `@angular/cdk` в `overrides` поднят `21.1.0` → `22.2.4` (под Aria). cdk тянет только `ng2-charts@5.0.4` как peer, в коде проекта cdk не импортируется. Override — костыль: `ng2-charts@5` не объявляет поддержку cdk 22. Чистое решение — `ng2-charts@11` (peer `>=22`), это мажорный апгрейд графиков, отдельное решение, не часть Блока 0
+- ⭕ Коммит и пуш — по команде пользователя (на 24.10.2026 запрещены, изменения не закоммичены)
+
+### Блок 1 — Метрики
+Малый по объёму: компоненты уже `OnPush`, форм и легаси-декораторов нет.
+- ⭕ Сервисы раздела: `@Injectable({ providedIn: 'root' })` → `@Service()` (`metrics`, `metrics-health`, `metrics-settings`, `metric-card-expansion`)
+- ⭕ `metric-card-grid` и `metric-chart-card`: конструкторная инъекция `ElementRef` → `inject()`
+- ⭕ Оценить `@defer` для `metric-chart-card` в дашборде (тяжёлый компонент вместе с chart.js)
+- ⭕ Оценить `device-info` (подписка на `resize` → сигнал): кандидат на упрощение, не обязательный
+- ⭕ Ручной прогон метрик пользователем
+
+### Блок 2 — Деньги
+- ⭕ Сервисы раздела на `@Service()` (`money`, `money-compute`)
+- ⭕ Формы (12 файлов: categories, organizations, currencies, accounts, transactions, assets) — подготовить к Signal Forms; фактический перевод ждёт общих контролов ui-kit (см. Блок 5)
+- ⭕ Мутации (~25 `subscribe` в формах и списках: create/update/delete) → `async` + `firstValueFrom`, по критерию выше
+- ⭕ `money.service`: начальный GET snapshot — оценить `httpResource`/`rxResource`, учитывая local-first кэш
+- ⭕ Остаточные `ngClass`/`ngStyle`, если найдутся в разделе
+- ⭕ Ручной прогон денег пользователем
+
+### Блок 3 — Настройки, auth, навигация, уведомления
+- ⭕ `Eager` → `OnPush` на компонентах раздела (настройки 2, auth 1, навигация 1, уведомления 1) с проверкой, что всё состояние идёт через сигналы
+- ⭕ `navigation.html`: `ngClass` → `[class.]`
+- ⭕ Сервисы раздела на `@Service()` (`auth`, `settings`, `navigation`, `notification`, `router` и т. п.; общие инфраструктурные — в Блок 5)
+- ⭕ `subscribe` по критерию: `navigation.service` (`currentRoute$`) и `router.service` — оценить `toSignal()`; `auth.service` (fire-and-forget) — оставить, если нет причины менять
+- ⭕ Форма в `settings.ts` и `auth-form.ts` — по результатам Блока 2
+- ⭕ Ручной прогон пользователем
+
+### Блок 4 — Еда
+Последним из разделов, самый рискованный (реальные пользователи).
+- ⭕ `Eager` → `OnPush` на 13 компонентах
+- ⭕ `diary-entry-edit-form`: `@Input`/`@Output` → `input()`/`output()`; `camera-preview`: `@ViewChild` → `viewChild()`
+- ⭕ `diary-entry-product-info`: убрать `standalone: true`
+- ⭕ `food-diary.html` и `food-product-picker.html`: `ngStyle`/`ngClass` → `[style.]`/`[class.]`
+- ⭕ Сервисы раздела на `@Service()` (`services/food/*`)
+- ⭕ `subscribe` в еде — по критерию выше: `food-product-history-state` (запрос истории продукта) — кандидат на `resource`; WS-подписки (`food-diary`, `food-catalogue`, `food-sync-coordinator`, `food-stats`, `mutationApplied$`) остаются на RxJS; сложное с ретраями/дебаунсом не трогать без выгоды
+- ⭕ Формы еды (5 файлов) — после Блока 2/5
+- ⭕ Ручной прогон еды пользователем
+
+### Блок 5 — Глобальный (в самом конце)
+Всё, что нельзя разделить по разделам.
+- ⭕ ui-kit: `Eager` → `OnPush` на 20 компонентах, `@HostListener` → `host: {}` (`v-modal`, `v-wheel-select`), `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`
+- ⭕ ui-kit: 4 контрола форм на signal-интерфейс контрола Signal Forms
+- ⭕ Signal Forms: перевод форм всех разделов, затем удаление `FormsModule`/`ReactiveFormsModule`
+- ⭕ Functional interceptor: `auth.interceptor.ts` → `HttpInterceptorFn` + `withInterceptors()`
+- ⭕ Общие сервисы на `@Service()` (`network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`)
+- ⭕ Zoneless: `provideZonelessChangeDetection()`, убрать `zone.js` из polyfills и зависимостей, `provideCheckNoChangesConfig` в dev, точечные временные логи; обкатка на метриках, затем деньги, еда
+- ⭕ Решить `withXhr()` → Fetch
+- ⭕ Angular Aria для `v-dropdown`, `v-expand`, `v-modal` (после поднятия cdk)
+- ⭕ Группа 4 выше (selectorless, `injectAsync`, ESLint) — по желанию
+- ⭕ Мёрж в основную ветку только после ручного прогона всех разделов
+
+## Поправка про `@angular/cdk` (24.10.2026)
+
+Заменяет утверждения про cdk в Блоке 0 выше.
+- Было неверно: «`ng2-charts@5` не заявляет поддержку cdk 22, чистое решение — `ng2-charts@11`». Peer у `ng2-charts@5.0.4` — `@angular/cdk >=16.0.0`, cdk 22 подходит; апгрейд графиков не нужен.
+- Проверено: cdk в проекте не нужен вообще. В `src`/`ui-kit`/конфигах нет ни одной ссылки; `ng2-charts` в рантайм-коде cdk не импортирует (упоминание только в `package.json` как peer и в schematics генерации). В изолированной копии с `overrides` без cdk (`npm install --omit=peer`) прошли `tsc`, 447 тестов и `ng build`.
+- Override (появился 19.08.2026 при Angular 21.1.0) обходил конфликт: npm ставил свежий cdk 22 как peer `ng2-charts`, а ядро было 21. На Angular 22 конфликта нет.
+- ✅ Блок `overrides` удалён из `package.json`. npm по-прежнему ставит cdk сам как peer `ng2-charts` (сейчас `22.2.4`), файл lock не изменился. Для Aria отдельная правка cdk не нужна.
