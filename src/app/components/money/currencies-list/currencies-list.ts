@@ -71,7 +71,7 @@ export class CurrenciesList {
     this.pendingDeleteId$$.set(null);
     if (!id) return;
     if (!this.canDeleteCurrency(id)) return;
-    this.moneyService.deleteCurrency(id).subscribe((success) => {});
+    void this.moneyService.deleteCurrency(id);
   }
 
   protected canDeleteCurrency(currencyId: number): boolean {

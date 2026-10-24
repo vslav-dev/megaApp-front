@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCheckbox } from '@ui-kit/components/v-checkbox/v-checkbox';
@@ -19,13 +19,15 @@ export class CurrencyForm {
   public readonly savedOutput = output<void>();
   public readonly cancelledOutput = output<void>();
 
+  private readonly moneyService = inject(MoneyService);
+
   protected readonly title$$ = signal('');
   protected readonly ticker$$ = signal('');
   protected readonly symbol$$ = signal('');
   protected readonly symbolPosEnum$$ = signal<SymbolPosition>(SymbolPosition.BEFORE);
   protected readonly whitespace$$ = signal(false);
 
-  constructor(private moneyService: MoneyService) {
+  constructor() {
     effect(() => {
       const currentCurrency = this.currencyInput();
       if (currentCurrency) {
@@ -44,7 +46,7 @@ export class CurrencyForm {
     this.whitespace$$.set(Boolean(currency.whitespace));
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     if (!this.title$$() || !this.ticker$$() || !this.symbol$$()) return;
 
     const currencyData: Currency = {
@@ -58,17 +60,13 @@ export class CurrencyForm {
     const currentCurrency = this.currencyInput();
     if (currentCurrency?.id) {
       currencyData.id = currentCurrency.id;
-      this.moneyService.updateCurrency(currencyData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.updateCurrency(currencyData)) {
+        this.savedOutput.emit();
+      }
     } else {
-      this.moneyService.createCurrency(currencyData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.createCurrency(currencyData)) {
+        this.savedOutput.emit();
+      }
     }
   }
 

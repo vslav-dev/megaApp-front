@@ -124,7 +124,7 @@ export class AccountsList {
     this.pendingDeleteId$$.set(null);
     if (!id) return;
     if (!this.canDeleteAccount(id)) return;
-    this.moneyService.deleteAccount(id).subscribe((success) => {});
+    void this.moneyService.deleteAccount(id);
   }
 
   protected onSaved(): void {

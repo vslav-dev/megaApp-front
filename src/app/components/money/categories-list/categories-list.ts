@@ -70,7 +70,7 @@ export class CategoriesList {
     this.pendingDeleteId$$.set(null);
     if (!id) return;
     if (!this.canDeleteCategory(id)) return;
-    this.moneyService.deleteCategory(id).subscribe((success) => {});
+    void this.moneyService.deleteCategory(id);
   }
 
   protected onSaved(): void {

@@ -196,11 +196,11 @@
   - Chart.js перерисовка/hover (`category-hover-highlight.ts`, `metrics-sync-crosshair.ts`)
 
 ### Модульные шаги — специфичные доработки раздела
-- ⭕ Перевести 5 сервисов раздела с `@Injectable({ providedIn: 'root' })` на `@Service()`
-- ⭕ `metric-card-grid.ts`/`metric-chart-card.ts`: заменить constructor-инъекцию `ElementRef` на `inject(ElementRef)`
+- ✅ Перевести 5 сервисов раздела с `@Injectable({ providedIn: 'root' })` на `@Service()` (сделано для 4 реально существующих, см. «Блок 1» ниже)
+- ✅ `metric-card-grid.ts`/`metric-chart-card.ts`: заменить constructor-инъекцию `ElementRef` на `inject(ElementRef)`
 - ⭕ `metrics.service.ts` (~строка 287): одноразовый `POST /api/metrics/history` (`arraybuffer`, ручной `.subscribe({...})`) — кандидат на `httpResource()`/`resource()`. Внутри коллбэка сейчас нетривиальные побочные эффекty (merge точек, продвижение курсоров, уведомления, запись в кэш) — при миграции вынести их в `effect()`, реагирующий на статус ресурса, а не переносить как есть
-- ⭕ `metricsBinaryFrames$`-подписки (`metrics.service.ts`, `metrics-health.service.ts`) — оставить на RxJS: это continuous WebSocket-поток, а не request/response, под `resource()` не подходит по форме API
-- ⭕ Оценить `@defer` для `metric-chart-card` внутри `metrics-dashboard.html` — сейчас грузится сразу вместе с chart.js, тяжёлый компонент, потенциальный выигрыш по first paint дашборда
+- ✅ `metricsBinaryFrames$`-подписки (`metrics.service.ts`, `metrics-health.service.ts`) — оставить на RxJS: это continuous WebSocket-поток, а не request/response, под `resource()` не подходит по форме API
+- ✅ Оценить `@defer` для `metric-chart-card` внутри `metrics-dashboard.html` (оценено, отказ — см. «Блок 1» ниже) — сейчас грузится сразу вместе с chart.js, тяжёлый компонент, потенциальный выигрыш по first paint дашборда
 - ⭕ Angular Aria — отдельно не внедрять именно в метриках: expand/collapse панелей идёт через общий `ui-kit`-компонент `v-expand`, доработка попадёт туда одним заходом для всех разделов сразу
 
 ## Смена подхода: блоки по разделам, глобальное — в конец (24.10.2026)
@@ -242,7 +242,6 @@
 ### Блок 0 — подготовка
 - ✅ Поднять Angular/CLI/build до актуального `22.2.x` (24.10.2026): `@angular/*` → `22.2.3`, `cli`/`build` → `22.2.4`, TS остался `6.0.3`; авто-миграций кода `ng update` не применил, изменились только `package.json` и `package-lock.json`. `tsc` (app, spec), `ng test` — 39 файлов / 447 тестов, `ng build --configuration dev` — чисто
 - ✅ `@angular/cdk` в `overrides` поднят `21.1.0` → `22.2.4` (под Aria). cdk тянет только `ng2-charts@5.0.4` как peer, в коде проекта cdk не импортируется. Override — костыль: `ng2-charts@5` не объявляет поддержку cdk 22. Чистое решение — `ng2-charts@11` (peer `>=22`), это мажорный апгрейд графиков, отдельное решение, не часть Блока 0
-- ⭕ Коммит и пуш — по команде пользователя (на 24.10.2026 запрещены, изменения не закоммичены)
 
 ### Блок 1 — Метрики
 Малый по объёму: компоненты уже `OnPush`, форм и легаси-декораторов нет.
@@ -254,15 +253,19 @@
 - ✅ `device-info` (resize → сигнал) — **перенесён в Блок 5**: сервис общий для всех разделов, не метрик
 - ✅ `ResizeObserver`/`IntersectionObserver` и `ngOnInit`/`ngOnDestroy` в компонентах метрик оставлены: нужна синхронная начальная замеровка после вставки в DOM, замена на `afterNextRender` не даёт выигрыша
 - ✅ Проверки: `tsc` (app, spec) 0 ошибок, `ng test` 39/447, `ng build --configuration dev` чисто; в живом приложении (`localhost:4200/metrics`, Chrome) прогнаны: дашборд, переключение сервиса (SCB4), раскрытие карточки (полноширинный график, кнопка «свернуть все»), прокрутка (карточки при появлении рисуются, тень sticky-шапки), перезагрузка (45/45 карточек нарисованы). Ошибок в консоли не поймано, но запись консоли стартует с первого вызова, поэтому ошибки при загрузке страницы этим прогоном не покрыты
-- ⭕ Ручной прогон метрик пользователем (hover-кроссхейр, режимы M/H/D, настройки, мобильная ширина)
-
+- ✅ Ручной прогон метрик пользователем (24.10.2026): всё работает
 ### Блок 2 — Деньги
-- ⭕ Сервисы раздела на `@Service()` (`money`, `money-compute`)
-- ⭕ Формы (12 файлов: categories, organizations, currencies, accounts, transactions, assets) — подготовить к Signal Forms; фактический перевод ждёт общих контролов ui-kit (см. Блок 5)
-- ⭕ Мутации (~25 `subscribe` в формах и списках: create/update/delete) → `async` + `firstValueFrom`, по критерию выше
-- ⭕ `money.service`: начальный GET snapshot — оценить `httpResource`/`rxResource`, учитывая local-first кэш
-- ⭕ Остаточные `ngClass`/`ngStyle`, если найдутся в разделе
-- ⭕ Ручной прогон денег пользователем
+- ✅ Сервисы раздела на `@Service()` (`money`, `money-compute`); в `money.service` конструкторная инъекция (`HttpClient`, `SyncEngineService`) → `inject()`
+- ✅ Мутации справочников (валюты, категории, организации, счета, активы — по 3 метода) → `async`/`Promise<boolean>` через один приватный хелпер `send()` с `firstValueFrom`; ~15 копий `pipe(map, catchError)` схлопнуты. Вызовы в формах и списках: `if (await …) savedOutput.emit()`, удаление — `void …`
+- ✅ Транзакции и переводы (create/update/delete/transfer) — оптимистичные через sync engine, ничего асинхронного не возвращали (`of(true)`) → методы стали `void`, в `transaction-form` и `transactions-list` убраны `subscribe`
+- ✅ Удалён мёртвый `requestResult$` (Subject, в нём только `next`, подписчиков во всём проекте нет) и закомментированный отладочный код в конструкторе `money.service`
+- ✅ Начальный GET snapshot: `subscribe` → `async` `fetchSnapshot` с `firstValueFrom` и `try/catch`. `httpResource` — **отказ**: снапшот грузится императивно при каждом входе на экран, мёржится с очередью несохранённых транзакций и кэшем и раскладывается в 7 сигналов; ресурсу пришлось бы писать их через `effect`, это лишний слой
+- ✅ Конструкторная инъекция `moneyService` → `inject()` в `category-form`, `organization-form`, `currency-form`, `account-form`
+- ✅ `subscribe` в `transactions-list` (горячая клавиша N через `keyboardService.shortcut$`) оставлен: поток событий, с `takeUntilDestroyed`
+- ✅ `ngClass`/`ngStyle`, `@Input`/`@Output`, `Eager`, `standalone: true` в разделе не встречаются — трогать нечего
+- ⭕ Формы (12 файлов) — к Signal Forms готовы как есть (сигналы — источник правды, `ngModel` лишь мост); фактический перевод ждёт общих контролов ui-kit (Блок 5)
+- ✅ Проверки: `tsc` (app, spec) 0 ошибок, `ng test` 39/447, `ng build --configuration dev` чисто. В браузере (`localhost:4200/money`) проверены загрузка snapshot (балансы, транзакции, три графика), вкладка Setup со списками, открытие и отмена формы «New Organization». Создание/изменение/удаление в браузере **не** проверялись: данные на экране похожи на реальные финансы
+- ✅ Ручной прогон денег пользователем (24.10.2026): справочник создать → изменить → удалить → F5, транзакция создать → изменить → удалить, обрыв сети (форма не закрывается, запись не появляется, после возврата сети сохраняется) — всё работает. Перевод между счетами и остальные справочники отдельно не прогонялись: идут тем же кодом
 
 ### Блок 3 — Настройки, auth, навигация, уведомления
 - ⭕ `Eager` → `OnPush` на компонентах раздела (настройки 2, auth 1, навигация 1, уведомления 1) с проверкой, что всё состояние идёт через сигналы

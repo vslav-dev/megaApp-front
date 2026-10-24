@@ -67,6 +67,7 @@ export class CategoryForm {
   protected readonly PaletteLimits = PALETTE_LIMITS;
 
   private readonly chartThemeService = inject(ChartThemeService);
+  private readonly moneyService = inject(MoneyService);
   private readonly moneyComputeService = inject(MoneyComputeService);
 
   // A category that transactions use keeps its type: the server rejects a change.
@@ -154,7 +155,7 @@ export class CategoryForm {
     this.saturationTrack(this.paletteDefault$$().lightness),
   );
 
-  constructor(private moneyService: MoneyService) {
+  constructor() {
     effect(() => {
       const currentCategory = this.categoryInput();
       if (currentCategory) {
@@ -190,7 +191,7 @@ export class CategoryForm {
     });
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     if (!this.name$$() || !this.categoryType$$()) return;
 
     this.savePaletteDraft();
@@ -208,17 +209,13 @@ export class CategoryForm {
     const currentCategory = this.categoryInput();
     if (currentCategory?.id) {
       categoryData.id = currentCategory.id;
-      this.moneyService.updateCategory(categoryData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.updateCategory(categoryData)) {
+        this.savedOutput.emit();
+      }
     } else {
-      this.moneyService.createCategory(categoryData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.createCategory(categoryData)) {
+        this.savedOutput.emit();
+      }
     }
   }
 
