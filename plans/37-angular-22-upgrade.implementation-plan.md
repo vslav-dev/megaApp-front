@@ -246,11 +246,15 @@
 
 ### Блок 1 — Метрики
 Малый по объёму: компоненты уже `OnPush`, форм и легаси-декораторов нет.
-- ⭕ Сервисы раздела: `@Injectable({ providedIn: 'root' })` → `@Service()` (`metrics`, `metrics-health`, `metrics-settings`, `metric-card-expansion`)
-- ⭕ `metric-card-grid` и `metric-chart-card`: конструкторная инъекция `ElementRef` → `inject()`
-- ⭕ Оценить `@defer` для `metric-chart-card` в дашборде (тяжёлый компонент вместе с chart.js)
-- ⭕ Оценить `device-info` (подписка на `resize` → сигнал): кандидат на упрощение, не обязательный
-- ⭕ Ручной прогон метрик пользователем
+- ✅ Сервисы раздела: `@Injectable({ providedIn: 'root' })` → `@Service()` (`metrics`, `metrics-health`, `metrics-settings`, `metric-card-expansion`) — 24.10.2026
+- ✅ `metric-card-grid` и `metric-chart-card`: конструкторная инъекция `ElementRef` → `inject()`, конструкторы удалены
+- ✅ `metrics-dashboard.html`: `@let` для повторяющегося `isServiceExpanded(...)` в шапке (кнопка Dashboard и цикл по сервисам)
+- ✅ `@defer` для карточек — **отказ**: маршрут метрик уже ленивый (`loadComponent`), всё содержимое страницы — карточки; `@defer` лишь сдвинул бы chart.js на один кадр, добавив мигание/сдвиг вёрстки ради раздела для админов. Карточки и так гейтятся `IntersectionObserver`
+- ✅ `window:scroll` через `host` вместо ручных `addEventListener`/`removeEventListener` в `metrics-dashboard` — **отказ**: host-listener помечает компонент грязным на каждый scroll-event и перепроверяет большой шаблон; ручной слушатель пишет сигнал только при смене `scrollY > 0`, под zoneless это точнее
+- ✅ `device-info` (resize → сигнал) — **перенесён в Блок 5**: сервис общий для всех разделов, не метрик
+- ✅ `ResizeObserver`/`IntersectionObserver` и `ngOnInit`/`ngOnDestroy` в компонентах метрик оставлены: нужна синхронная начальная замеровка после вставки в DOM, замена на `afterNextRender` не даёт выигрыша
+- ✅ Проверки: `tsc` (app, spec) 0 ошибок, `ng test` 39/447, `ng build --configuration dev` чисто; в живом приложении (`localhost:4200/metrics`, Chrome) прогнаны: дашборд, переключение сервиса (SCB4), раскрытие карточки (полноширинный график, кнопка «свернуть все»), прокрутка (карточки при появлении рисуются, тень sticky-шапки), перезагрузка (45/45 карточек нарисованы). Ошибок в консоли не поймано, но запись консоли стартует с первого вызова, поэтому ошибки при загрузке страницы этим прогоном не покрыты
+- ⭕ Ручной прогон метрик пользователем (hover-кроссхейр, режимы M/H/D, настройки, мобильная ширина)
 
 ### Блок 2 — Деньги
 - ⭕ Сервисы раздела на `@Service()` (`money`, `money-compute`)

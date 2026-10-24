@@ -1,5 +1,5 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { effect, inject, Injectable, Signal, signal, untracked, WritableSignal } from '@angular/core';
+import { effect, inject, Service, Signal, signal, untracked, WritableSignal } from '@angular/core';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
 import { IndexedDbCacheService } from '@app/services/indexed-db-cache.service';
 import { MetricsBinaryFrameType, NetworkService } from '@app/services/network.service';
@@ -58,9 +58,7 @@ interface SeriesBuffer {
   readonlyPointsSignal: Signal<MetricPoint[]>;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class MetricsService {
   public readonly isRefreshing$$ = signal(false);
 

@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Service, computed, inject, signal } from '@angular/core';
 import { MetricsSettingsService } from '@app/services/metrics-settings.service';
 import { MetricsBinaryFrameType, NetworkService } from '@app/services/network.service';
 import { DEFAULT_SEVERITY_THRESHOLDS, SeverityThresholds } from '@app/shared/metrics-severity';
@@ -8,9 +8,7 @@ import { MetricsHealthSeverity, ServiceHealth, ServiceLatest } from '@app/shared
 const SEVERITY_RANK: Record<MetricsHealthSeverity, number> = { ok: 0, warn: 1, error: 2 };
 const NOW_TICK_INTERVAL_MS = 30_000;
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class MetricsHealthService {
   public readonly services$$ = computed<ServiceHealth[]>(() => {
     const nowSeconds = Math.floor(this.now$$() / 1000);

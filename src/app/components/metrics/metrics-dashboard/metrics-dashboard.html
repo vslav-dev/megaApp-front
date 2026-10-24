@@ -4,17 +4,19 @@
        [class]="stickyBarClasses$$()"
        [style.background-color]="deviceInfoService.isDesktopScreen$$() ? 'var(--v-color-bg)' : null">
     <div class="flex flex-wrap flex-initial min-w-0 gap-2">
-      <v-button [class.v-primary]="isServiceExpanded(dashboardPanelKey)"
-                [surface]="isServiceExpanded(dashboardPanelKey) ? 'raised' : 'flat'"
+      @let isDashboardExpanded = isServiceExpanded(dashboardPanelKey);
+      <v-button [class.v-primary]="isDashboardExpanded"
+                [surface]="isDashboardExpanded ? 'raised' : 'flat'"
                 (onClick)="toggleServiceExpanded(dashboardPanelKey)">
         Dashboard
       </v-button>
 
       @if (!deviceInfoService.isMobileScreen$$()) {
         @for (entry of headerEntries$$(); track entry.service) {
+          @let isEntryExpanded = isServiceExpanded(entry.service);
           @if (entry.isComposite) {
-            <v-button [class.v-primary]="isServiceExpanded(entry.service)"
-                      [surface]="isServiceExpanded(entry.service) ? 'raised' : 'flat'"
+            <v-button [class.v-primary]="isEntryExpanded"
+                      [surface]="isEntryExpanded ? 'raised' : 'flat'"
                       (onClick)="toggleServiceExpanded(entry.service)">
               @if (hasHoverExpandableServiceLabel(entry.service)) {<span
                       class="header-label-short">{{ resolvedServiceShortLabel(entry.service) }}</span><span
@@ -24,7 +26,7 @@
             </v-button>
           } @else {
             <v-button class="v-primary"
-                      [surface]="isServiceExpanded(entry.service) ? 'raised' : 'flat'"
+                      [surface]="isEntryExpanded ? 'raised' : 'flat'"
                       [color]="sectionButtonColor(entry.service)"
                       (onClick)="toggleServiceExpanded(entry.service)">
               @if (hasHoverExpandableServiceLabel(entry.service)) {<span
