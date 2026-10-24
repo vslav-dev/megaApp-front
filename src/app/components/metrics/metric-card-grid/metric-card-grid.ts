@@ -23,6 +23,10 @@ import { MetricChartCard } from '../metric-chart-card/metric-chart-card';
 
 export interface MetricChartCardSeriesDisplay {
   series: MetricSeriesPoint[];
+  // What the Y-axis range and the header's high/low are measured on — always the raw points of
+  // the granularity, never the display-collapsed ones, so the fitted 5-minute card and the
+  // full-width minute chart of one metric show the same floor and ceiling.
+  scalePoints: MetricSeriesPoint[];
   windowStartBucket: number;
   windowEndBucket: number;
   displayStepSeconds: number;

@@ -64,8 +64,8 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
   // Chart.js caches a scale's resolved grid/border/ticks color internally — mutating
   // chart.data and calling chart.update('none') doesn't reliably repaint it after a theme
   // toggle (see the identical comment/fix in food-stats-charts.ts). Recreating the chart
-  // whenever the ChartColors reference changes sidesteps it; plain data updates stay a
-  // cheap in-place mutation.
+  // whenever the theme (light/dark) changes sidesteps it; plain data updates, including a new
+  // category palette, stay a cheap in-place mutation.
   private lastColors: ChartColors | null = null;
 
   private yearBoundaries: { year: string; startIdx: number; endIdx: number }[] = [];
@@ -169,7 +169,7 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
       'money.balance_chart_render',
       () => {
         let chart = this.chart$$();
-        if (chart && colors !== this.lastColors) {
+        if (chart && colors.isDark !== this.lastColors?.isDark) {
           chart.destroy();
           chart = this.createChart(colors);
           this.chart$$.set(chart);

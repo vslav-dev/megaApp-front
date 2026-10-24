@@ -58,7 +58,7 @@
       <div v-header
            #diaryEntryHeader
            class="v-theme-transition relative p-2"
-           [ngStyle]="setBackgroundStyle(food.foodKcalPercentageOfDaysNorm)">
+           [ngStyle]="setBackgroundStyle(getFillPercent(food), food.isFoodArchived)">
 
         @if (foodCatalogueService.getSquircleImageUrl(food.foodCatalogueId); as squircleImageUrl) {
           <img [src]="squircleImageUrl"

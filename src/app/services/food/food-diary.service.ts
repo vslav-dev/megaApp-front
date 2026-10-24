@@ -95,6 +95,20 @@ export class FoodDiaryService extends BaseFoodService {
     weight: number;
   } | null> = signal(null);
 
+  // The share of the day's norm that the entry being edited would have with its unsaved draft
+  // weight, so that entry's own row fill follows the edit live (the entry itself stays unchanged
+  // until saved). Null for a new entry (add-form) — it has no row yet.
+  public readonly draftEntryPercent$$: Signal<{ diaryId: number; percent: number } | null> = computed(() => {
+    const draft = this.draftEntryWeight$$();
+    if (!draft || draft.diaryId === null) return null;
+
+    const totals = this.diary$$()[draft.dateISO]?.totals;
+    if (!totals) return null;
+
+    const kcals = this.estimateEntryKcalsNow(draft.foodCatalogueId, draft.weight);
+    return { diaryId: draft.diaryId, percent: this.calculatePercentage(kcals, totals.targetKcals) };
+  });
+
   public readonly diaryEntryFocusId$$: WritableSignal<number | null> = signal(null);
   public readonly diaryEntryResetId$$: WritableSignal<number | null> = signal(null);
 
@@ -633,6 +647,7 @@ export class FoodDiaryService extends BaseFoodService {
         const formattedEntry: DiaryEntryWithFullData = {
           ...entry,
           foodName: catalogue[entry.foodCatalogueId]?.name || '',
+          isFoodArchived: Boolean(catalogue[entry.foodCatalogueId]?.archived),
           foodKcals: kcals,
           foodPercent: this.formatPercentage(percentage),
           foodKcalPercentageOfDaysNorm: percentage,

@@ -20,11 +20,11 @@ import {
   ReactiveFormsModule,
   ValidationErrors,
   ValidatorFn,
-  Validators,
 } from '@angular/forms';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
+import { evaluateWholeAmount } from '@app/shared/amount-expression';
 import { DiaryEntry, HistoryEntry, HistoryEntryAction } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VExpand } from '@ui-kit/components/v-expand/v-expand';
@@ -84,9 +84,10 @@ export class DiaryEntryEditForm implements OnChanges, OnDestroy {
   private readonly foodWeightInitial$$: WritableSignal<number> = signal(0);
 
   // The user's in-progress, unsubmitted draft — set only from onNewWeightInput/onChangeWeightInput
-  // and the reset handlers below, mutually exclusive (setting one clears the other).
+  // and the reset handlers below, mutually exclusive (setting one clears the other). Both hold
+  // the evaluated number, null while the input is empty or not yet a valid expression.
   private readonly foodWeightDraftNew$$: WritableSignal<number | null> = signal(null);
-  private readonly foodWeightDraftChangeRaw$$: WritableSignal<string | null> = signal(null);
+  private readonly foodWeightDraftChange$$: WritableSignal<number | null> = signal(null);
 
   protected readonly foodWeightFinal$$ = computed(() => this.computeFoodWeightFinal());
   protected readonly foodWeightFinalDisplay$$ = computed(() => `${this.foodWeightFinal$$()}г.`);
@@ -114,30 +115,31 @@ export class DiaryEntryEditForm implements OnChanges, OnDestroy {
     );
   });
 
-  private newWeightPattern = /^(?!0+$)\d+$/; // Digits only, but not zero
-  private editWeightPattern = /^[-+]?\d*$/; // Digits only with or without a plus or a minus
-
-  private positiveResultValidator(): ValidatorFn {
-    return (control: AbstractControl): ValidationErrors | null => {
+  // Both inputs take a number or an expression like "80*2" (see evaluateWholeAmount); empty is valid.
+  private newWeightValidator(): ValidatorFn {
+    return (control: AbstractControl<string | null>): ValidationErrors | null => {
       if (!control.value) return null;
-      const rawValue = String(control.value);
-      if (rawValue === '-' || rawValue === '+') return null;
 
-      const changeValue = parseInt(rawValue);
-      if (!Number.isFinite(changeValue)) return null;
+      const newWeight = evaluateWholeAmount(control.value);
+      return newWeight !== null && newWeight > 0 ? null : { weightExpression: true };
+    };
+  }
 
-      const newWeight = this.foodWeightInitial$$() + changeValue;
-      return newWeight > 0 ? null : { negativeResult: true };
+  private changeWeightValidator(): ValidatorFn {
+    return (control: AbstractControl<string | null>): ValidationErrors | null => {
+      if (!control.value) return null;
+
+      const changeValue = evaluateWholeAmount(control.value);
+      if (changeValue === null) return { weightExpression: true };
+
+      return this.foodWeightInitial$$() + changeValue > 0 ? null : { negativeResult: true };
     };
   }
 
   protected diaryEntryForm = new FormGroup<DiaryEntryFormModel>({
     id: new FormControl(0, { nonNullable: true }),
-    foodWeightNew: new FormControl<string | null>(null, [Validators.pattern(this.newWeightPattern)]),
-    foodWeightChange: new FormControl<string | null>(null, [
-      Validators.pattern(this.editWeightPattern),
-      this.positiveResultValidator(),
-    ]),
+    foodWeightNew: new FormControl<string | null>(null, [this.newWeightValidator()]),
+    foodWeightChange: new FormControl<string | null>(null, [this.changeWeightValidator()]),
   });
 
   protected get foodWeightNewControl() {
@@ -189,30 +191,23 @@ export class DiaryEntryEditForm implements OnChanges, OnDestroy {
 
   protected isFormValid(): boolean {
     if (!this.diaryEntryForm.valid) return false;
-    if (this.foodWeightNewControl.value === '') return false;
-    if (this.foodWeightChangeControl.value === '') return false;
 
-    const weightIfNew = this.foodWeightNewControl.value;
-    const weightIfChange = this.foodWeightChangeControl.value;
-
-    const nextWeightIfNew = weightIfNew !== null ? parseInt(weightIfNew) : null;
-    const nextWeightIfChange = weightIfChange !== null ? parseInt(weightIfChange) : null;
+    const nextWeightIfNew = evaluateWholeAmount(this.foodWeightNewControl.value);
+    const nextWeightIfChange = evaluateWholeAmount(this.foodWeightChangeControl.value);
 
     const hasValidChange =
-      (nextWeightIfNew !== null &&
-        Number.isFinite(nextWeightIfNew) &&
-        this.foodWeightInitial$$() !== nextWeightIfNew) ||
-      (nextWeightIfChange !== null && Number.isFinite(nextWeightIfChange) && nextWeightIfChange !== 0);
+      (nextWeightIfNew !== null && this.foodWeightInitial$$() !== nextWeightIfNew) ||
+      (nextWeightIfChange !== null && nextWeightIfChange !== 0);
 
     return hasValidChange && this.foodWeightFinal$$() > 0;
   }
 
   protected onNewWeightInput() {
     this.foodWeightChangeControl.setValue(null);
-    this.foodWeightDraftChangeRaw$$.set(null);
+    this.foodWeightDraftChange$$.set(null);
 
-    const newWeight = this.diaryEntryForm.controls.foodWeightNew.value;
-    this.foodWeightDraftNew$$.set(this.newWeightPattern.test(String(newWeight)) ? parseInt(String(newWeight)) : null);
+    const newWeight = evaluateWholeAmount(this.foodWeightNewControl.value);
+    this.foodWeightDraftNew$$.set(newWeight !== null && newWeight > 0 ? newWeight : null);
     this.syncDraftWithService();
   }
 
@@ -225,26 +220,19 @@ export class DiaryEntryEditForm implements OnChanges, OnDestroy {
   protected onChangeWeightInput() {
     this.diaryEntryForm.controls.foodWeightNew.setValue(null);
     this.foodWeightDraftNew$$.set(null);
-    this.foodWeightDraftChangeRaw$$.set(this.foodWeightChangeControl.value);
+    this.foodWeightDraftChange$$.set(evaluateWholeAmount(this.foodWeightChangeControl.value));
     this.syncDraftWithService();
   }
 
   protected onWeightChangeResetClick(): void {
     this.foodWeightChangeControl.setValue(null);
-    this.foodWeightDraftChangeRaw$$.set(null);
+    this.foodWeightDraftChange$$.set(null);
     this.syncDraftWithService();
   }
 
   public async onSubmit(): Promise<void> {
-    const weightIfChangeRaw = this.foodWeightChangeControl.value;
-    const weightIfSetRaw = this.diaryEntryForm.controls.foodWeightNew.value;
-
-    const weightIfChangeParsed = weightIfChangeRaw !== null ? parseInt(weightIfChangeRaw) : null;
-    const weightIfSetParsed = weightIfSetRaw !== null ? parseInt(weightIfSetRaw) : null;
-
-    const weightIfChange =
-      weightIfChangeParsed !== null && Number.isFinite(weightIfChangeParsed) ? weightIfChangeParsed : null;
-    const weightIfSet = weightIfSetParsed !== null && Number.isFinite(weightIfSetParsed) ? weightIfSetParsed : null;
+    const weightIfChange = evaluateWholeAmount(this.foodWeightChangeControl.value);
+    const weightIfSet = evaluateWholeAmount(this.foodWeightNewControl.value);
 
     const foodWeight = weightIfChange ?? (weightIfSet !== null ? weightIfSet - this.foodWeightInitial$$() : 0);
 
@@ -253,7 +241,7 @@ export class DiaryEntryEditForm implements OnChanges, OnDestroy {
     if (weightIfChange === null) {
       this.historyAction = HistoryEntryAction.SET;
     } else {
-      this.historyAction = weightIfChangeRaw!.includes('-') ? HistoryEntryAction.SUBTRACT : HistoryEntryAction.ADD;
+      this.historyAction = weightIfChange < 0 ? HistoryEntryAction.SUBTRACT : HistoryEntryAction.ADD;
     }
 
     const history: HistoryEntry = { action: this.historyAction, value: historyValue };
@@ -363,28 +351,19 @@ export class DiaryEntryEditForm implements OnChanges, OnDestroy {
     if (draftNew !== null) return draftNew;
 
     const base = this.foodWeightInitial$$();
-    const draftChangeRaw = this.foodWeightDraftChangeRaw$$();
+    const draftChange = this.foodWeightDraftChange$$();
 
-    if (draftChangeRaw === null || draftChangeRaw === '' || draftChangeRaw === '-' || draftChangeRaw === '+') {
-      // Intermediate input state: fall back to the base weight to keep UI consistent.
-      return base;
-    }
+    // Empty or unfinished input (e.g. "-" or "50*") has no draft: fall back to the base weight.
+    if (draftChange === null) return base;
 
-    const changeValue = parseInt(draftChangeRaw);
-    if (!Number.isFinite(changeValue) || !this.editWeightPattern.test(draftChangeRaw)) {
-      // Invalid or pattern-mismatched input: fall back to the base weight.
-      return base;
-    }
-
-    const newWeight = base + changeValue;
-    return newWeight > 0 ? newWeight : 0; // Prevent non-positive result.
+    return Math.max(base + draftChange, 0); // Prevent non-positive result.
   }
 
   private resetForm(): void {
     this.foodWeightNewControl.setValue(null);
     this.foodWeightChangeControl.setValue(null);
     this.foodWeightDraftNew$$.set(null);
-    this.foodWeightDraftChangeRaw$$.set(null);
+    this.foodWeightDraftChange$$.set(null);
     this.syncDraftWithService();
   }
 

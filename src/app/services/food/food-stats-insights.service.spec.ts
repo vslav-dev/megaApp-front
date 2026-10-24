@@ -10,7 +10,7 @@ function chartData(overrides: Partial<StatsChartData> = {}): StatsChartData {
     weights: [],
     weightsAvg: [],
     kcalsFactual: [],
-    kcalsVirtual: [],
+    kcalsSelected: [],
     kcalsTarget: [],
     hasNoData: [],
     ...overrides,

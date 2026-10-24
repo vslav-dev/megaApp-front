@@ -5,21 +5,22 @@ import { IndexedDbCacheService } from '@app/services/indexed-db-cache.service';
 import { MetricsBinaryFrameType, NetworkService } from '@app/services/network.service';
 import { NotificationService } from '@app/services/notification.service';
 import { TelemetryService } from '@app/services/telemetry.service';
-import { METRICS_GRANULARITY_STEP_SECONDS, METRICS_GRANULARITY_WINDOW_PERIODS } from '@app/shared/chart-config';
+import { METRIC_GRANULARITIES, METRIC_GRANULARITY_SPECS } from '@app/shared/metrics-granularity';
 import {
   emptyMetricsCursorMap,
   emptyMetricsHistoryWatermarks,
   latestClosedHistoryBucket,
-  METRIC_GRANULARITIES,
   metricCursorKey,
   MetricsCursorMap,
   MetricsHistoryWatermarks,
   nextHistorySinceBucket,
   parseMetricsCursorMap,
+  splitScopeIntoBatches,
 } from '@app/shared/metrics-history-range';
 import { MetricRingBuffer, MetricRingBufferSnapshot } from '@app/shared/metrics-ring-buffer';
 import { decodeMetricsWireToPoints } from '@app/shared/metrics-wire';
 import { MetricGranularity, MetricPoint, MetricsScopeEntry, WebSocketMessageType } from '@app/shared/types';
+import { concatMap, from, map, Observable, reduce } from 'rxjs';
 
 const CURSORS_STORAGE_KEY = 'metrics_history_cursors';
 const CACHE_WRITE_DELAY_MS = 1_000;
@@ -229,10 +230,7 @@ export class MetricsService {
   // the SAME signal instance notifies that computed correctly.
   private resetAllState(): void {
     for (const entry of this.buffers.values()) {
-      entry.buffer = new MetricRingBuffer(
-        METRICS_GRANULARITY_WINDOW_PERIODS[entry.granularity],
-        METRICS_GRANULARITY_STEP_SECONDS[entry.granularity],
-      );
+      entry.buffer = this.createBuffer(entry.granularity);
       entry.pointsSignal.set([]);
     }
     this.knownServicesInternal.clear();
@@ -262,8 +260,14 @@ export class MetricsService {
     const scope = this.currentScope$$();
     if (!scope) return;
 
-    const request = this.buildHistoryRequest(scope, showNotification);
-    if (!request) return;
+    // One request per batch of metrics, each floored by its own neediest metric — a request's
+    // cost on the server is bounded by the batch, not by the scope (see splitScopeIntoBatches).
+    // Cursors advance batch by batch, so a failure part-way keeps everything already fetched
+    // and the next attempt resumes at the batch that failed.
+    const requests = splitScopeIntoBatches(scope)
+      .map((batch) => this.buildHistoryRequest(batch, showNotification))
+      .filter((request): request is MetricsHistoryRequest => request !== null);
+    if (requests.length === 0) return;
 
     this.isRefreshing$$.set(true);
     if (showNotification) {
@@ -276,40 +280,20 @@ export class MetricsService {
       });
     }
 
-    const body: MetricsHistoryRequestBody = {
-      minuteSince: request.since.minute,
-      hourSince: request.since.hour,
-      daySince: request.since.day,
-      scope: request.scope,
-    };
-
     const startedAt = performance.now();
-    this.http.post('/api/metrics/history', body, { responseType: 'arraybuffer' }).subscribe({
-      next: (response) => {
-        const points = decodeMetricsWireToPoints(response);
-        this.mergePoints(points, false, false);
-        // Advance every metric the request named, not only ones that appeared in the
-        // response — Flatline's response is authoritative for the whole requested
-        // range, so a metric absent from it genuinely had no points there, not "we
-        // didn't check". See §4.3 of the plan referenced above (safety condition).
-        for (const entry of request.scope) {
-          for (const name of entry.metricNames) {
-            const key = metricCursorKey(entry.service, name);
-            const cursor = this.historyCheckedThrough[key] ?? emptyMetricsHistoryWatermarks();
-            const next = { ...cursor };
-            for (const granularity of METRIC_GRANULARITIES) {
-              next[granularity] = Math.max(next[granularity], request.targets[granularity]);
-            }
-            this.historyCheckedThrough[key] = next;
-          }
-        }
+    const refresh$ = from(requests).pipe(
+      concatMap((request) => this.fetchHistoryBatch(request)),
+      reduce((total, batchPoints) => total + batchPoints, 0),
+    );
+    refresh$.subscribe({
+      next: (pointCount) => {
         this.retryAfterMs = 0;
         this.hasNotifiedHistoryError = false;
         this.isRefreshing$$.set(false);
-        this.scheduleCacheWrite();
         void this.telemetry.recordAfterPaint('metrics.history_refresh', startedAt, {
           trigger: showNotification ? 'manual' : 'automatic',
-          points: points.length,
+          points: pointCount,
+          batches: requests.length,
           retainedPoints: this.totalBufferedPointCount(),
         });
         if (showNotification) {
@@ -343,6 +327,40 @@ export class MetricsService {
         this.consumePendingHistoryRefresh();
       },
     });
+  }
+
+  // Resolves with the number of points the batch carried. Merging and cursor advance happen
+  // here, per batch, so progress survives a later batch failing.
+  private fetchHistoryBatch(request: MetricsHistoryRequest): Observable<number> {
+    const body: MetricsHistoryRequestBody = {
+      minuteSince: request.since.minute,
+      hourSince: request.since.hour,
+      daySince: request.since.day,
+      scope: request.scope,
+    };
+    return this.http.post('/api/metrics/history', body, { responseType: 'arraybuffer' }).pipe(
+      map((response) => {
+        const points = decodeMetricsWireToPoints(response);
+        this.mergePoints(points, false, false);
+        // Advance every metric the request named, not only ones that appeared in the
+        // response — Flatline's response is authoritative for the whole requested
+        // range, so a metric absent from it genuinely had no points there, not "we
+        // didn't check". See §4.3 of the plan referenced above (safety condition).
+        for (const entry of request.scope) {
+          for (const name of entry.metricNames) {
+            const key = metricCursorKey(entry.service, name);
+            const cursor = this.historyCheckedThrough[key] ?? emptyMetricsHistoryWatermarks();
+            const next = { ...cursor };
+            for (const granularity of METRIC_GRANULARITIES) {
+              next[granularity] = Math.max(next[granularity], request.targets[granularity]);
+            }
+            this.historyCheckedThrough[key] = next;
+          }
+        }
+        this.scheduleCacheWrite();
+        return points.length;
+      }),
+    );
   }
 
   // A refresh requested while the previous one was still in flight
@@ -395,15 +413,17 @@ export class MetricsService {
     const key = this.seriesKey(service, name, granularity);
     let entry = this.buffers.get(key);
     if (!entry) {
-      const buffer = new MetricRingBuffer(
-        METRICS_GRANULARITY_WINDOW_PERIODS[granularity],
-        METRICS_GRANULARITY_STEP_SECONDS[granularity],
-      );
+      const buffer = this.createBuffer(granularity);
       const pointsSignal = signal<MetricPoint[]>([]);
       entry = { service, name, granularity, buffer, pointsSignal, readonlyPointsSignal: pointsSignal.asReadonly() };
       this.buffers.set(key, entry);
     }
     return entry;
+  }
+
+  private createBuffer(granularity: MetricGranularity): MetricRingBuffer {
+    const { periods, stepSeconds } = METRIC_GRANULARITY_SPECS[granularity];
+    return new MetricRingBuffer(periods, stepSeconds);
   }
 
   // Reuses entryFor() rather than building its own SeriesBuffer — hydration runs async
@@ -416,11 +436,8 @@ export class MetricsService {
   // writing through its existing pointsSignal keeps that identity intact instead.
   private hydrateSeries(record: MetricSeriesRecord): void {
     if (!this.isValidGranularity(record.granularity)) return;
-    const buffer = MetricRingBuffer.fromSnapshot(
-      METRICS_GRANULARITY_WINDOW_PERIODS[record.granularity],
-      METRICS_GRANULARITY_STEP_SECONDS[record.granularity],
-      record.snapshot,
-    );
+    const { periods, stepSeconds } = METRIC_GRANULARITY_SPECS[record.granularity];
+    const buffer = MetricRingBuffer.fromSnapshot(periods, stepSeconds, record.snapshot);
     if (!buffer) return;
 
     const entry = this.entryFor(record.service, record.name, record.granularity);

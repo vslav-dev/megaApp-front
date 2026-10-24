@@ -49,7 +49,7 @@
                     (onChanged)="toggleCategory(series.categoryId, $event)">
           <span class="inline-flex items-center gap-1 text-xs">
             <span class="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                  [style.background]="getCategoryColor(series.categoryId, allSeriesList$$())"></span>
+                  [style.background]="getCategoryColor(series.categoryId)"></span>
             {{ series.categoryName }}
           </span>
         </v-checkbox>

@@ -14,16 +14,21 @@ import {
 import { StatsHelpIcon } from '@app/components/food/stats/stats-help-icon/stats-help-icon';
 import { ChartThemeService } from '@app/services/chart-theme.service';
 import { DeviceInfoService } from '@app/services/device-info.service';
+import { FoodProductHistoryStateService } from '@app/services/food/food-product-history-state.service';
+import { FoodSettingsService } from '@app/services/food/food-settings.service';
 import { FoodStatsService } from '@app/services/food/food-stats.service';
 import { TelemetryService } from '@app/services/telemetry.service';
 import { ANIMATION_DURATION_MS } from '@app/shared/animations';
+import { BmiBand, buildBmiBands } from '@app/shared/bmi-bands';
 import {
   ChartColors,
   FOOD_STATS_MONTH_LABELS_PADDING,
   MonthLabelsPluginOptions,
   createKcalsChartConfig,
   createWeightChartConfig,
+  selectedProductsColor,
 } from '@app/shared/chart-config';
+import { splitKcalsBySelection } from '@app/shared/stats-chart-data';
 import { StatsChartData } from '@app/shared/types';
 import { formatDateTicks, getRuDeclension } from '@app/shared/utils';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -64,6 +69,8 @@ Chart.register(
  * - The slider range and range buttons update start/end indices immediately; labels and day count are derived from those indices.
  * - Slider positions are based on the date index list to snap selection to existing days.
  * - Charts are updated from clipped datasets; updates are throttled with a trailing flush so the final fast-drag state is rendered.
+ * - Calories of the products tracked in the product history come as their own series (kcalsSelected, a part of
+ *   kcalsFactual) and are drawn as the base of the calorie bars; the rest of the day sits above it.
  * - Lite mode only toggles kcal axis ticks and tooltip visibility, without changing data.
  * - Charts are created once and then kept in sync through reactive updates.
  */
@@ -241,8 +248,14 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
     return this.dates$$().length - 1;
   });
 
+  protected readonly hasSelection$$ = computed(() => this.productHistoryState.hasSelection$$());
+  protected readonly selectedColor$$ = computed(() => selectedProductsColor(this.chartThemeService.colors$$()));
+  protected readonly restColor$$ = computed(() => this.chartThemeService.colors$$().main);
+
   protected readonly deviceInfoService = inject(DeviceInfoService);
+  private readonly productHistoryState = inject(FoodProductHistoryStateService);
   private readonly foodStatsService = inject(FoodStatsService);
+  private readonly foodSettingsService = inject(FoodSettingsService);
   private readonly telemetry = inject(TelemetryService);
   private readonly rangeAnimationDurationMs = ANIMATION_DURATION_MS.MEDIUM;
   private rangeAnimationFrameId: number | null = null;
@@ -254,9 +267,22 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
   // and sidesteps the stale-repaint issue entirely; plain data updates stay a cheap mutation.
   private lastChartColors: ChartColors | null = null;
 
+  // Bands last handed to the weight chart's plugin options. They change only with height, the
+  // diary toggle or the theme, not on every slider-drag data update — and a freshly (re)created
+  // chart has none yet, hence the reset in initializeCharts().
+  private appliedBmiBands: BmiBand[] | null = null;
+
+  // No height or the diary toggle off — no bands; the weight chart then looks as it always did.
+  private readonly bmiBands$$ = computed(() => {
+    const height = this.foodSettingsService.height$$();
+    if (!height || !this.foodSettingsService.statsWeightBmiBands$$()) return [];
+    return buildBmiBands(height, this.chartThemeService.colors$$().isDark);
+  });
+
   private readonly chartsUpdateEffect = effect(() => {
     const data = this.foodStatsService.statsChartDataClipped$$();
     const colors = this.chartThemeService.colors$$();
+    const bmiBands = this.bmiBands$$();
     this.telemetry.measure(
       'food.stats_charts_render',
       () => {
@@ -264,7 +290,7 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
           this.lastChartColors = colors;
           this.recreateCharts(colors);
         }
-        this.updateWeightChart(data, colors);
+        this.updateWeightChart(data, colors, bmiBands);
         this.updateKcalsChart(data, colors);
       },
       () => ({ points: data.dates.length }),
@@ -324,9 +350,14 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
     this.animateRangeTo(targetRange);
   }
 
-  private updateWeightChart(data: StatsChartData, colors: ChartColors) {
+  private updateWeightChart(data: StatsChartData, colors: ChartColors, bmiBands: BmiBand[]) {
     const chart = this.weightChart$$();
     if (chart?.data) {
+      if (bmiBands !== this.appliedBmiBands) {
+        chart.options.plugins ??= {};
+        chart.options.plugins.bmiBands = { bands: bmiBands };
+        this.appliedBmiBands = bmiBands;
+      }
       chart.data.labels = data.dates;
       chart.data.datasets[0].data = data.weights;
       chart.data.datasets[0].borderColor = colors.main;
@@ -338,16 +369,20 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  // The bar is the tracked products' calories (base) plus the rest of the day in the chart's main color.
   private updateKcalsChart(data: StatsChartData, colors: ChartColors) {
     const chart = this.kcalsChart$$();
     if (chart?.data) {
+      const selectedColor = selectedProductsColor(colors);
+      const kcals = splitKcalsBySelection(data.kcalsFactual, data.kcalsSelected);
+
       chart.data.labels = data.dates;
-      chart.data.datasets[0].data = data.kcalsFactual;
-      chart.data.datasets[0].borderColor = colors.main;
-      chart.data.datasets[0].backgroundColor = colors.main;
-      chart.data.datasets[1].data = data.kcalsVirtual;
-      chart.data.datasets[1].borderColor = colors.virtual;
-      chart.data.datasets[1].backgroundColor = colors.virtual;
+      chart.data.datasets[0].data = kcals.selected;
+      chart.data.datasets[0].borderColor = selectedColor;
+      chart.data.datasets[0].backgroundColor = selectedColor;
+      chart.data.datasets[1].data = kcals.rest;
+      chart.data.datasets[1].borderColor = colors.main;
+      chart.data.datasets[1].backgroundColor = colors.main;
       chart.data.datasets[2].data = data.kcalsTarget;
       chart.data.datasets[2].borderColor = colors.secondary;
       chart.data.datasets[2].backgroundColor = colors.secondary;
@@ -565,6 +600,7 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
 
   private initializeCharts(colors: ChartColors): void {
     this.monthLabelsOptions = this.chartThemeService.monthLabelsOptions$$();
+    this.appliedBmiBands = null;
     this.weightChart$$.set(new Chart('WeightChart', this.createChartConfig(createWeightChartConfig(colors))));
     this.kcalsChart$$.set(new Chart('KcalsChart', this.createChartConfig(createKcalsChartConfig(colors))));
   }

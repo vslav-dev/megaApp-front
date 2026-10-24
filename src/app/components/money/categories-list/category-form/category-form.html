@@ -12,6 +12,7 @@
                 [placeholder]="'Select type'"
                 [items]="categoryTypeItems()"
                 [isRequired]="true"
+                [isDisabled]="isTypeLocked$$()"
                 [ngModel]="categoryType$$()"
                 (ngModelChange)="categoryType$$.set($event); onCategoryTypeChange()"></v-dropdown>
 
@@ -21,6 +22,107 @@
                 [items]="parentCategoryItems()"
                 [ngModel]="parentId$$()"
                 (ngModelChange)="parentId$$.set($event)"></v-dropdown>
+  </div>
+
+  <v-checkbox [value]="hiddenOnCharts$$()"
+              [size]="5"
+              [gap]="2"
+              [checkIconSize]="4"
+              (onChanged)="hiddenOnCharts$$.set($event)">
+    <span class="text-sm">Hide on charts</span>
+  </v-checkbox>
+
+  <div class="flex flex-col gap-3">
+    <span class="text-sm text-gray-400">Chart color</span>
+
+    <div class="flex h-8 overflow-hidden rounded-sm">
+      @for (segment of previewSegments$$(); track segment.id) {
+        <span class="h-full"
+              [attr.title]="segment.name"
+              [style.flex]="segment.flex"
+              [style.background]="segment.color"
+              [style.box-shadow]="segment.boxShadow"></span>
+      }
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-sm">Color</span>
+        <v-button surface="flat"
+                  [class.v-primary]="hue$$() === null"
+                  [padding]="1"
+                  (onClick)="hue$$.set(null)">Auto</v-button>
+      </div>
+      <v-slider [min]="0"
+                [max]="360"
+                [value]="hueSliderValue$$()"
+                [trackColor]="hueTrackGradient$$()"
+                fillColor="transparent"
+                [style.opacity]="hueOpacity$$()"
+                (valueChange)="onHueChange($event)" />
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-sm">Lightness: {{ lightnessValue$$() }}%</span>
+        <v-button surface="flat"
+                  [class.v-primary]="lightness$$() === null"
+                  [padding]="1"
+                  (onClick)="lightness$$.set(null)">Default</v-button>
+      </div>
+      <v-slider [min]="PaletteLimits.lightness.min"
+                [max]="PaletteLimits.lightness.max"
+                [value]="lightnessValue$$()"
+                [trackColor]="lightnessTrackGradient$$()"
+                fillColor="transparent"
+                [style.opacity]="lightnessOpacity$$()"
+                (valueChange)="onLightnessChange($event)" />
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-sm">Saturation: {{ saturationValue$$() }}%</span>
+        <v-button surface="flat"
+                  [class.v-primary]="saturation$$() === null"
+                  [padding]="1"
+                  (onClick)="saturation$$.set(null)">Default</v-button>
+      </div>
+      <v-slider [min]="PaletteLimits.saturation.min"
+                [max]="PaletteLimits.saturation.max"
+                [value]="saturationValue$$()"
+                [trackColor]="saturationTrackGradient$$()"
+                fillColor="transparent"
+                [style.opacity]="saturationOpacity$$()"
+                (valueChange)="onSaturationChange($event)" />
+    </div>
+
+    <div class="flex items-center justify-between">
+      <span class="text-sm text-gray-400">Default for all chart colors, {{ themeLabel$$() }} theme</span>
+      <v-button surface="flat"
+                [isDisabled]="isPaletteDefaultUntouched$$()"
+                [padding]="1"
+                (onClick)="resetPaletteDefault()">Reset</v-button>
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <span class="text-sm">Lightness: {{ paletteDefault$$().lightness }}%</span>
+      <v-slider [min]="PaletteLimits.lightness.min"
+                [max]="PaletteLimits.lightness.max"
+                [value]="paletteDefault$$().lightness"
+                [trackColor]="paletteLightnessTrackGradient$$()"
+                fillColor="transparent"
+                (valueChange)="onPaletteLightnessChange($event)" />
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <span class="text-sm">Saturation: {{ paletteDefault$$().saturation }}%</span>
+      <v-slider [min]="PaletteLimits.saturation.min"
+                [max]="PaletteLimits.saturation.max"
+                [value]="paletteDefault$$().saturation"
+                [trackColor]="paletteSaturationTrackGradient$$()"
+                fillColor="transparent"
+                (valueChange)="onPaletteSaturationChange($event)" />
+    </div>
   </div>
 
   <div class="flex justify-end gap-2">

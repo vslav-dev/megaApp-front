@@ -2,6 +2,13 @@ import { HttpClient } from '@angular/common/http';
 import { computed, effect, inject, Injectable, Signal, signal, WritableSignal } from '@angular/core';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
 import { exhaustRequest } from '@app/shared/decorators/exhaust-request.decorator';
+import {
+  aggregateChartData,
+  AggregatedChartData,
+  createEmptyChartData,
+  sliceAggregatedChartData,
+  sliceChartData,
+} from '@app/shared/stats-chart-data';
 import { FoodStatsResponse, FoodStatsSummary, FoodStatsTopProduct, Stats, StatsChartData } from '@app/shared/types';
 import { firstValueFrom } from 'rxjs';
 import { dateToIsoNoTimeNoTZ, formatDateTicks, isoDaysBefore } from '../../shared/utils';
@@ -11,13 +18,8 @@ import { SyncEngineService } from '../sync-engine.service';
 import { TelemetryService } from '../telemetry.service';
 import { BaseFoodService } from './food-base.service';
 import { FoodDiaryService } from './food-diary.service';
+import { FoodProductHistoryStateService } from './food-product-history-state.service';
 import { FoodSettingsService } from './food-settings.service';
-
-interface AggregatedPeriodData {
-  data: StatsChartData;
-  periodStartIdx: number[];
-  periodEndIdx: number[];
-}
 
 const LIVE_WINDOW_DAYS = 3;
 
@@ -56,6 +58,7 @@ export class FoodStatsService extends BaseFoodService {
 
   private readonly foodSettingsService = inject(FoodSettingsService);
   private readonly foodDiaryService = inject(FoodDiaryService);
+  private readonly productHistoryState = inject(FoodProductHistoryStateService);
 
   private readonly stats$$: WritableSignal<Stats> = signal({});
   private readonly summarySignal$$: WritableSignal<FoodStatsSummary> = signal(EMPTY_STATS_SUMMARY);
@@ -125,17 +128,17 @@ export class FoodStatsService extends BaseFoodService {
     ),
   );
 
-  private readonly weeklyAggregated$$: Signal<AggregatedPeriodData> = computed(() =>
+  private readonly weeklyAggregated$$: Signal<AggregatedChartData> = computed(() =>
     this.telemetry.measure(
       'food.stats_aggregate_week',
-      () => this.prepareAggregatedData('week'),
+      () => aggregateChartData(this.statsChartData$$(), 'week'),
       (result) => ({ periods: result.data.dates.length }),
     ),
   );
-  private readonly monthlyAggregated$$: Signal<AggregatedPeriodData> = computed(() =>
+  private readonly monthlyAggregated$$: Signal<AggregatedChartData> = computed(() =>
     this.telemetry.measure(
       'food.stats_aggregate_month',
-      () => this.prepareAggregatedData('month'),
+      () => aggregateChartData(this.statsChartData$$(), 'month'),
       (result) => ({ periods: result.data.dates.length }),
     ),
   );
@@ -391,16 +394,9 @@ export class FoodStatsService extends BaseFoodService {
 
   private prepareChartData(): StatsChartData {
     const stats = this.displayStats$$() || {};
+    const selectedKcalByDate = this.productHistoryState.selectedKcalByDate$$();
     const dates = this.buildFullDateAxis(this.loadedDates$$());
-    const result: StatsChartData = {
-      dates: [],
-      weights: [],
-      weightsAvg: [],
-      kcalsFactual: [],
-      kcalsVirtual: [],
-      kcalsTarget: [],
-      hasNoData: [],
-    };
+    const result = createEmptyChartData();
 
     dates.forEach((date) => {
       const dayStats = stats[date];
@@ -411,7 +407,7 @@ export class FoodStatsService extends BaseFoodService {
         result.weights.push(Number.NaN);
         result.weightsAvg.push(Number.NaN);
         result.kcalsFactual.push(Number.NaN);
-        result.kcalsVirtual.push(Number.NaN);
+        result.kcalsSelected.push(Number.NaN);
         result.kcalsTarget.push(Number.NaN);
         result.hasNoData.push(true);
         return;
@@ -421,8 +417,8 @@ export class FoodStatsService extends BaseFoodService {
       result.weights.push(weight);
       result.weightsAvg.push(weightAvg);
       result.kcalsFactual.push(!hasKcal ? Number.NaN : consumedKcal);
-      // No imputation is done for missing days — this series is currently always zero.
-      result.kcalsVirtual.push(!hasKcal ? Number.NaN : 0);
+      // A loaded day on which no tracked product was eaten is a real zero, not a gap.
+      result.kcalsSelected.push(!hasKcal ? Number.NaN : (selectedKcalByDate.get(date) ?? 0));
       result.kcalsTarget.push(targetKcal);
       result.hasNoData.push(hasNoData);
     });
@@ -435,248 +431,24 @@ export class FoodStatsService extends BaseFoodService {
     const start = this.selectedDateIdxStart$$();
     const end = this.selectedDateIdxEnd$$();
 
-    const dates = data.dates.slice(start, end + 1);
-    const weights = data.weights.slice(start, end + 1);
-    const weightsAvg = data.weightsAvg.slice(start, end + 1);
-    const kcalsFactual = data.kcalsFactual.slice(start, end + 1);
-    const kcalsVirtual = data.kcalsVirtual.slice(start, end + 1);
-    const kcalsTarget = data.kcalsTarget.slice(start, end + 1);
-    const hasNoData = data.hasNoData.slice(start, end + 1);
-
-    const daysCount = dates.length;
-    const granularity = this.resolveGranularity(daysCount);
+    const granularity = this.resolveGranularity(Math.min(end + 1, data.dates.length) - start);
 
     if (granularity === 'week') {
-      return this.sliceAggregatedData(this.weeklyAggregated$$(), start, end, true);
+      return sliceAggregatedChartData(this.weeklyAggregated$$(), start, end);
     }
 
     if (granularity === 'month') {
-      return this.sliceAggregatedData(this.monthlyAggregated$$(), start, end, true);
+      return sliceAggregatedChartData(this.monthlyAggregated$$(), start, end);
     }
 
-    return {
-      dates: dates.map(formatDateTicks),
-      weights,
-      weightsAvg,
-      kcalsFactual,
-      kcalsVirtual,
-      kcalsTarget,
-      hasNoData,
-    };
+    const days = sliceChartData(data, start, end + 1);
+    return { ...days, dates: days.dates.map(formatDateTicks) };
   }
 
   private resolveGranularity(daysCount: number): 'day' | 'week' | 'month' {
     if (daysCount > FoodStatsService.GRANULARITY_MONTH_SWITCH_DAYS) return 'month';
     if (daysCount > FoodStatsService.GRANULARITY_WEEK_SWITCH_DAYS - 7) return 'week';
     return 'day';
-  }
-
-  private prepareAggregatedData(period: 'week' | 'month'): AggregatedPeriodData {
-    const data = this.statsChartData$$();
-    if (data.dates.length === 0) {
-      return { data: this.createEmptyChartData(), periodStartIdx: [], periodEndIdx: [] };
-    }
-
-    const periodStartIsos: string[] = [];
-    const periodStartIdx: number[] = [];
-    const periodEndIdx: number[] = [];
-    const expectedDays: number[] = [];
-    const weightsSum: number[] = [];
-    const weightsCount: number[] = [];
-    const weightsAvgSum: number[] = [];
-    const weightsAvgCount: number[] = [];
-    const kcalsFactualSum: number[] = [];
-    const kcalsVirtualSum: number[] = [];
-    const kcalsCount: number[] = [];
-    const kcalsTargetSum: number[] = [];
-    const kcalsTargetCount: number[] = [];
-
-    let lastPeriodStartIso = '';
-    let groupIndex = -1;
-
-    data.dates.forEach((dateIso, index) => {
-      const periodStartIso = period === 'week' ? this.getWeekStartIso(dateIso) : this.getMonthStartIso(dateIso);
-      const isNewPeriod = periodStartIso !== lastPeriodStartIso;
-
-      if (isNewPeriod) {
-        lastPeriodStartIso = periodStartIso;
-        groupIndex += 1;
-        periodStartIsos.push(periodStartIso);
-        periodStartIdx.push(index);
-        periodEndIdx.push(index);
-        expectedDays.push(period === 'week' ? 7 : this.getMonthDaysCount(periodStartIso));
-        weightsSum.push(0);
-        weightsCount.push(0);
-        weightsAvgSum.push(0);
-        weightsAvgCount.push(0);
-        kcalsFactualSum.push(0);
-        kcalsVirtualSum.push(0);
-        kcalsCount.push(0);
-        kcalsTargetSum.push(0);
-        kcalsTargetCount.push(0);
-      } else {
-        periodEndIdx[groupIndex] = index;
-      }
-
-      const weightValue = data.weights[index];
-      const weightAvgValue = data.weightsAvg[index];
-      const kcalsFactualValue = data.kcalsFactual[index];
-      const kcalsVirtualValue = data.kcalsVirtual[index];
-      const kcalsTargetValue = data.kcalsTarget[index];
-      const hasFactualKcal =
-        kcalsFactualValue !== undefined && kcalsFactualValue !== null && !Number.isNaN(kcalsFactualValue);
-      const hasVirtualKcal =
-        kcalsVirtualValue !== undefined && kcalsVirtualValue !== null && !Number.isNaN(kcalsVirtualValue);
-
-      // NaN here means "not fetched yet" (see buildFullDateAxis) rather than "missing" — excluded
-      // the same way as the kcal series above, so a period straddling the loaded-window boundary
-      // aggregates over its real days instead of getting poisoned to NaN by the placeholder ones.
-      if (weightValue !== undefined && weightValue !== null && !Number.isNaN(weightValue)) {
-        weightsSum[groupIndex] += weightValue;
-        weightsCount[groupIndex] += 1;
-      }
-      if (weightAvgValue !== undefined && weightAvgValue !== null && !Number.isNaN(weightAvgValue)) {
-        weightsAvgSum[groupIndex] += weightAvgValue;
-        weightsAvgCount[groupIndex] += 1;
-      }
-      if (hasFactualKcal || hasVirtualKcal) {
-        kcalsFactualSum[groupIndex] += hasFactualKcal ? kcalsFactualValue : 0;
-        kcalsVirtualSum[groupIndex] += hasVirtualKcal ? kcalsVirtualValue : 0;
-        kcalsCount[groupIndex] += 1;
-      }
-      if (kcalsTargetValue !== undefined && kcalsTargetValue !== null && !Number.isNaN(kcalsTargetValue)) {
-        kcalsTargetSum[groupIndex] += kcalsTargetValue;
-        kcalsTargetCount[groupIndex] += 1;
-      }
-    });
-
-    const aggregated = this.createEmptyChartData();
-    const aggregatedStartIdx: number[] = [];
-    const aggregatedEndIdx: number[] = [];
-
-    for (let i = 0; i <= groupIndex; i += 1) {
-      const weightsComplete = weightsCount[i] === expectedDays[i];
-      const weightsAvgComplete = weightsAvgCount[i] === expectedDays[i];
-      const kcalsComplete = kcalsCount[i] === expectedDays[i];
-      const kcalsTargetComplete = kcalsTargetCount[i] === expectedDays[i];
-      const hasAnyCompleteSeries = weightsComplete || weightsAvgComplete || kcalsComplete || kcalsTargetComplete;
-
-      if (!hasAnyCompleteSeries) continue;
-
-      aggregated.dates.push(formatDateTicks(periodStartIsos[i]));
-      aggregated.weights.push(weightsComplete ? weightsSum[i] / weightsCount[i] : Number.NaN);
-      aggregated.weightsAvg.push(weightsAvgComplete ? weightsAvgSum[i] / weightsAvgCount[i] : Number.NaN);
-      aggregated.kcalsFactual.push(kcalsComplete ? kcalsFactualSum[i] / kcalsCount[i] : Number.NaN);
-      aggregated.kcalsVirtual.push(kcalsComplete ? kcalsVirtualSum[i] / kcalsCount[i] : Number.NaN);
-      aggregated.kcalsTarget.push(kcalsTargetComplete ? kcalsTargetSum[i] / kcalsTargetCount[i] : Number.NaN);
-      // Not meaningful at week/month granularity — only the daily series feeds the streak calendar.
-      aggregated.hasNoData.push(false);
-      aggregatedStartIdx.push(periodStartIdx[i]);
-      aggregatedEndIdx.push(periodEndIdx[i]);
-    }
-
-    return {
-      data: aggregated,
-      periodStartIdx: aggregatedStartIdx,
-      periodEndIdx: aggregatedEndIdx,
-    };
-  }
-
-  private sliceAggregatedData(
-    aggregated: AggregatedPeriodData,
-    startDayIdx: number,
-    endDayIdx: number,
-    hideWeights: boolean,
-  ): StatsChartData {
-    const startPeriodIdx = this.findFirstIndexGte(aggregated.periodStartIdx, startDayIdx);
-    const endPeriodIdx = this.findLastIndexLte(aggregated.periodEndIdx, endDayIdx);
-
-    if (startPeriodIdx > endPeriodIdx) return this.createEmptyChartData();
-
-    const sliced: StatsChartData = {
-      dates: aggregated.data.dates.slice(startPeriodIdx, endPeriodIdx + 1),
-      weights: aggregated.data.weights.slice(startPeriodIdx, endPeriodIdx + 1),
-      weightsAvg: aggregated.data.weightsAvg.slice(startPeriodIdx, endPeriodIdx + 1),
-      kcalsFactual: aggregated.data.kcalsFactual.slice(startPeriodIdx, endPeriodIdx + 1),
-      kcalsVirtual: aggregated.data.kcalsVirtual.slice(startPeriodIdx, endPeriodIdx + 1),
-      kcalsTarget: aggregated.data.kcalsTarget.slice(startPeriodIdx, endPeriodIdx + 1),
-      hasNoData: aggregated.data.hasNoData.slice(startPeriodIdx, endPeriodIdx + 1),
-    };
-
-    if (!hideWeights) return sliced;
-
-    return {
-      ...sliced,
-      weights: sliced.weights.map(() => Number.NaN),
-    };
-  }
-
-  private findFirstIndexGte(arr: number[], value: number): number {
-    let left = 0;
-    let right = arr.length - 1;
-    let result = arr.length;
-
-    while (left <= right) {
-      const mid = Math.floor((left + right) / 2);
-      if (arr[mid] >= value) {
-        result = mid;
-        right = mid - 1;
-      } else {
-        left = mid + 1;
-      }
-    }
-
-    return result;
-  }
-
-  private findLastIndexLte(arr: number[], value: number): number {
-    let left = 0;
-    let right = arr.length - 1;
-    let result = -1;
-
-    while (left <= right) {
-      const mid = Math.floor((left + right) / 2);
-      if (arr[mid] <= value) {
-        result = mid;
-        left = mid + 1;
-      } else {
-        right = mid - 1;
-      }
-    }
-
-    return result;
-  }
-
-  private getWeekStartIso(dateIso: string): string {
-    const date = new Date(dateIso);
-    const day = date.getDay();
-    const diff = (day + 6) % 7;
-    const weekStart = new Date(date);
-    weekStart.setDate(date.getDate() - diff);
-    return dateToIsoNoTimeNoTZ(weekStart);
-  }
-
-  private getMonthStartIso(dateIso: string): string {
-    const date = new Date(dateIso);
-    const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-    return dateToIsoNoTimeNoTZ(monthStart);
-  }
-
-  private getMonthDaysCount(periodStartIso: string): number {
-    const date = new Date(periodStartIso);
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  }
-
-  private createEmptyChartData(): StatsChartData {
-    return {
-      dates: [],
-      weights: [],
-      weightsAvg: [],
-      kcalsFactual: [],
-      kcalsVirtual: [],
-      kcalsTarget: [],
-      hasNoData: [],
-    };
   }
 
   // Sets the range instantly from whatever's currently loaded — used only for the "no saved

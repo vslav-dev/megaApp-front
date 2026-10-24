@@ -3,7 +3,7 @@ import { afterNextRender, ErrorHandler, Injectable, Injector, inject, untracked 
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { LocalStorageService } from '@app/services/local-storage.service';
-import { TelemetryEvent, TelemetryEventsRequest } from '@app/shared/types';
+import { IngestEvent, IngestRequest, IngestResponse, TelemetryEvent } from '@app/shared/types';
 
 type TelemetryAttributes = Record<string, string | number | boolean>;
 
@@ -23,11 +23,16 @@ const MAX_QUEUE_BYTES = 1024 * 1024;
 const BATCH_WINDOW_MS = 60 * 1000;
 const PERSIST_DELAY_MS = 1000;
 const ERROR_RATE_LIMIT_WINDOW_MS = 10 * 1000;
-const EVENTS_ENDPOINT = '/api/telemetry/events';
-// Half of the backend's MAX_REQUEST_BODY_BYTES default (1 MiB) — leaves headroom for JSON escaping
-// overhead so a chunk we consider valid never trips the body-size middleware into a 413 instead.
+// The `telemetry` source of the backend's event intake (backend plan 42).
+const EVENTS_ENDPOINT = '/api/ingest/telemetry';
+// The intake's own per-request limits (half of the global 1 MiB body limit, so a chunk that fits here is
+// never turned into a 413 by the body-size middleware first). Measured on the finished request body.
 const MAX_CHUNK_BYTES = 512 * 1024;
 const MAX_CHUNK_EVENTS = 1000;
+// the JSON around the events: {"events":[],"dropped":<number>}
+const REQUEST_OVERHEAD_BYTES = 64;
+const FALLBACK_STREAM = 'misc';
+const STREAM_PATTERN = /^[a-z0-9._-]{1,64}$/;
 
 @Injectable({ providedIn: 'root' })
 export class TelemetryService {
@@ -209,31 +214,38 @@ export class TelemetryService {
     const chunk = this.buildChunk();
     const dropped = this.queue.dropped;
     this.sending = true;
-    const request: TelemetryEventsRequest = { events: chunk, dropped };
 
-    this.http.post(EVENTS_ENDPOINT, request).subscribe({
-      next: () => this.onChunkSettled(chunk, dropped, true),
+    this.http.post<IngestResponse | null>(EVENTS_ENDPOINT, toIngestRequest(chunk, dropped)).subscribe({
+      next: (response) => {
+        warnAboutRejected(response);
+        this.onChunkSettled(chunk, dropped, true);
+      },
       error: (error) => this.onChunkSettled(chunk, dropped, isClientErrorStatus(error)),
     });
   }
 
-  /** Takes events off the front of the queue up to the server's per-request limits. Always
-   *  includes at least one event, even if it alone exceeds MAX_CHUNK_BYTES, so a single
-   *  oversized event (e.g. a huge stack trace) can never stall the queue forever. */
+  /** Takes events off the front of the queue up to the intake's per-request limits, measured on the
+   *  request body that will actually be sent. Always includes at least one event, even if it alone
+   *  exceeds MAX_CHUNK_BYTES, so a single oversized event (e.g. a huge stack trace) can never stall
+   *  the queue forever. */
   private buildChunk(): TelemetryEvent[] {
     const chunk: TelemetryEvent[] = [];
+    let bytes = REQUEST_OVERHEAD_BYTES;
     for (const event of this.queue.events) {
+      const eventBytes = byteLength(JSON.stringify(toIngestEvent(event))) + 1; // + the comma between events
       if (chunk.length > 0) {
         if (chunk.length >= MAX_CHUNK_EVENTS) break;
-        if (JSON.stringify([...chunk, event]).length > MAX_CHUNK_BYTES) break;
+        if (bytes + eventBytes > MAX_CHUNK_BYTES) break;
       }
       chunk.push(event);
+      bytes += eventBytes;
     }
     return chunk;
   }
 
-  /** A 2xx/4xx response means this chunk is done — either stored, or malformed and not worth
-   *  retrying — so it's removed and, if more remains, the next chunk goes out right away: draining
+  /** A 2xx/4xx response means this chunk is done — either processed by the intake (stored, or rejected
+   *  event by event, which a retry would not change) or malformed and not worth retrying — so it's
+   *  removed and, if more remains, the next chunk goes out right away: draining
    *  a backlog is not something to throttle. A network failure or 5xx stops the drain entirely;
    *  the next attempt only happens once BATCH_WINDOW_MS has passed since this cycle started,
    *  never immediately, so a persistent server error can't turn into a retry storm. */
@@ -339,7 +351,9 @@ export class TelemetryService {
   private readonly flushOnUnload = (): void => {
     this.flushQueue();
     if (this.queue.events.length === 0) return;
-    const request: TelemetryEventsRequest = { events: this.queue.events, dropped: this.queue.dropped };
+    // the beacon can't carry headers (no X-Client-ID) and its answer is never seen: the queue is left as it
+    // is, and whatever the intake stored comes again with the same ids on the next regular send
+    const request = toIngestRequest(this.buildChunk(), this.queue.dropped);
     navigator.sendBeacon(EVENTS_ENDPOINT, new Blob([JSON.stringify(request)], { type: 'application/json' }));
   };
 
@@ -406,4 +420,32 @@ function errorStack(error: unknown): string | undefined {
 function isClientErrorStatus(error: unknown): boolean {
   const status = (error as { status?: number } | null)?.status;
   return status !== undefined && status >= 400 && status < 500;
+}
+
+/** The stream is the operation's namespace (`app`, `money`, `error`, `log`, ...): the same convention the
+ *  operations already follow, and a label the intake can filter by without opening the data. */
+function streamOf(operation: string): string {
+  const namespace = operation.split('.')[0];
+  return STREAM_PATTERN.test(namespace) ? namespace : FALLBACK_STREAM;
+}
+
+/** The intake's envelope around a queued event. The queue keeps its own shape; the conversion happens only
+ *  here, when a request is built, so events queued before the move to the intake go out in the new form too. */
+function toIngestEvent(event: TelemetryEvent): IngestEvent {
+  const { eventId, timestampMs, ...data } = event;
+  return { id: eventId, stream: streamOf(event.operation), at: timestampMs, data };
+}
+
+function toIngestRequest(events: TelemetryEvent[], dropped: number): IngestRequest {
+  return { events: events.map(toIngestEvent), dropped };
+}
+
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).length;
+}
+
+/** A rejected event means the event itself breaks the contract — a bug on this side, which retrying cannot fix. */
+function warnAboutRejected(response: IngestResponse | null): void {
+  if (!response?.rejected?.length) return;
+  console.warn(`Telemetry intake rejected ${response.rejected.length} event(s):`, response.rejected);
 }

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, Signal } from '@angular/core';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
+import { BMI_CATEGORIES, BMI_SCALE, bmiToKg } from '@app/shared/bmi-bands';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 
 interface BmiSegment {
@@ -16,37 +17,17 @@ interface BmiSegment {
 export class BMI implements OnInit {
   protected readonly Icon = IconName;
 
-  protected readonly bmiSegments: BmiSegment[] = [
-    {
-      twSegmentClasses: 'relative h-2 rounded-l-md bg-yellow-300 dark:bg-amber-500',
-    },
-    {
-      twSegmentClasses: 'relative h-2 bg-green-400 dark:bg-green-500',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-    {
-      twSegmentClasses: 'relative h-2 bg-yellow-300 dark:bg-amber-500',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-    {
-      twSegmentClasses: 'relative h-2 bg-red-300 dark:bg-red-500',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-    {
-      twSegmentClasses: 'relative h-2 bg-red-500 dark:bg-red-700',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-    {
-      twSegmentClasses: 'relative h-2 rounded-r-md bg-red-700 dark:bg-red-900',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-  ];
+  protected readonly bmiSegments: BmiSegment[] = BMI_CATEGORIES.map((category, idx) => {
+    const roundedClasses = idx === 0 ? 'rounded-l-md' : idx === BMI_CATEGORIES.length - 1 ? 'rounded-r-md' : '';
+    return {
+      twSegmentClasses: `relative h-2 ${roundedClasses} ${category.twBgClasses}`,
+      twLabelClasses: idx === 0 ? undefined : 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
+    };
+  });
 
   protected bmiSegmentsWidthFractions: number[] = [];
 
   protected readonly bmiPointerPercent$$: Signal<number | null> = computed(() => this.calculateBmiPointerPercent());
-
-  private readonly bmiValues = [16, 18.5, 25, 30, 35, 40, 45];
 
   private readonly bmiSegmentsThresholdsInKgs$$: Signal<number[]> = computed(() =>
     this.prepBmiSegmentsThresholdsInKgs(),
@@ -91,18 +72,15 @@ export class BMI implements OnInit {
     const height = this.foodDiaryService.height$$();
     if (!height) return [];
 
-    const heightMeters = height / 100;
-    return this.bmiValues.map((value) => {
-      return Math.round(value * (heightMeters * heightMeters));
-    });
+    return BMI_SCALE.map((value) => Math.round(bmiToKg(value, height)));
   }
 
   private calculateBmiSegmentsWidthFractions(): number[] {
     const fractions: number[] = [];
-    const total = this.bmiValues[this.bmiValues.length - 1] - this.bmiValues[0];
+    const total = BMI_SCALE[BMI_SCALE.length - 1] - BMI_SCALE[0];
 
-    for (let i = 0; i < this.bmiValues.length - 1; i++) {
-      const segment = this.bmiValues[i + 1] - this.bmiValues[i];
+    for (let i = 0; i < BMI_SCALE.length - 1; i++) {
+      const segment = BMI_SCALE[i + 1] - BMI_SCALE[i];
       fractions.push(segment / total);
     }
 

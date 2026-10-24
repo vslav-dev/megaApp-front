@@ -7,10 +7,13 @@ import { LocalStorageService } from '@app/services/local-storage.service';
 import { Subject } from 'rxjs';
 import { TelemetryService } from './telemetry.service';
 
-const EVENTS_URL = '/api/telemetry/events';
+const EVENTS_URL = '/api/ingest/telemetry';
 const BATCH_WINDOW_MS = 60 * 1000;
+// what the intake answers when it has stored everything; the service only needs the status
+const ANSWER_STORED_ALL = { received: 1, stored: 1, rejected: [] };
 
-function setup() {
+// `savedQueue` — what the user's local storage already holds from an earlier visit
+function setup(savedQueue: unknown = null) {
   const routerFake: Pick<Router, 'url' | 'events'> = { url: '/money', events: new Subject() };
   const deviceInfoFake: Pick<DeviceInfoService, 'getDevicePlatform' | 'isMobileDevice$$' | 'isMobileScreen$$'> = {
     getDevicePlatform: () => 'desktop',
@@ -18,7 +21,7 @@ function setup() {
     isMobileScreen$$: (() => false) as DeviceInfoService['isMobileScreen$$'],
   };
   const localStorageFake: Pick<LocalStorageService, 'getUserScoped' | 'setUserScoped'> = {
-    getUserScoped: () => null,
+    getUserScoped: (() => savedQueue) as LocalStorageService['getUserScoped'],
     setUserScoped: vi.fn(),
   };
 
@@ -39,7 +42,12 @@ function setup() {
 }
 
 interface RequestBody {
-  events: { eventId: string; operation: string; message?: string; attributes?: Record<string, unknown> }[];
+  events: {
+    id: string;
+    stream: string;
+    at: number;
+    data: { operation: string; message?: string; attributes?: Record<string, unknown>; [field: string]: unknown };
+  }[];
   dropped: number;
 }
 
@@ -54,8 +62,8 @@ describe('TelemetryService — batching window', () => {
     const request = httpMock.expectOne(EVENTS_URL);
     const body = request.request.body as RequestBody;
     expect(body.events).toHaveLength(1);
-    expect(body.events[0].operation).toBe('app.route_ready');
-    request.flush(null, { status: 204, statusText: 'No Content' });
+    expect(body.events[0].data.operation).toBe('app.route_ready');
+    request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
 
@@ -64,7 +72,7 @@ describe('TelemetryService — batching window', () => {
     const { service, httpMock } = setup();
 
     service.record('app.a', 1);
-    httpMock.expectOne(EVENTS_URL).flush(null, { status: 204, statusText: 'No Content' });
+    httpMock.expectOne(EVENTS_URL).flush(ANSWER_STORED_ALL);
 
     service.record('app.b', 2);
     service.record('app.c', 3);
@@ -74,8 +82,8 @@ describe('TelemetryService — batching window', () => {
 
     const request = httpMock.expectOne(EVENTS_URL);
     const body = request.request.body as RequestBody;
-    expect(body.events.map((event) => event.operation)).toEqual(['app.b', 'app.c']);
-    request.flush(null, { status: 204, statusText: 'No Content' });
+    expect(body.events.map((event) => event.data.operation)).toEqual(['app.b', 'app.c']);
+    request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
 
@@ -90,7 +98,7 @@ describe('TelemetryService — batching window', () => {
 
     const retry = httpMock.expectOne(EVENTS_URL);
     expect((retry.request.body as RequestBody).events).toHaveLength(1);
-    retry.flush(null, { status: 204, statusText: 'No Content' });
+    retry.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
 
@@ -122,16 +130,19 @@ describe('TelemetryService — batching window', () => {
     service.record('app.d', 3, { pad });
     httpMock.expectNone(EVENTS_URL);
 
-    first.flush(null, { status: 204, statusText: 'No Content' });
+    first.flush(ANSWER_STORED_ALL);
 
     // Draining continues immediately (no waiting for the window) — chunked to stay under the cap.
     const second = httpMock.expectOne(EVENTS_URL);
-    expect((second.request.body as RequestBody).events.map((event) => event.operation)).toEqual(['app.b', 'app.c']);
-    second.flush(null, { status: 204, statusText: 'No Content' });
+    expect((second.request.body as RequestBody).events.map((event) => event.data.operation)).toEqual([
+      'app.b',
+      'app.c',
+    ]);
+    second.flush(ANSWER_STORED_ALL);
 
     const third = httpMock.expectOne(EVENTS_URL);
-    expect((third.request.body as RequestBody).events.map((event) => event.operation)).toEqual(['app.d']);
-    third.flush(null, { status: 204, statusText: 'No Content' });
+    expect((third.request.body as RequestBody).events.map((event) => event.data.operation)).toEqual(['app.d']);
+    third.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
 
@@ -144,10 +155,13 @@ describe('TelemetryService — batching window', () => {
     const first = httpMock.expectOne(EVENTS_URL);
     service.record('app.b', 1, { pad });
     service.record('app.c', 2, { pad });
-    first.flush(null, { status: 204, statusText: 'No Content' });
+    first.flush(ANSWER_STORED_ALL);
 
     const second = httpMock.expectOne(EVENTS_URL);
-    expect((second.request.body as RequestBody).events.map((event) => event.operation)).toEqual(['app.b', 'app.c']);
+    expect((second.request.body as RequestBody).events.map((event) => event.data.operation)).toEqual([
+      'app.b',
+      'app.c',
+    ]);
     second.flush(null, { status: 500, statusText: 'Server Error' });
 
     // No immediate re-attempt right after the failure.
@@ -159,8 +173,8 @@ describe('TelemetryService — batching window', () => {
 
     await vi.advanceTimersByTimeAsync(1000);
     const retry = httpMock.expectOne(EVENTS_URL);
-    expect((retry.request.body as RequestBody).events.map((event) => event.operation)).toEqual(['app.b', 'app.c']);
-    retry.flush(null, { status: 204, statusText: 'No Content' });
+    expect((retry.request.body as RequestBody).events.map((event) => event.data.operation)).toEqual(['app.b', 'app.c']);
+    retry.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
 });
@@ -175,7 +189,7 @@ describe('TelemetryService — error rate limiting', () => {
     service.logError(new Error('boom'));
     const first = httpMock.expectOne(EVENTS_URL);
     expect((first.request.body as RequestBody).events).toHaveLength(1);
-    first.flush(null, { status: 204, statusText: 'No Content' });
+    first.flush(ANSWER_STORED_ALL);
 
     // Same signature, well within the 10s rate-limit window: suppressed, not sent.
     service.logError(new Error('boom'));
@@ -188,8 +202,136 @@ describe('TelemetryService — error rate limiting', () => {
     await vi.advanceTimersByTimeAsync(BATCH_WINDOW_MS);
     const request = httpMock.expectOne(EVENTS_URL);
     const body = request.request.body as RequestBody;
-    expect(body.events[0].attributes?.['suppressedRepeats']).toBe(1);
-    request.flush(null, { status: 204, statusText: 'No Content' });
+    expect(body.events[0].data.attributes?.['suppressedRepeats']).toBe(1);
+    request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
 });
+
+describe('TelemetryService — the intake envelope', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('wraps an event as id / stream / at / data, keeping the rest of the event inside data', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_790_000_000_000);
+    const { service, httpMock } = setup();
+
+    service.record('money.chart_render', 12, { points: 3 });
+
+    const request = httpMock.expectOne(EVENTS_URL);
+    const body = request.request.body as RequestBody;
+    const [event] = body.events;
+    expect(event.id).toMatch(/:1$/);
+    expect(event.stream).toBe('money');
+    expect(event.at).toBe(1_790_000_000_000);
+    expect(event.data.operation).toBe('money.chart_render');
+    expect(event.data.attributes).toEqual({ points: 3 });
+    expect(event.data).not.toHaveProperty('eventId');
+    expect(event.data).not.toHaveProperty('timestampMs');
+    expect(body.dropped).toBe(0);
+    request.flush(ANSWER_STORED_ALL);
+    httpMock.verify();
+  });
+
+  it.each([
+    ['app.route_ready', 'app'],
+    ['food.screen_ready', 'food'],
+    ['metrics.dashboard_model', 'metrics'],
+    ['error.window', 'error'],
+    ['log.sync', 'log'],
+    ['plain', 'plain'],
+    ['Weird Name.x', 'misc'],
+    ['', 'misc'],
+  ])('puts the operation %j into the stream %j', (operation, stream) => {
+    const { service, httpMock } = setup();
+
+    service.record(operation, 1);
+
+    const request = httpMock.expectOne(EVENTS_URL);
+    expect((request.request.body as RequestBody).events[0].stream).toBe(stream);
+    request.flush(ANSWER_STORED_ALL);
+    httpMock.verify();
+  });
+
+  it('sends events queued before the move, and the lost count, in the new form', () => {
+    const queuedBefore = {
+      eventId: 'old-session:7',
+      timestampMs: 1_700_000_000_000,
+      sessionId: 'old-session',
+      operation: 'food.screen_ready',
+      route: '/food',
+      device: {},
+    };
+    const { service, httpMock } = setup({ events: [queuedBefore], dropped: 5, nextSequence: 8 });
+
+    service.record('app.a', 1);
+
+    const request = httpMock.expectOne(EVENTS_URL);
+    const body = request.request.body as RequestBody;
+    expect(body.dropped).toBe(5);
+    expect(body.events.map((event) => [event.id, event.stream, event.at])).toEqual([
+      ['old-session:7', 'food', 1_700_000_000_000],
+      [expect.stringMatching(/:8$/), 'app', expect.any(Number)],
+    ]);
+    request.flush(ANSWER_STORED_ALL);
+    httpMock.verify();
+  });
+
+  it('warns about events the intake rejected and does not retry them', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { service, httpMock } = setup();
+
+    service.record('app.a', 1);
+    httpMock
+      .expectOne(EVENTS_URL)
+      .flush({ received: 1, stored: 0, rejected: [{ index: 0, code: 'bad_data', message: 'data must be an object' }] });
+
+    expect(warn).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(BATCH_WINDOW_MS);
+    httpMock.expectNone(EVENTS_URL);
+  });
+
+  it('closes a chunk on a 404 too: a source the backend no longer serves must not keep the queue growing', async () => {
+    vi.useFakeTimers();
+    const { service, httpMock } = setup();
+
+    service.record('app.a', 1);
+    httpMock.expectOne(EVENTS_URL).flush(null, { status: 404, statusText: 'Not Found' });
+
+    await vi.advanceTimersByTimeAsync(BATCH_WINDOW_MS);
+    httpMock.expectNone(EVENTS_URL);
+  });
+
+  it('sends the same envelope with sendBeacon when the page is hidden for good', async () => {
+    const sendBeacon = vi.fn().mockReturnValue(true);
+    Object.defineProperty(navigator, 'sendBeacon', { value: sendBeacon, configurable: true });
+    const { service, httpMock } = setup();
+
+    service.record('app.beacon_probe', 1); // sent at once; its answer has not come yet
+    window.dispatchEvent(new Event('pagehide'));
+
+    const sent = sendBeacon.mock.calls.filter(([url]) => url === EVENTS_URL);
+    expect(sent.length).toBeGreaterThan(0);
+    const bodies = await Promise.all(sent.map(([, blob]) => readBlob(blob as Blob)));
+    const mine = bodies
+      .map((text) => JSON.parse(text) as RequestBody)
+      .filter((body) => body.events.some((event) => event.data.operation === 'app.beacon_probe'));
+    expect(mine).toHaveLength(1);
+    expect(mine[0].events[0]).toMatchObject({ stream: 'app', data: { operation: 'app.beacon_probe' } });
+
+    httpMock.expectOne(EVENTS_URL).flush(ANSWER_STORED_ALL);
+    delete (navigator as { sendBeacon?: unknown }).sendBeacon;
+  });
+});
+
+function readBlob(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}

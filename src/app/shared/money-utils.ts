@@ -21,3 +21,45 @@ export function convertAmount(
   if (typeof toRate !== 'number' || toRate <= 0) return usdAmount;
   return usdAmount / toRate;
 }
+
+export function parseTransactionDetails(detailsJSON: unknown): any {
+  if (!detailsJSON) return null;
+  if (typeof detailsJSON === 'object') return detailsJSON;
+  try {
+    return JSON.parse(detailsJSON as string);
+  } catch {
+    return null;
+  }
+}
+
+export function toPositiveNumber(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function generateMonthRange(fromMonthISO: string, toMonthISO: string): string[] {
+  const months: string[] = [];
+  const [fromYear, fromMonth] = fromMonthISO.split('-').map(Number);
+  const [toYear, toMonth] = toMonthISO.split('-').map(Number);
+  let y = fromYear,
+    m = fromMonth;
+  while (y < toYear || (y === toYear && m <= toMonth)) {
+    months.push(`${y}-${String(m).padStart(2, '0')}`);
+    m++;
+    if (m > 12) {
+      m = 1;
+      y++;
+    }
+  }
+  return months;
+}
+
+export function areArraysShallowEqual<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a.length === b.length && a.every((item, i) => item === b[i]);
+}
+
+export function areSetsEqual<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
+  if (a.size !== b.size) return false;
+  for (const item of a) if (!b.has(item)) return false;
+  return true;
+}

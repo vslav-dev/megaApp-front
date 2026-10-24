@@ -1,9 +1,11 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
+import { FoodSettingsService } from '@app/services/food/food-settings.service';
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
 import { BodyWeightInterface } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
+import { VCheckbox } from '@ui-kit/components/v-checkbox/v-checkbox';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { VInput, VInputAutoSubmitResult } from '@ui-kit/components/v-input/v-input';
 
@@ -31,7 +33,7 @@ const FormErrors = {
   selector: 'body-weight',
   templateUrl: './body-weight.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, VInput, VButton, VIcon, FormModal],
+  imports: [ReactiveFormsModule, VInput, VButton, VCheckbox, VIcon, FormModal],
 })
 export class BodyWeight {
   protected readonly Icon = IconName;
@@ -60,6 +62,11 @@ export class BodyWeight {
   protected readonly isHeightModalOpen$$ = signal(false);
 
   private readonly foodDiaryService = inject(FoodDiaryService);
+  private readonly foodSettingsService = inject(FoodSettingsService);
+
+  // The bands are computed from height, so without it there is nothing to switch.
+  protected readonly hasHeight$$ = computed(() => !!this.foodDiaryService.height$$());
+  protected readonly isBmiBandsEnabled$$ = this.foodSettingsService.statsWeightBmiBands$$;
 
   protected get isFormValid(): boolean {
     return this.form.valid || this.form.disabled || this.form.pristine;
@@ -132,6 +139,10 @@ export class BodyWeight {
     const height = this.foodDiaryService.height$$();
     this.heightForm.patchValue({ height: height ? String(height) : '' }, { emitEvent: false });
     this.isHeightModalOpen$$.set(true);
+  }
+
+  protected onBmiBandsChange(isEnabled: boolean): void {
+    this.foodSettingsService.setStatsWeightBmiBands(isEnabled);
   }
 
   protected closeHeightModal(): void {

@@ -21,7 +21,6 @@ import { FoodStatsColumns } from '@app/components/food/stats/food-stats-columns/
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodAddModalService, ModalState } from '@app/services/food/food-add-modal.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
-import { FoodProductHistoryStateService } from '@app/services/food/food-product-history-state.service';
 import { FoodScreenMobileTab, FoodScreenModeService } from '@app/services/food/food-screen-mode.service';
 import { FoodSyncCoordinatorService } from '@app/services/food/food-sync-coordinator.service';
 import { TelemetryService } from '@app/services/telemetry.service';
@@ -47,7 +46,7 @@ const HOST_HORIZONTAL_PADDING_PX = 16;
     DiaryEntryAddForm,
     CatalogueEntryEditForm,
   ],
-  providers: [FoodScreenModeService, FoodProductHistoryStateService],
+  providers: [FoodScreenModeService],
   host: {
     class: 'mt-2 px-2 w-full items-stretch gap-3',
     '[class.flex]': 'totalColumnCount$$() === 1',

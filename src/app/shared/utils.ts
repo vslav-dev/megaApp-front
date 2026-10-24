@@ -1,4 +1,4 @@
-import { enToRuTransliterationRules, USER_PREFERRED_MIDNIGHT_OFFSET_HOURS } from '@app/shared/const';
+import { USER_PREFERRED_MIDNIGHT_OFFSET_HOURS } from '@app/shared/const';
 
 export function calculateTodayIsoWithUserTimeShift(): string {
   const todayDate = calcDateWithUserTimeShift(new Date());
@@ -164,11 +164,4 @@ export function getRuDeclension(number: number, one: string, few: string, many: 
 
   // Fallback in case of NaN|Infinity
   return many;
-}
-
-export function transliterateEnToRu(text: string): string {
-  return text
-    .split('')
-    .map((char) => enToRuTransliterationRules[char.toLowerCase()] || char)
-    .join('');
 }

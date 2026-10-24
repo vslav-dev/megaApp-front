@@ -1,5 +1,6 @@
-import { Injectable, signal, WritableSignal } from '@angular/core';
-import { CatalogueEntry } from '@app/shared/types';
+import { inject, Injectable, signal, WritableSignal } from '@angular/core';
+import { CatalogueEntry, SearchScope } from '@app/shared/types';
+import { FoodCatalogueService } from './food-catalogue.service';
 
 export const ModalState = {
   CLOSED: 'CLOSED',
@@ -42,6 +43,8 @@ type StateTransitionMap = {
   providedIn: 'root',
 })
 export class FoodAddModalService {
+  private readonly foodCatalogueService = inject(FoodCatalogueService);
+
   public readonly currentState$$: WritableSignal<ModalState> = signal(ModalState.CLOSED);
 
   public readonly searchQuery$$: WritableSignal<string> = signal('');
@@ -114,6 +117,11 @@ export class FoodAddModalService {
       case ModalState.SEARCH:
         if (from === ModalState.CLOSED) {
           this.searchQuery$$.set('');
+          // The search scope lasts for one modal session. Picking a product to track in the history may
+          // pick an archived one too, while a diary entry can only be added with a product in use.
+          this.foodCatalogueService.setSearchScope(
+            this.productSelectionCallback$$() ? SearchScope.All : SearchScope.Active,
+          );
         }
         if (
           from === ModalState.ADD_DIARY_ENTRY ||

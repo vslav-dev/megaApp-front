@@ -10,11 +10,12 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { AuthService } from '@app/services/auth.service';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { ANIMATION_CLASSES } from '@app/shared/animations';
 import { FlipAnimateDirective } from '@app/shared/directives/flip-animate.directive';
-import { CatalogueEntry } from '@app/shared/types';
+import { CatalogueEntry, SearchScope } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
@@ -48,6 +49,12 @@ export class FoodProductPicker {
   protected readonly AnimationClass = ANIMATION_CLASSES;
   protected readonly deviceInfoService = inject(DeviceInfoService);
   protected readonly isLegacySearch$$ = computed(() => this.foodCatalogueService.isLegacySearch$$());
+  protected readonly searchScope$$ = computed(() => this.foodCatalogueService.searchScope$$());
+  protected readonly isArchiveSearch$$ = computed(() => this.searchScope$$() === SearchScope.Archived);
+  // The scope All already includes the archive, so there is nothing to switch to.
+  protected readonly isArchiveSearchAvailable$$ = computed(
+    () => this.searchScope$$() !== SearchScope.All && this.authService.isAdmin$$(),
+  );
   protected readonly searchResults$$ = computed(() =>
     this.isLegacySearch$$()
       ? this.foodCatalogueService.legacySearchResults$$()
@@ -55,10 +62,12 @@ export class FoodProductPicker {
   );
   protected readonly extractedWeight$$ = signal<number | null>(null);
 
+  private readonly authService = inject(AuthService);
   private readonly foodCatalogueService = inject(FoodCatalogueService);
   private readonly searchEffect$$ = effect(() => {
     const query = this.query();
     const isLegacy = this.isLegacySearch$$();
+    this.searchScope$$(); // read to re-run the search when the search scope is switched
 
     if (query && query.trim()) {
       const { text, weight } = this.parseQuery(query);
@@ -81,7 +90,11 @@ export class FoodProductPicker {
   }
 
   protected toggleLegacySearch(): void {
-    this.foodCatalogueService.isLegacySearch$$.update((val) => !val);
+    this.foodCatalogueService.toggleLegacySearch();
+  }
+
+  protected toggleArchiveSearch(): void {
+    this.foodCatalogueService.toggleArchiveSearch();
   }
 
   protected onClearClick(): void {
@@ -116,10 +129,7 @@ export class FoodProductPicker {
   }
 
   protected getImageUrl(catalogueEntry: CatalogueEntry): string | null {
-    if (!catalogueEntry.imageVersion) {
-      return null;
-    }
-    return `/api/images/food/${catalogueEntry.id}-thumb-v${catalogueEntry.imageVersion}.webp`;
+    return this.foodCatalogueService.getThumbImageUrl(catalogueEntry.id) ?? null;
   }
 
   private parseQuery(query: string): { text: string; weight: number | null } {

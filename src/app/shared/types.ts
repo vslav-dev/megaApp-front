@@ -31,6 +31,7 @@ export const WebSocketMessageType = {
   CATALOGUE_ENTRY_SAVED: 'CATALOGUE_ENTRY_SAVED',
   CATALOGUE_ENTRY_DELETED: 'CATALOGUE_ENTRY_DELETED',
   CATALOGUE_IMAGE_GENERATED: 'CATALOGUE_IMAGE_GENERATED',
+  CATALOGUE_IMAGE_FAILED: 'CATALOGUE_IMAGE_FAILED',
   METRICS_HEALTH: 'METRICS_HEALTH',
   METRICS_SUBSCRIBE: 'METRICS_SUBSCRIBE',
   METRICS_UNSUBSCRIBE: 'METRICS_UNSUBSCRIBE',
@@ -126,9 +127,19 @@ export interface BodyWeightUpdatedWsMessage {
   payload: BodyWeightToUpdate;
 }
 
+// The part of the catalogue a search covers. Archived is admin-only; All is the history picker's.
+export const SearchScope = {
+  Active: 'active',
+  Archived: 'archived',
+  All: 'all',
+} as const;
+
+export type SearchScope = (typeof SearchScope)[keyof typeof SearchScope];
+
 export interface SearchQueryWsMessage {
   type: typeof WebSocketMessageType.SEARCH_QUERY;
   query: string;
+  scope: SearchScope;
   sequenceNumber: number;
 }
 
@@ -136,6 +147,8 @@ export interface SearchResultsWsMessage {
   type: typeof WebSocketMessageType.SEARCH_RESULTS;
   payload: {
     query: string;
+    // The scope the server actually applied: an archived request from a non-admin is answered as active.
+    scope: SearchScope;
     catalogueIds: number[];
     timestamp: number;
     sequenceNumber: number;
@@ -159,6 +172,13 @@ export interface CatalogueImageGeneratedWsMessage {
   payload: {
     catalogueId: number;
     imageVersion: number;
+  };
+}
+
+export interface CatalogueImageFailedWsMessage {
+  type: typeof WebSocketMessageType.CATALOGUE_IMAGE_FAILED;
+  payload: {
+    catalogueId: number;
   };
 }
 
@@ -231,7 +251,8 @@ export interface MetricsUnsubscribeWsMessage {
 
 //                                                                     TELEMETRY
 
-// Single unified shape for performance/error/log events sent to POST /api/telemetry/events.
+// Single unified shape for performance/error/log events, queued here and sent to the `telemetry` source of
+// the backend's event intake (POST /api/ingest/telemetry, see IngestRequest).
 // No discriminant field: the event's kind is read off the `operation` namespace prefix
 // (`app.*`/`money.*`/... for performance, `error.*` for errors, `log.*` for structured logs).
 export interface TelemetryEvent {
@@ -265,9 +286,27 @@ export interface TelemetryEvent {
   };
 }
 
-export interface TelemetryEventsRequest {
-  events: TelemetryEvent[];
+// The backend's event-intake contract (backend plan 42): the same envelope for every source.
+// `id` is stable across retries of the same event (the server does not deduplicate), `stream` is a short
+// lowercase label the server can filter by, `at` is Unix milliseconds, `data` is the client's own object.
+export interface IngestEvent {
+  id: string;
+  stream: string;
+  at: number;
+  data: Record<string, unknown>;
+}
+
+export interface IngestRequest {
+  events: IngestEvent[];
+  // events lost on this side (queue overflow) before this batch
   dropped: number;
+}
+
+// 200 means the request was processed; individual events may still be rejected, by index.
+export interface IngestResponse {
+  received: number;
+  stored: number;
+  rejected: { index: number; code: string; message: string }[];
 }
 
 export interface SettingsUpdatedWsMessage {
@@ -294,6 +333,7 @@ export type IncomingWsMessage =
   | CatalogueEntrySavedWsMessage
   | CatalogueEntryDeletedWsMessage
   | CatalogueImageGeneratedWsMessage
+  | CatalogueImageFailedWsMessage
   | SettingsUpdatedWsMessage;
 
 export type OutgoingWsMessage = SearchQueryWsMessage | MetricsSubscribeWsMessage | MetricsUnsubscribeWsMessage;
@@ -353,6 +393,8 @@ export interface ProductSaveRequest {
   carbs: number;
   fiber: number;
   description: string;
+  // Sent only by an admin editing an existing product; the server rejects anyone else who sends it.
+  archived?: boolean;
 }
 
 export interface ServerResponseProductSave extends ServerResponseBasic {
@@ -364,9 +406,20 @@ export interface ServerResponseProductSave extends ServerResponseBasic {
 
 //                                                                      SETTINGS
 
+// Default lightness and saturation (both 0-100) of chart category colors in one theme; a category's
+// own values win over these (see categorical-palette.ts).
+export interface PaletteTuning {
+  lightness: number;
+  // Share of the most vivid chroma the screen can show at that lightness and hue.
+  saturation: number;
+}
+
 export interface UserSettings {
   selectedChapterFood: boolean;
   selectedChapterMoney: boolean;
+  // null = the built-in default tuning.
+  chartPaletteLight: PaletteTuning | null;
+  chartPaletteDark: PaletteTuning | null;
   userName: string;
   isUserAdmin?: boolean; // TODO[068]: Think of a better way to work with admin privileges
 }
@@ -374,6 +427,8 @@ export interface UserSettings {
 export const KeyOfUserSettings = {
   selectedChapterFood: 'selectedChapterFood',
   selectedChapterMoney: 'selectedChapterMoney',
+  chartPaletteLight: 'chartPaletteLight',
+  chartPaletteDark: 'chartPaletteDark',
   userName: 'userName',
   isUserAdmin: 'isUserAdmin',
 } as const;
@@ -429,6 +484,7 @@ export interface DiarySegment {
 
 export interface DiaryEntryWithFullData extends DiaryEntry {
   foodName: string;
+  isFoodArchived: boolean;
   foodKcals: number;
   foodPercent: string;
   foodKcalPercentageOfDaysNorm: number;
@@ -482,6 +538,8 @@ export interface CatalogueEntry {
   carbs: number;
   fiber: number;
   description: string;
+  // Absent in a catalogue cached before the archive feature — treated as not archived.
+  archived?: boolean;
   imageVersion?: number;
   canDelete?: boolean;
 }
@@ -579,32 +637,26 @@ export interface FoodStatsResponse {
   totalEntries: number;
 }
 
-export interface ProductHistoryCursor {
-  dateISO: string;
-  id: number;
-}
-
 export interface ProductHistoryEntry {
   dateISO: string;
   foodCatalogueId: number;
   foodWeight: number;
+  kcal: number;
   percentOfNorm: number;
 }
 
-export interface ProductHistoryPage {
-  entries: ProductHistoryEntry[];
-  nextCursor?: ProductHistoryCursor;
-}
+// Per-day numeric series of the food stats charts. The list is the single source of truth for the
+// series the generic slicing/aggregation in stats-chart-data.ts walks, so a new series is one
+// entry here (plus the code that fills and draws it) and never a new copy of the aggregation.
+// kcalsSelected is the part of kcalsFactual that comes from the products tracked in the product history.
+export const STATS_CHART_SERIES = ['weights', 'weightsAvg', 'kcalsFactual', 'kcalsSelected', 'kcalsTarget'] as const;
 
-export interface StatsChartData {
+export type StatsChartSeries = (typeof STATS_CHART_SERIES)[number];
+
+export type StatsChartData = Record<StatsChartSeries, number[]> & {
   dates: string[];
-  weights: number[];
-  weightsAvg: number[];
-  kcalsFactual: number[];
-  kcalsVirtual: number[];
-  kcalsTarget: number[];
   hasNoData: boolean[];
-}
+};
 
 //                                                                         MONEY
 
@@ -636,6 +688,14 @@ export interface Category {
   name: string;
   parentId?: number | null;
   categoryType: CategoryType;
+  // Chart-related properties. Optional only because a snapshot cached before they existed lacks
+  // them (read as: shown on charts, automatic color).
+  hiddenOnCharts?: boolean;
+  // Chart color: hue 0-360, lightness and saturation 0-100. null = automatic (hue) or the user's
+  // palette default (lightness, saturation).
+  hue?: number | null;
+  lightness?: number | null;
+  saturation?: number | null;
 }
 
 export const AccountKind = {
@@ -694,20 +754,6 @@ export const TransactionKind = {
 
 export type TransactionKind = (typeof TransactionKind)[keyof typeof TransactionKind];
 
-export interface InvestAssetTrade {
-  id: number;
-  dateISO: string;
-  accountId: number;
-  amount: number;
-  kind: typeof TransactionKind.INVEST_BUY | typeof TransactionKind.INVEST_SELL;
-  notes?: string | null;
-  detailsJSON?: any;
-  assetId?: number | null;
-  assetTitle?: string | null;
-  assetTicker?: string | null;
-  assetType?: AssetType | null;
-}
-
 export interface Transaction {
   id?: number;
   dateISO: string;
@@ -743,7 +789,8 @@ export interface BalanceChartData {
 }
 
 export interface IncomeChartCategorySeries {
-  categoryId: number | null;
+  // Series id: a category id, or a negative virtual series id (see money-series.ts).
+  categoryId: number;
   categoryName: string;
   values: number[];
 }
@@ -751,15 +798,6 @@ export interface IncomeChartCategorySeries {
 export interface DividendRow {
   dateISO: string;
   amount: number;
-}
-
-export interface PositionLotRow {
-  status: 'closed' | 'open';
-  assetType: AssetType | null;
-  buyDateISO: string;
-  sellDateISO: string | null;
-  pnl: number | null;
-  openMonths: string[];
 }
 
 export interface IncomeChartData {
@@ -782,6 +820,13 @@ export interface ExpenseRow {
 export interface ExpenseChartData {
   categories: ExpenseCategory[];
   monthRows: ExpenseRow[];
+}
+
+// One chart series' part of the whole (0-1), used to size its color in the category form preview.
+export interface SeriesShare {
+  id: number;
+  name: string;
+  share: number;
 }
 
 // export interface Notification {

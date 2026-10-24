@@ -1,7 +1,13 @@
-import { CategoricalHue, createCategoricalPalette } from '@app/shared/categorical-palette';
+import { bmiBandsPlugin } from '@app/shared/bmi-bands-plugin';
+import {
+  createCategoricalPalette,
+  DEFAULT_PALETTE_TUNING,
+  hueToColor,
+  seriesColor,
+} from '@app/shared/categorical-palette';
 import { formatMetricUnitValue, MetricUnit } from '@app/shared/metric-units';
 import { formatMetricTickLabel } from '@app/shared/metrics-series';
-import { MetricGranularity } from '@app/shared/types';
+import { MetricGranularity, PaletteTuning } from '@app/shared/types';
 import { ChartConfiguration } from 'chart.js';
 
 export interface ChartColors {
@@ -9,11 +15,11 @@ export interface ChartColors {
   mainAlpha: string;
   secondary: string;
   secondaryAlpha: string;
-  virtual: string;
-  virtualAlpha: string;
   text: string;
   grid: string;
   isDark: boolean;
+  // How vivid/light category colors are (see hueToColor); the user's override of the default.
+  palette: PaletteTuning;
 }
 
 export interface MonthLabelsPluginOptions {
@@ -55,8 +61,8 @@ export interface MonthLabelsPluginOptions {
 
 // Same blue hue (~225°, matching --v-color-primary) in both palettes, but lightness ranking
 // is flipped: on a white surface a darker tone reads as the more prominent one, so light mode
-// goes secondary(darkest) > main > virtual(lightest); on a dark surface it's the opposite — a
-// lighter tone pops more — so dark mode goes secondary(lightest) > main > virtual(darkest),
+// goes secondary(darkest) > main; on a dark surface it's the opposite — a
+// lighter tone pops more — so dark mode goes secondary(lightest) > main,
 // keeping the same relative emphasis order in both themes instead of reusing light values as-is.
 // text/grid match --v-color-text-muted / --v-color-border-subtle from flat-blue.css, so
 // axis labels and gridlines read like the rest of the app's chrome instead of Chart.js's
@@ -66,11 +72,10 @@ export const CHART_COLORS_LIGHT: ChartColors = {
   mainAlpha: '#6278bc50',
   secondary: '#2d3f76',
   secondaryAlpha: '#2d3f7650',
-  virtual: '#a1acce',
-  virtualAlpha: '#a1acce80',
   text: '#64748b',
   grid: '#e2e8f0',
   isDark: false,
+  palette: DEFAULT_PALETTE_TUNING,
 };
 
 export const CHART_COLORS_DARK: ChartColors = {
@@ -78,11 +83,10 @@ export const CHART_COLORS_DARK: ChartColors = {
   mainAlpha: '#545f8350',
   secondary: '#8d98b9',
   secondaryAlpha: '#8d98b950',
-  virtual: '#3f465a',
-  virtualAlpha: '#3f465a80',
   text: '#94a3b8',
   grid: '#334155',
   isDark: true,
+  palette: DEFAULT_PALETTE_TUNING,
 };
 
 export function createWeightChartConfig(colors: ChartColors): ChartConfiguration {
@@ -112,6 +116,7 @@ export function createWeightChartConfig(colors: ChartColors): ChartConfiguration
         },
       ],
     },
+    plugins: [bmiBandsPlugin],
     options: {
       animation: false,
       elements: { line: { tension: 0.5 } },
@@ -137,6 +142,18 @@ export function createWeightChartConfig(colors: ChartColors): ChartConfiguration
   };
 }
 
+// Color of the part of the calories bar eaten from the products tracked in the product history: a
+// raspberry/magenta far from the chart's blue and outside the status bands (see
+// STATUS_EXCLUDED_HUE_RANGES in categorical-palette.ts), so it reads as "highlighted", never as an
+// error or a warning. The dark theme follows the user's palette tuning; the default palette is too
+// loud on white, so the light theme has its own fixed lightness and saturation.
+export function selectedProductsColor(colors: ChartColors): string {
+  return colors.isDark ? hueToColor(330, colors) : seriesColor({ hue: 345, lightness: 44, saturation: 90 }, colors);
+}
+
+// The bar is a two-segment stack: the tracked products at the base (a shared baseline makes their
+// height comparable from day to day), the rest of the day above. Their sum is the day's calories,
+// so the bar height and the target line keep their meaning with or without a selection.
 export function createKcalsChartConfig(colors: ChartColors): ChartConfiguration {
   return {
     type: 'bar',
@@ -144,23 +161,23 @@ export function createKcalsChartConfig(colors: ChartColors): ChartConfiguration 
       labels: [],
       datasets: [
         {
+          label: 'Выбранные продукты',
+          data: [],
+          order: 2,
+          stack: 'kcals',
+          borderColor: selectedProductsColor(colors),
+          backgroundColor: selectedProductsColor(colors),
+          borderWidth: 1,
+          barThickness: 'flex',
+          maxBarThickness: 30,
+        },
+        {
           label: 'Ккал за день',
           data: [],
           order: 2,
           stack: 'kcals',
           borderColor: colors.main,
           backgroundColor: colors.main,
-          borderWidth: 1,
-          barThickness: 'flex',
-          maxBarThickness: 30,
-        },
-        {
-          label: 'Виртуальные ккал',
-          data: [],
-          order: 2,
-          stack: 'kcals',
-          borderColor: colors.virtual,
-          backgroundColor: colors.virtual,
           borderWidth: 1,
           barThickness: 'flex',
           maxBarThickness: 30,
@@ -307,16 +324,6 @@ export function createBalanceChartConfig(colors: ChartColors): ChartConfiguratio
   };
 }
 
-export const INCOME_CHART_ALLOWED_CATEGORIES: ReadonlySet<string> = new Set(['Зарплата', 'Проекты', 'Проценты']);
-
-export const INCOME_VIRTUAL_SERIES = {
-  DIVIDENDS: -1,
-  CB_CLOSED_PNL: -2,
-  CB_OPEN_PNL: -3,
-  CRYPTO_CLOSED_PNL: -4,
-  CRYPTO_OPEN_PNL: -5,
-} as const;
-
 // Same explicit-color rationale as createBalanceChartConfig above.
 export function createIncomeChartConfig(colors: ChartColors): ChartConfiguration<'bar'> {
   return {
@@ -361,48 +368,42 @@ export function createIncomeChartConfig(colors: ChartColors): ChartConfiguration
   };
 }
 
-export interface ExpenseCategoryConfig {
-  name: string;
-  // Optional fixed hue for categories that should always render in a specific color instead of
-  // the auto-generated one — e.g. a category people already associate with a color from outside
-  // the app. Pick from CategoricalHue (Red/Orange/Yellow/Green/Teal/Blue/Purple/Pink) or any raw
-  // 0-360 degree value for a finer shade. Unpinned categories get an auto hue from
-  // expenseCategoricalPalette that's kept clear of every pinned one (see PIN_EXCLUSION_RADIUS_DEG
-  // in categorical-palette.ts).
-  hue?: CategoricalHue | number;
-}
-
-// Display order, and optionally a pinned color (CategoricalHue.Red/Orange/Yellow/Green/Teal/
-// Blue/Purple/Pink, see categorical-palette.ts) — see ExpenseCategoryConfig. Auto colors for the
-// rest come from expenseCategoricalPalette.getColor(), keyed by category name (see
-// ExpenseChart.getCategoryColor / rebuildChartDatasets).
-export const EXPENSE_CATEGORY_CONFIG: ExpenseCategoryConfig[] = [
-  { name: 'Еда', hue: CategoricalHue.Green },
-  { name: 'Алкоголь', hue: CategoricalHue.Yellow },
-  { name: 'Квартплата', hue: CategoricalHue.Blue },
-  { name: 'Развл.' },
-  { name: 'Отдых' },
-  { name: 'Проезд' },
-  { name: 'Одежда' },
-  { name: 'Связь' },
-  { name: 'Рекуррентка', hue: CategoricalHue.Red },
-  { name: 'Лекарства' },
-  { name: 'Хоз.товары' },
-  { name: 'Запчасти' },
-  { name: 'Прочее', hue: CategoricalHue.Orange },
-  { name: 'Подарок', hue: CategoricalHue.Lilac },
-  { name: 'Техника' },
+// Legend and stack order of the expense and income series, by name; a series that is not listed
+// goes last. Category colors are not here: they are a property of the category (its hue).
+export const EXPENSE_SERIES_ORDER: readonly string[] = [
+  'Еда',
+  'Алкоголь',
+  'Квартплата',
+  'Развл.',
+  'Отдых',
+  'Проезд',
+  'Одежда',
+  'Связь',
+  'Рекуррентка',
+  'Лекарства',
+  'Хоз.товары',
+  'Запчасти',
+  'Прочее',
+  'Подарок',
+  'Техника',
 ];
 
-// One independent hue pool per chart domain — a pin in one (e.g. Food=green here) doesn't eat
-// into the other two domains' available hue space. Pins must be registered before any getColor()
-// call for that palette (see CategoricalPalette.pin doc), which module-eval order guarantees here.
-export const expenseCategoricalPalette = createCategoricalPalette();
-EXPENSE_CATEGORY_CONFIG.forEach((c) => {
-  if (c.hue !== undefined) expenseCategoricalPalette.pin(c.name, c.hue);
-});
+export const INCOME_SERIES_ORDER: readonly string[] = [
+  'Зарплата',
+  'Проекты',
+  'Проценты',
+  'Дивиденды',
+  'ЦБ закрытые',
+  'ЦБ открытые',
+  'Крипта закрытые',
+  'Крипта открытые',
+];
 
-export const incomeCategoricalPalette = createCategoricalPalette();
+export function seriesOrderIndex(order: readonly string[], name: string): number {
+  const index = order.indexOf(name);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
 export const balanceCategoricalPalette = createCategoricalPalette();
 
 export function rgbToRgba(rgb: string, alpha: number): string {
@@ -458,19 +459,6 @@ export function createExpenseChartConfig(colors: ChartColors): ChartConfiguratio
     },
   };
 }
-
-export const METRICS_GRANULARITY_STEP_SECONDS: Record<MetricGranularity, number> = {
-  minute: 60,
-  hour: 3600,
-  day: 86400,
-};
-
-// How many periods the display window covers per granularity.
-export const METRICS_GRANULARITY_WINDOW_PERIODS: Record<MetricGranularity, number> = {
-  minute: 24 * 60,
-  hour: 30 * 24,
-  day: 365,
-};
 
 export function createMetricSparklineConfig(color: string, colors: ChartColors): ChartConfiguration<'line'> {
   return {

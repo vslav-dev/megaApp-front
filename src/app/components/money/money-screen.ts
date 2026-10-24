@@ -81,6 +81,7 @@ export class MoneyScreen implements OnInit {
   });
 
   protected readonly convertToUnifiedCurrency$$ = computed(() => this.moneyService.convertToUnifiedCurrency$$());
+  protected readonly linkTransactionsToCharts$$ = computed(() => this.moneyService.linkTransactionsToCharts$$());
 
   protected readonly currencyToggleItems: VToggleItem[] = [
     { id: 'RUB', label: '₽' },
@@ -200,6 +201,10 @@ export class MoneyScreen implements OnInit {
 
   protected toggleConvertToUnifiedCurrency(): void {
     this.moneyService.setConvertToUnifiedCurrency(!this.convertToUnifiedCurrency$$());
+  }
+
+  protected toggleLinkTransactionsToCharts(): void {
+    this.moneyService.setLinkTransactionsToCharts(!this.linkTransactionsToCharts$$());
   }
 
   public ngOnInit(): void {

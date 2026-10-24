@@ -2,6 +2,8 @@
 
 Парный план: [megaapp-back/plans/36-telemetry-http-ingest.implementation-plan.md](../../megaapp-back/plans/36-telemetry-http-ingest.implementation-plan.md). Главный по объёму — этот (фронт), бэк — второстепенный.
 
+**Дальнейшее развитие:** адрес и форма запроса из этого плана заменяются единым контрактом приёма — [42-ingest-contract-migration](42-ingest-contract-migration.implementation-plan.md) (бэк: [42-extension-log-ingest](../../megaapp-back/plans/42-extension-log-ingest.implementation-plan.md)). Очередь, окно, чанки и автосбор ошибок остаются как здесь описано.
+
 ## Цель
 
 Заменить WS-канал `PERFORMANCE_METRICS_BATCH`/`ACK`, заточенный только под perf-замеры, на общий HTTP-канал телеметрии: performance (как сейчас) + error (авто и ручной) + log (зарезервированный примитив) — единым потоком, без деления событий по типу. Ошибки долетают до бэка без правки кода компонентов, привязаны к userId — можно найти ошибки конкретного жалующегося пользователя.

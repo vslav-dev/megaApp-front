@@ -4,7 +4,7 @@ import { persistedSignal } from '@app/services/settings/persisted-signal';
 import { DEFAULT_METRIC_CHART_MODE, MetricChartMode } from '@app/shared/metrics-chart-mode';
 import { MAX_SNAP_TOLERANCE_RATIO } from '@app/shared/metrics-series';
 import { SeverityThresholds } from '@app/shared/metrics-severity';
-import { CompositeMetricDefinition, MetricGranularity } from '@app/shared/types';
+import { MetricGranularity } from '@app/shared/types';
 
 export type DashboardMetricSelection = Record<string, Record<string, number>>;
 export type DashboardServiceSelection = Record<string, number>;
@@ -46,7 +46,6 @@ interface StoredMetricsSettings {
   severityThresholds: SeverityThresholdsOverrides;
   serviceHeaderVisibility: ServiceHeaderVisibility;
   serviceCustomLabels: ServiceCustomLabels;
-  compositeMetrics: CompositeMetricDefinition[];
   // Percent of the value mass the anomaly corridor (Y-axis clamp, see
   // valueCorridor in metrics-series.ts) must keep visible — the only knob left
   // after simplifying this from a per-point Hampel/MAD outlier filter down to
@@ -96,7 +95,6 @@ const DEFAULTS: StoredMetricsSettings = {
   severityThresholds: {},
   serviceHeaderVisibility: {},
   serviceCustomLabels: {},
-  compositeMetrics: [],
   anomalyCorridorPercent: DEFAULT_ANOMALY_CORRIDOR_PERCENT,
 };
 
@@ -128,9 +126,6 @@ export class MetricsSettingsService {
   );
   public readonly serviceCustomLabels$$: Signal<ServiceCustomLabels> = computed(
     () => this.store.value$$().serviceCustomLabels,
-  );
-  public readonly compositeMetrics$$: Signal<CompositeMetricDefinition[]> = computed(
-    () => this.store.value$$().compositeMetrics,
   );
   public readonly isSaving$$: WritableSignal<boolean> = this.store.isSaving$$;
   public readonly isDirty$$: Signal<boolean> = this.store.isDirty$$;
@@ -278,10 +273,6 @@ export class MetricsSettingsService {
       delete next[service];
     }
     this.setServiceCustomLabels(next);
-  }
-
-  public setCompositeMetrics(value: CompositeMetricDefinition[]): void {
-    this.store.stage('compositeMetrics', value);
   }
 
   public async saveNow(): Promise<void> {

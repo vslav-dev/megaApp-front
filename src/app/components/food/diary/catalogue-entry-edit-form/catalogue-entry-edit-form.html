@@ -17,8 +17,30 @@
     </div> -->
 
     @if (error$$()) {
-      <div class="v-theme-transition p-3 text-sm rounded-lg text-[var(--v-color-danger)] bg-[color-mix(in_oklch,var(--v-color-danger)_14%,var(--v-color-surface)_86%)]">
+      <div
+           class="v-theme-transition p-3 text-sm rounded-lg text-[var(--v-color-danger)] bg-[color-mix(in_oklch,var(--v-color-danger)_14%,var(--v-color-surface)_86%)]">
         {{ error$$() }}
+      </div>
+    }
+
+    @if (mode$$() === this.formMode.Edit) {
+      <div class="flex items-center gap-3">
+        <div class="flex items-center justify-center shrink-0 size-20 overflow-hidden rounded-xl text-xs text-center bg-[color-mix(in_oklch,currentColor_10%,transparent)]">
+          @if (imageUrl$$(); as imageUrl) {
+            <img class="size-full object-cover"
+                 alt=""
+                 [src]="imageUrl" />
+          } @else {
+            <span class="opacity-60">Нет картинки</span>
+          }
+        </div>
+
+        @if (canRegenerateImage$$()) {
+          <v-button [isDisabled]="isImageGenerating$$() || isSaving$$() || isDeleting$$()"
+                    (click)="onRegenerateClick()">
+            {{ regenerateButtonLabel$$() }}
+          </v-button>
+        }
       </div>
     }
 
@@ -66,6 +88,13 @@
                placeholder="Введите описание продукта для улучшения результатов поиска"
                [isTextarea]="true"
                [rows]="3" />
+
+      @if (canEditArchive$$()) {
+        <v-checkbox class="mt-2"
+                    [(value)]="isArchived$$">
+          Архивный
+        </v-checkbox>
+      }
     </div>
 
     <div class="flex justify-between gap-4 mt-0">
@@ -106,3 +135,12 @@
                (confirmOutput)="onDeleteConfirmed()"
                (cancelOutput)="closeDeleteConfirmation()"
                (closeOutput)="closeDeleteConfirmation()"></default-modal>
+
+<default-modal [isModalOpen]="isRegenerateConfirmOpen$$()"
+               [modalTitle]="'Перегенерировать картинку?'"
+               [modalMessage]="'Текущая картинка будет заменена новой, когда та будет готова.'"
+               [confirmButtonLabel]="'Перегенерировать'"
+               [cancelButtonLabel]="'Отмена'"
+               (confirmOutput)="onRegenerateConfirmed()"
+               (cancelOutput)="closeRegenerateConfirmation()"
+               (closeOutput)="closeRegenerateConfirmation()"></default-modal>

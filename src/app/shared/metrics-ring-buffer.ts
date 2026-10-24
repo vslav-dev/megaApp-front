@@ -72,8 +72,8 @@ export class MetricRingBuffer {
   }
 
   // Rebuilds a buffer from a persisted snapshot. Returns null instead of
-  // restoring a mismatched-capacity snapshot (e.g. METRICS_GRANULARITY_WINDOW_PERIODS
-  // changed between deploys) — the caller simply starts that series empty and
+  // restoring a mismatched-capacity snapshot (e.g. a granularity's `periods` in
+  // metrics-granularity.ts changed between deploys) — the caller simply starts that series empty and
   // re-backfills from REST/WS, same as any other cold cache miss.
   public static fromSnapshot(
     capacity: number,

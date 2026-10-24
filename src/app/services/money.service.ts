@@ -6,12 +6,12 @@ import { NamespaceSettingsStore } from '@app/services/settings/namespace-setting
 import { TelemetryService } from '@app/services/telemetry.service';
 import { Observable, of, Subject } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
+import { areSetsEqual } from '../shared/money-utils';
 import {
   Account,
   Asset,
   Category,
   Currency,
-  InvestAssetTrade,
   MoneyRateHistory,
   Organization,
   ServerResponseBasic,
@@ -45,7 +45,6 @@ interface MoneySnapshot {
   organizations: Organization[];
   accounts: Account[];
   assets: Asset[];
-  investAssetTrades: InvestAssetTrade[];
   transactions: Transaction[];
   rateHistory: MoneyRateHistory[];
 }
@@ -63,8 +62,10 @@ interface MoneySettings {
   chartRangeEnd: string | null;
   expenseChartYMax: ExpenseChartYMaxSetting | null;
   convertToUnifiedCurrency: boolean;
-  disabledCategoryIds: (number | null)[];
-  disabledIncomeCategoryIds: (number | null)[];
+  // Checked series of the expense / income chart legends (see money-series.ts for the id space).
+  enabledCategoryIds: number[];
+  incomeEnabledCategoryIds: number[];
+  linkTransactionsToCharts: boolean;
   yearlyMode: boolean;
   showByAccount: boolean;
   suspensionFilter: SuspensionFilter;
@@ -80,8 +81,9 @@ function defaultSettings(): MoneySettings {
     chartRangeEnd: null,
     expenseChartYMax: null,
     convertToUnifiedCurrency: false,
-    disabledCategoryIds: [],
-    disabledIncomeCategoryIds: [],
+    enabledCategoryIds: [],
+    incomeEnabledCategoryIds: [],
+    linkTransactionsToCharts: false,
     yearlyMode: false,
     showByAccount: false,
     suspensionFilter: 'all',
@@ -115,7 +117,6 @@ export class MoneyService {
   public readonly organizations$$: WritableSignal<Organization[]> = signal([]);
   public readonly accounts$$: WritableSignal<Account[]> = signal([]);
   public readonly assets$$: WritableSignal<Asset[]> = signal([]);
-  public readonly investAssetTrades$$: WritableSignal<InvestAssetTrade[]> = signal([]);
   public readonly transactions$$: WritableSignal<Transaction[]> = signal([]);
   public readonly rateHistory$$: WritableSignal<MoneyRateHistory[]> = signal([]);
   private readonly rateSnapshots$$: Signal<{ dateISO: string; rates: Record<string, number> }[]> = computed(() => {
@@ -139,11 +140,18 @@ export class MoneyService {
   public readonly convertToUnifiedCurrency$$: Signal<boolean> = computed(
     () => this.settingsStore.value$$().convertToUnifiedCurrency,
   );
-  public readonly disabledCategoryIds$$: Signal<Set<number | null>> = computed(
-    () => new Set(this.settingsStore.value$$().disabledCategoryIds),
+  // Compared by content: any settings write replaces the stored arrays, but readers (charts, the
+  // transactions filter) should only recompute when the checked series themselves change.
+  public readonly enabledExpenseSeriesIds$$: Signal<Set<number>> = computed(
+    () => new Set(this.settingsStore.value$$().enabledCategoryIds),
+    { equal: areSetsEqual },
   );
-  public readonly disabledIncomeCategoryIds$$: Signal<Set<number | null>> = computed(
-    () => new Set(this.settingsStore.value$$().disabledIncomeCategoryIds),
+  public readonly enabledIncomeSeriesIds$$: Signal<Set<number>> = computed(
+    () => new Set(this.settingsStore.value$$().incomeEnabledCategoryIds),
+    { equal: areSetsEqual },
+  );
+  public readonly linkTransactionsToCharts$$: Signal<boolean> = computed(
+    () => this.settingsStore.value$$().linkTransactionsToCharts,
   );
   public readonly yearlyMode$$: Signal<boolean> = computed(() => this.settingsStore.value$$().yearlyMode);
   public readonly showByAccount$$: Signal<boolean> = computed(() => this.settingsStore.value$$().showByAccount);
@@ -190,12 +198,16 @@ export class MoneyService {
     this.settingsStore.set('convertToUnifiedCurrency', value);
   }
 
-  public setDisabledCategoryIds(ids: ReadonlySet<number | null>): void {
-    this.settingsStore.set('disabledCategoryIds', [...ids]);
+  public setEnabledExpenseSeriesIds(ids: ReadonlySet<number>): void {
+    this.settingsStore.set('enabledCategoryIds', [...ids]);
   }
 
-  public setDisabledIncomeCategoryIds(ids: ReadonlySet<number | null>): void {
-    this.settingsStore.set('disabledIncomeCategoryIds', [...ids]);
+  public setEnabledIncomeSeriesIds(ids: ReadonlySet<number>): void {
+    this.settingsStore.set('incomeEnabledCategoryIds', [...ids]);
+  }
+
+  public setLinkTransactionsToCharts(value: boolean): void {
+    this.settingsStore.set('linkTransactionsToCharts', value);
   }
 
   public setYearlyMode(value: boolean): void {
@@ -231,7 +243,6 @@ export class MoneyService {
     this.organizations$$.set([]);
     this.accounts$$.set([]);
     this.assets$$.set([]);
-    this.investAssetTrades$$.set([]);
     this.transactions$$.set([]);
     this.rateHistory$$.set([]);
     this.isDataReady$$.set(false);
@@ -284,7 +295,6 @@ export class MoneyService {
     this.organizations$$.set(data.organizations ?? []);
     this.accounts$$.set((data.accounts ?? []).map((a) => this.normalizeAccount(a as AccountApi)));
     this.assets$$.set(data.assets ?? []);
-    this.investAssetTrades$$.set(data.investAssetTrades ?? []);
     this.transactions$$.set(this.mergeSnapshotTransactions(this.transactions$$(), data.transactions ?? []));
     if (data.rateHistory?.length) {
       this.rateHistory$$.set(
@@ -323,7 +333,6 @@ export class MoneyService {
       organizations: this.organizations$$(),
       accounts: this.accounts$$(),
       assets: this.assets$$(),
-      investAssetTrades: this.investAssetTrades$$(),
       transactions: this.transactions$$(),
       rateHistory: this.rateHistory$$(),
     };

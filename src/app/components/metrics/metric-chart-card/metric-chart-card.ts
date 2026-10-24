@@ -107,6 +107,10 @@ const HOVER_NO_VALUE_PLACEHOLDER = '—';
 // arrives). See plans/35-metrics-dashboard-viewport-rendering.implementation-plan.md §2.1.
 const VIEWPORT_GATE_ROOT_MARGIN_PX = 200;
 
+function nonNullValues(points: MetricSeriesPoint[]): number[] {
+  return points.map((point) => point.value).filter((value): value is number => value !== null);
+}
+
 @Component({
   selector: 'metric-chart-card',
   templateUrl: './metric-chart-card.html',
@@ -122,6 +126,9 @@ export class MetricChartCard implements OnInit, OnDestroy {
   public readonly unitInput = input<MetricUnit>('count');
   public readonly granularityInput = input<MetricGranularity>('minute');
   public readonly seriesInput = input.required<MetricSeriesPoint[]>();
+  // Points the Y-axis range and the header's high/low are measured on — may be finer than
+  // seriesInput when that one is display-collapsed (see MetricChartCardSeriesDisplay.scalePoints).
+  public readonly scalePointsInput = input.required<MetricSeriesPoint[]>();
   public readonly chartModeInput = input<MetricChartMode>('sparse-line');
   public readonly windowStartInput = input<number>(0);
   public readonly windowEndInput = input<number>(0);
@@ -237,19 +244,19 @@ export class MetricChartCard implements OnInit, OnDestroy {
     return formatMetricBucketLabel(nearest.bucket, this.granularityInput());
   });
 
-  // OHLC across the currently visible series — seriesInput is already scoped
+  // OHLC across the currently visible window — seriesInput is already scoped
   // to [windowStartInput, windowEndInput] by the parent, sorted by bucket ascending,
-  // so the first/last non-null values double as open/close.
+  // so its first/last non-null values double as open/close; high/low come from
+  // scalePointsInput, so they match the Y-axis range on every display of the metric.
   protected readonly headerOhlcDisplay$$ = computed(() => {
-    const values = this.seriesInput()
-      .map((point) => point.value)
-      .filter((value): value is number => value !== null);
-    if (values.length === 0) return null;
+    const values = nonNullValues(this.seriesInput());
+    const scaleValues = nonNullValues(this.scalePointsInput());
+    if (values.length === 0 || scaleValues.length === 0) return null;
 
     const unit = this.unitInput();
     const open = formatMetricUnitValue(unit, values[0]);
-    const high = formatMetricUnitValue(unit, Math.max(...values));
-    const low = formatMetricUnitValue(unit, Math.min(...values));
+    const high = formatMetricUnitValue(unit, Math.max(...scaleValues));
+    const low = formatMetricUnitValue(unit, Math.min(...scaleValues));
     const close = formatMetricUnitValue(unit, values[values.length - 1]);
     return `O: ${open} — H: ${high} — L: ${low} — C: ${close}`;
   });
@@ -306,6 +313,7 @@ export class MetricChartCard implements OnInit, OnDestroy {
     const granularity = this.granularityInput();
     const tooltipMode = this.tooltipModeInput();
     const series = this.seriesInput();
+    this.scalePointsInput();
     this.windowStartInput();
     this.windowEndInput();
     this.displayStepSecondsInput();
@@ -477,7 +485,7 @@ export class MetricChartCard implements OnInit, OnDestroy {
     this.chart!.options.plugins ??= {};
     this.chart!.options.plugins.metricSyncCrosshair = this.syncCrosshairOptions();
 
-    const values = series.map((point) => point.value).filter((value): value is number => value !== null);
+    const values = nonNullValues(this.scalePointsInput());
     // The corridor only ever narrows the Y-axis range — the plotted data (set
     // above) is untouched, so a spike still draws, it just runs off the top/
     // bottom of a shorter axis instead of stretching it to fit.

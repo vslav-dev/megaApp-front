@@ -11,7 +11,8 @@
   transition: background var(--v-theme-transition-duration, 0s);
 }
 
-.catalogue-entry-weight {
+.catalogue-entry-weight,
+.catalogue-entry-badge {
   padding: 1px 6px;
   background: color-mix(in srgb, var(--v-color-surface) 80%, transparent);
   border-radius: 4px;

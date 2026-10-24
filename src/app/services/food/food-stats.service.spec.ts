@@ -10,6 +10,7 @@ import { DayStats, FoodStatsResponse, Stats } from '@app/shared/types';
 import { createTelemetryFake } from '@app/testing/telemetry.fake';
 import { Subject } from 'rxjs';
 import { FoodDiaryService } from './food-diary.service';
+import { FoodProductHistoryStateService } from './food-product-history-state.service';
 import { FoodSettingsService } from './food-settings.service';
 import { FoodStatsService } from './food-stats.service';
 
@@ -29,7 +30,7 @@ function buildDailyStats(count: number, startDateIso: string): Stats {
   return stats;
 }
 
-function setup(response: FoodStatsResponse): FoodStatsService {
+function setup(response: FoodStatsResponse, selectedKcalByDate = new Map<string, number>()): FoodStatsService {
   const localStorageFake: Pick<LocalStorageService, 'getUserScoped' | 'setUserScoped'> = {
     getUserScoped: <T>() => response as unknown as T,
     setUserScoped: () => {},
@@ -58,6 +59,7 @@ function setup(response: FoodStatsResponse): FoodStatsService {
       { provide: FoodDiaryService, useValue: diaryServiceFake },
       { provide: FoodSettingsService, useValue: settingsServiceFake },
       { provide: AuthService, useValue: authServiceFake },
+      { provide: FoodProductHistoryStateService, useValue: { selectedKcalByDate$$: signal(selectedKcalByDate) } },
       { provide: TelemetryService, useValue: createTelemetryFake() },
     ],
   });
@@ -140,6 +142,30 @@ describe('FoodStatsService.statsChartDataClipped$$', () => {
     // hideWeights=true is applied for aggregated granularities.
     expect(result.weights.every((w) => Number.isNaN(w))).toBe(true);
     // Every complete week averages the same constant daily kcal value.
+    expect(result.kcalsFactual.filter((v) => !Number.isNaN(v)).every((v) => v === 2000)).toBe(true);
+  });
+
+  it('carries the calories of the tracked products per day, zero on a day without them', () => {
+    const days = buildDailyStats(5, '2026-01-01');
+    const service = setup({ ...emptyResponse(), days }, new Map([['2026-01-02', 600]]));
+    service.selectedDateIdxStart$$.set(0);
+    service.selectedDateIdxEnd$$.set(4);
+
+    expect(service.statsChartDataClipped$$().kcalsSelected).toEqual([0, 600, 0, 0, 0]);
+  });
+
+  it('averages the tracked calories the same way as the total when days are merged into weeks', () => {
+    const days = buildDailyStats(365, '2025-01-01');
+    // 700 kcal of the tracked products on every day: any complete week must average exactly that.
+    const selected = new Map(Object.keys(days).map((date) => [date, 700] as const));
+    const service = setup({ ...emptyResponse(), days }, selected);
+    service.selectedDateIdxStart$$.set(0);
+    service.selectedDateIdxEnd$$.set(364);
+
+    const result = service.statsChartDataClipped$$();
+
+    expect(result.dates.length).toBeLessThan(365);
+    expect(result.kcalsSelected.filter((v) => !Number.isNaN(v)).every((v) => v === 700)).toBe(true);
     expect(result.kcalsFactual.filter((v) => !Number.isNaN(v)).every((v) => v === 2000)).toBe(true);
   });
 });

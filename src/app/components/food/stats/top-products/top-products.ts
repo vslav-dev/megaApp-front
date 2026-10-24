@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, Signal } from '@angular/core';
 import { StatsHelpIcon } from '@app/components/food/stats/stats-help-icon/stats-help-icon';
-import { FoodStatsInsightsService, FoodStatsTopProductShare } from '@app/services/food/food-stats-insights.service';
+import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { FoodSettingsService, TopProductsMetric } from '@app/services/food/food-settings.service';
+import { FoodStatsInsightsService, FoodStatsTopProductShare } from '@app/services/food/food-stats-insights.service';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { VProgress } from '@ui-kit/components/v-progress/v-progress';
 import { VToggle, VToggleItem } from '@ui-kit/components/v-toggle/v-toggle';
@@ -13,6 +14,7 @@ import { VToggle, VToggleItem } from '@ui-kit/components/v-toggle/v-toggle';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TopProducts {
+  private readonly foodCatalogueService = inject(FoodCatalogueService);
   private readonly insightsService = inject(FoodStatsInsightsService);
   private readonly foodSettingsService = inject(FoodSettingsService);
 
@@ -25,11 +27,15 @@ export class TopProducts {
     this.foodSettingsService.statsTopProductsMetric$$(),
   );
 
-  protected readonly products$$: Signal<FoodStatsTopProductShare[]> = computed(() =>
-    this.metric$$() === TopProductsMetric.Kcal
-      ? this.insightsService.topProductsByKcalWithShare$$()
-      : this.insightsService.topProductsByWeightWithShare$$(),
-  );
+  // The archive flag comes from the local catalogue by id — the stats response doesn't carry it.
+  protected readonly products$$: Signal<(FoodStatsTopProductShare & { isArchived: boolean })[]> = computed(() => {
+    const catalogue = this.foodCatalogueService.catalogue$$();
+    const products =
+      this.metric$$() === TopProductsMetric.Kcal
+        ? this.insightsService.topProductsByKcalWithShare$$()
+        : this.insightsService.topProductsByWeightWithShare$$();
+    return products.map((product) => ({ ...product, isArchived: Boolean(catalogue[product.catalogueId]?.archived) }));
+  });
 
   protected metricToggleValue(): string[] {
     return [this.metric$$()];

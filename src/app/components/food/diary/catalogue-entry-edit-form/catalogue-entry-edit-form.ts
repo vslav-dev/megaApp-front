@@ -1,11 +1,14 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AuthService } from '@app/services/auth.service';
 import { FoodAddModalService } from '@app/services/food/food-add-modal.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { NotificationService } from '@app/services/notification.service';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { CatalogueEntry, ProductPreviewData, ProductSaveRequest } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
+import { VCheckbox } from '@ui-kit/components/v-checkbox/v-checkbox';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { VInput } from '@ui-kit/components/v-input/v-input';
 
@@ -23,11 +26,12 @@ const POSITIVE_DECIMAL_PATTERN = /^\d*[.,]?\d*$/;
   selector: 'catalogue-entry-edit-form',
   templateUrl: './catalogue-entry-edit-form.html',
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [DefaultModal, ReactiveFormsModule, VButton, VIcon, VInput],
+  imports: [DefaultModal, ReactiveFormsModule, VButton, VCheckbox, VIcon, VInput],
 })
 export class CatalogueEntryEditForm implements OnInit {
   protected readonly Icon = IconName;
 
+  private readonly authService = inject(AuthService);
   private readonly foodAddModalService = inject(FoodAddModalService);
   private readonly foodCatalogueService = inject(FoodCatalogueService);
   private readonly notificationService = inject(NotificationService);
@@ -40,6 +44,12 @@ export class CatalogueEntryEditForm implements OnInit {
 
   protected readonly productToEdit$$ = computed(() => this.foodAddModalService.selectedProduct$$());
 
+  // Only an admin may archive, and only an existing product (a new one starts not archived).
+  protected readonly canEditArchive$$ = computed(
+    () => this.authService.isAdmin$$() && this.mode$$() === this.formMode.Edit,
+  );
+  protected readonly isArchived$$ = signal(false);
+
   protected readonly isLoadingPreview$$ = signal(false);
   protected readonly isSaving$$ = signal(false);
   protected readonly isDeleting$$ = signal(false);
@@ -47,6 +57,27 @@ export class CatalogueEntryEditForm implements OnInit {
   protected readonly error$$ = signal<string | null>(null);
 
   protected readonly searchQuery$$ = computed(() => this.foodAddModalService.searchQuery$$());
+
+  // The picture is read from the catalogue, not from the selected product: that one is a snapshot and would not
+  // pick up an image that arrives later over the WebSocket.
+  protected readonly imageUrl$$ = computed(() => {
+    const product = this.productToEdit$$();
+    return product ? this.foodCatalogueService.getThumbImageUrl(product.id) : undefined;
+  });
+  protected readonly isImageGenerating$$ = computed(() => {
+    const product = this.productToEdit$$();
+    return product ? this.foodCatalogueService.isImageGenerating(product.id) : false;
+  });
+  protected readonly canRegenerateImage$$ = computed(
+    () => this.authService.isAdmin$$() && this.mode$$() === this.formMode.Edit,
+  );
+  protected readonly regenerateButtonLabel$$ = computed(() => {
+    if (this.isImageGenerating$$()) {
+      return 'Генерация картинки...';
+    }
+    return this.imageUrl$$() ? 'Перегенерировать картинку' : 'Сгенерировать картинку';
+  });
+  protected readonly isRegenerateConfirmOpen$$ = signal(false);
 
   protected catalogueEditForm: FormGroup = new FormGroup({
     name: new FormControl<string>('', [Validators.required, Validators.minLength(1), Validators.maxLength(100)]),
@@ -128,6 +159,7 @@ export class CatalogueEntryEditForm implements OnInit {
       fiber: String(product.fiber),
       description: product.description,
     });
+    this.isArchived$$.set(Boolean(product.archived));
 
     console.log('[CatalogueEditForm] Form values after patching:', this.catalogueEditForm.value);
   }
@@ -199,6 +231,10 @@ export class CatalogueEntryEditForm implements OnInit {
         productData.id = productToEdit.id;
       }
 
+      if (this.canEditArchive$$()) {
+        productData.archived = this.isArchived$$();
+      }
+
       const savedProduct = await this.foodCatalogueService.saveProduct(productData);
 
       console.log('[CatalogueEditForm] Product saved successfully:', savedProduct);
@@ -230,6 +266,64 @@ export class CatalogueEntryEditForm implements OnInit {
 
   protected goBack(): void {
     this.foodAddModalService.goBackToSearch();
+  }
+
+  // Replacing an existing picture asks first: the old one is dropped once the new one is ready.
+  protected onRegenerateClick(): void {
+    if (this.isImageGenerating$$()) {
+      return;
+    }
+
+    if (this.imageUrl$$()) {
+      this.isRegenerateConfirmOpen$$.set(true);
+    } else {
+      void this.regenerateImage();
+    }
+  }
+
+  protected closeRegenerateConfirmation(): void {
+    this.isRegenerateConfirmOpen$$.set(false);
+  }
+
+  protected onRegenerateConfirmed(): void {
+    this.isRegenerateConfirmOpen$$.set(false);
+    void this.regenerateImage();
+  }
+
+  private async regenerateImage(): Promise<void> {
+    const product = this.productToEdit$$();
+
+    if (!product) {
+      return;
+    }
+
+    try {
+      await this.foodCatalogueService.regenerateProductImage(product.id);
+    } catch (error: unknown) {
+      console.error('Failed to start image generation:', error);
+      const status = error instanceof HttpErrorResponse ? error.status : 0;
+
+      if (status === 404) {
+        this.notificationService.addNotification('error', 'Продукт не найден');
+        this.foodAddModalService.deletedProduct();
+        return;
+      }
+
+      this.notificationService.addNotification('error', this.getRegenerateErrorMessage(status));
+    }
+  }
+
+  private getRegenerateErrorMessage(status: number): string {
+    switch (status) {
+      case 403:
+        return 'Генерировать картинки может только администратор';
+      case 409:
+        return 'Генерация картинок выключена на сервере';
+      case 429:
+        return 'Очередь генерации картинок переполнена, попробуйте позже';
+      default:
+        return 'Не удалось запустить генерацию картинки';
+    }
   }
 
   protected openDeleteConfirmation(): void {

@@ -49,5 +49,12 @@
             class="ml-1 mr-3 cursor-pointer select-none"
             (click)="focusHeightInput()"> см </span>
     </v-input>
+
+    <v-checkbox mode="switch"
+                [isDisabled]="!hasHeight$$()"
+                [value]="isBmiBandsEnabled$$()"
+                (onChanged)="onBmiBandsChange($event)">
+      <span class="select-none">BMI-полосы на графике веса</span>
+    </v-checkbox>
   </form>
 </form-modal>

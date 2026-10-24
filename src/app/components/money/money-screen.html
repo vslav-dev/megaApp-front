@@ -103,6 +103,18 @@
               </v-button>
             </div>
           </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-400">Transactions follow chart checkboxes</span>
+            <v-button surface="flat"
+                      [class.v-primary]="linkTransactionsToCharts$$()"
+                      [isLabelHidden]="true"
+                      [padding]="2"
+                      (onClick)="toggleLinkTransactionsToCharts()">
+              <v-icon v-prefix
+                      [name]="Icon.FilterList"
+                      [size]="4"></v-icon>
+            </v-button>
+          </div>
           @if (!isChartDataReady$$()) {
             <div
                  class="v-theme-transition pt-2 border-t border-[var(--v-color-border-subtle)] h-[61px] flex items-center justify-center">

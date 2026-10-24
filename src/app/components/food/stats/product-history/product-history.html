@@ -14,10 +14,19 @@
 
     <div class="flex flex-wrap items-center gap-2 text-sm">
       @for (product of trackedProducts$$(); track product.id) {
-        <v-chip (onRemove)="state.removeProduct(product.id)">{{ product.name }}</v-chip>
+        <v-chip (onRemove)="state.removeProduct(product.id)">
+          {{ product.name }}
+          @if (product.archived) {
+            <span class="ml-1 text-xs text-[color:var(--v-color-text-muted)]">архив</span>
+          }
+        </v-chip>
+      }
+      @if (isLimitReached$$()) {
+        <span class="ml-auto text-[color:var(--v-color-text-muted)]">Максимум {{ maxTrackedProducts }} продуктов</span>
       }
       <v-button surface="flat"
-                class="ml-auto"
+                [class.ml-auto]="!isLimitReached$$()"
+                [isDisabled]="isLimitReached$$()"
                 [paddingX]="2"
                 paddingY="2px"
                 (onClick)="openPicker()">
@@ -30,7 +39,9 @@
 
     @if (error$$()) {
       <div class="text-sm text-[color:var(--v-color-danger)]">{{ error$$() }}</div>
-    } @else if (isLoading$$() || entries$$().length > 0) {
+    } @else if (trackedProducts$$().length === 0) {
+      <div class="text-sm text-[color:var(--v-color-text-muted)]">Выберите продукт, чтобы увидеть, когда вы его ели</div>
+    } @else if (isLoading$$() || rows$$().length > 0) {
       <div class="relative history-container">
         @if (isLoading$$()) {
           <div class="loading-overlay flex items-center justify-center">
@@ -39,24 +50,31 @@
           </div>
         }
 
-        @if (entries$$().length > 0) {
+        @if (rows$$().length > 0) {
           <div class="history-grid text-sm"
-               [class.with-product-col]="trackedProducts$$().length > 1">
+               [class.with-product-col]="showProductColumn$$()">
             <div class="history-header text-[color:var(--v-color-text-muted)]">Дата</div>
-            @if (trackedProducts$$().length > 1) {
+            @if (showProductColumn$$()) {
               <div class="history-header text-[color:var(--v-color-text-muted)]">Продукт</div>
             }
             <div class="history-header text-[color:var(--v-color-text-muted)] text-right">Граммы</div>
-            <div class="history-header text-[color:var(--v-color-text-muted)] text-right">% от нормы</div>
+            <div title="Процент от суточной нормы"
+                 class="history-header text-[color:var(--v-color-text-muted)] text-right">%</div>
             <div class="history-header history-header-empty"></div>
 
-            @for (entry of entries$$(); track entry.dateISO + '-' + entry.foodCatalogueId + '-' + $index) {
-              <div class="history-cell">{{ formatDate(entry.dateISO) }}</div>
-              @if (trackedProducts$$().length > 1) {
-                <div class="history-cell">{{ productNameById$$().get(entry.foodCatalogueId) }}</div>
+            @for (row of rows$$(); track $index) {
+              <div class="history-cell">{{ row.dateLabel }}</div>
+              @if (showProductColumn$$()) {
+                <div class="history-cell flex min-w-0 items-baseline gap-1">
+                  <span class="truncate"
+                        [title]="row.productName">{{ row.productName }}</span>
+                  @if (row.isProductArchived) {
+                    <span class="shrink-0 text-xs text-[color:var(--v-color-text-muted)]">архив</span>
+                  }
+                </div>
               }
-              <div class="history-cell text-right">{{ entry.foodWeight }} г.</div>
-              <div class="history-cell text-right">{{ entry.percentOfNorm }}%</div>
+              <div class="history-cell text-right">{{ row.foodWeight }} г.</div>
+              <div class="history-cell text-right">{{ row.percentOfNorm }}%</div>
               <div class="history-cell text-right">
                 <v-button surface="link"
                           [isLinkStatic]="true"
@@ -65,7 +83,7 @@
                           [paddingX]="1"
                           [paddingY]="1"
                           [bgOpacity]="0"
-                          (onClick)="goToDate(entry.dateISO)">
+                          (onClick)="goToDate(row.dateIso)">
                   <v-icon v-prefix
                           [name]="Icon.SwitchAccessShortcut"
                           [size]="4" />
@@ -73,16 +91,10 @@
               </div>
             }
           </div>
-
-          <div #sentinel
-               class="flex items-center justify-center py-2">
-            @if (isLoadingMore$$()) {
-              <div class="animate-spin w-4 h-4 border-2 rounded-full"
-                   style="border-color: var(--v-color-primary); border-top-color: transparent;"></div>
-            }
-          </div>
         }
       </div>
+    } @else {
+      <div class="text-sm text-[color:var(--v-color-text-muted)]">Записей не найдено</div>
     }
   </div>
 </v-card>

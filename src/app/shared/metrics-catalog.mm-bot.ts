@@ -509,9 +509,10 @@ export const MM_BOT_METRICS_DEFINITION: MetricsServiceDefinition = {
         metric('orders_sell', {
           label: 'Sell Orders',
           color: MetricColor.Blue600,
-          aggregation: 'last',
+          aggregation: 'max',
           integerValued: true,
-          description: 'Сколько заявок на продажу сейчас открыто.',
+          description:
+            'Сколько заявок на продажу открыто. На минутном графике — текущее значение, на 5-минутных карточках, часовом и дневном — максимум за период.',
         }),
         metric('orders_buy_shares', {
           label: 'Buy Orders: Shares',

@@ -13,6 +13,9 @@
       <div class="text-end flex-grow mr-2 text-xl font-medium">
         <span class="readable-text-bg py-[1px] px-[6px]">
           {{ foodAddModalService.selectedProduct$$()?.name }}
+          @if (isProductArchived$$()) {
+            <span class="ml-1 text-sm font-normal text-[color:var(--v-color-text-muted)]">архив</span>
+          }
         </span>
       </div>
 
@@ -65,7 +68,7 @@
 
       <v-button class="v-primary"
                 type="submit"
-                [isDisabled]="!isFormValid()">
+                [isDisabled]="!isFormValid() || isProductArchived$$()">
         Добавить
       </v-button>
     </div>

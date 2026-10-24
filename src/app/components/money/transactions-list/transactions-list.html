@@ -27,18 +27,20 @@
         @for (m of visibleMeasurements$$(); track m.group.date) {
           <div class="mb-2">
             <div class="py-0 mb-0">
-              <div class="group relative flex items-center justify-between">
+              <div class="group relative flex items-center justify-between h-6">
                 <div class="text-sm">{{ m.group.dateDisplay }}</div>
-                <div class="hover-actions">
-                  <v-button surface="flat"
-                            [isLabelHidden]="true"
-                            [padding]="1"
-                            (onClick)="showTransactionForm(m.group.date, undefined)">
-                    <v-icon v-prefix
-                            [name]="Icon.Add"
-                            [size]="4"></v-icon>
-                  </v-button>
-                </div>
+                @if (dayTotalsByDate$$().get(m.group.date); as dayTotals) {
+                  <div class="hover-actions text-sm font-semibold">
+                    @if (dayTotals.income; as income) {
+                      <span class="ml-2"
+                            style="color: var(--v-color-success)">{{ income }}</span>
+                    }
+                    @if (dayTotals.expense; as expense) {
+                      <span class="ml-2"
+                            style="color: var(--v-color-text-danger)">{{ expense }}</span>
+                    }
+                  </div>
+                }
               </div>
             </div>
 
@@ -112,7 +114,7 @@
                   <v-button surface="flat"
                             [isLabelHidden]="true"
                             [padding]="1"
-                            (onClick)="showTransactionForm(undefined, transaction)">
+                            (onClick)="showEditTransactionForm(transaction)">
                     <v-icon v-prefix
                             [name]="Icon.Edit"
                             [size]="4"></v-icon>
@@ -137,7 +139,11 @@
             </div>
           } @else {
             <div class="opacity-70 py-8 text-center">
-              No transactions found.
+              @if (isLinkedToCharts$$()) {
+                No transactions match the checked chart categories.
+              } @else {
+                No transactions found.
+              }
             </div>
           }
         }

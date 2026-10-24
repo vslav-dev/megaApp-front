@@ -5,8 +5,10 @@
   row-gap: 0.375rem;
   align-items: center;
 
+  // Every column keeps its natural width except the product one, which takes the rest and is the only one
+  // allowed to shrink below its text (minmax(0, …) lifts the grid's min-content floor so the name can ellipsize).
   &.with-product-col {
-    grid-template-columns: 1fr 1fr max-content max-content max-content;
+    grid-template-columns: max-content minmax(0, 1fr) max-content max-content max-content;
   }
 }
 

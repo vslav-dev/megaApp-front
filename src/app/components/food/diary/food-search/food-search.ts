@@ -45,7 +45,8 @@ export class FoodSearch {
       return;
     }
 
-    if (weight !== null && weight > 0) {
+    // An archived product can't get a diary entry: it opens the add form (with the button disabled).
+    if (weight !== null && weight > 0 && !product.archived) {
       await this.createDiaryEntryWithWeight(product, weight);
     } else {
       this.foodAddModalService.selectProduct(product);

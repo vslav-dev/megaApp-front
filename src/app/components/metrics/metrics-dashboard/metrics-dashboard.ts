@@ -12,17 +12,15 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { CompositeMetricsSettingsService } from '@app/services/composite-metrics-settings.service';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { MetricCardExpansionService } from '@app/services/metric-card-expansion.service';
 import { MetricsHealthService } from '@app/services/metrics-health.service';
 import { CardLayoutMode, MetricsSettingsService, TooltipMode } from '@app/services/metrics-settings.service';
 import { MetricsService } from '@app/services/metrics.service';
 import { TelemetryService } from '@app/services/telemetry.service';
-import { METRICS_GRANULARITY_STEP_SECONDS, METRICS_GRANULARITY_WINDOW_PERIODS } from '@app/shared/chart-config';
 import { ToolbarGroup } from '@app/shared/components/toolbar-group/toolbar-group';
 import { FitTextOnOverflowDirective } from '@app/shared/directives/fit-text-on-overflow.directive';
-import { formatMetricUnitValue } from '@app/shared/metric-units';
+import { formatMetricUnitValue, MetricUnit } from '@app/shared/metric-units';
 import { MetricAggregation } from '@app/shared/metrics-aggregation';
 import {
   metricAggregation,
@@ -37,14 +35,18 @@ import {
 } from '@app/shared/metrics-catalog';
 import { DEFAULT_METRIC_CHART_MODE, MetricChartMode } from '@app/shared/metrics-chart-mode';
 import {
+  isSameMetricWindow,
+  METRIC_GRANULARITIES,
+  METRIC_GRANULARITY_SPECS,
+  metricWindowAt,
+} from '@app/shared/metrics-granularity';
+import {
   buildCollapsedMetricWindow,
-  buildServiceMetricWindow,
   buildSparseBarSeriesFromPoints,
   buildSparseLineSeriesFromPoints,
   filterMetricPointsByWindow,
   metricPointsIndexKey,
   MinuteMetricCollapseCache,
-  previousCompletedBucket,
 } from '@app/shared/metrics-series';
 import { mutedSectionColor, severityColor } from '@app/shared/metrics-severity';
 import { clearMetricSyncCrosshair } from '@app/shared/metrics-sync-crosshair';
@@ -74,8 +76,57 @@ const STICKY_LABEL_GAP_PX = 8;
 const SETTINGS_PANEL_KEY = '__settings__';
 const DASHBOARD_PANEL_KEY = '__dashboard__';
 const DEFAULT_COMPOSITE_LABEL = 'Составные метрики';
-const GRANULARITY_OPTIONS: MetricGranularity[] = ['minute', 'hour', 'day'];
 const COLLAPSED_MINUTE_STEP_SECONDS = 5 * 60;
+
+// Hardcoded — was a user-editable list (add/remove sum, per-sum "treat missing as 0"
+// checkbox); that settings UI is gone, this is now the fixed set. serviceB always mirrors
+// serviceA's metric name (there's only one metric per sum, see compositeCardLive).
+const COMPOSITE_METRIC_DEFINITIONS: CompositeMetricDefinition[] = [
+  { id: 'free_cash', metricName: 'free_cash', serviceA: 'spread-capture-bot-v3', serviceB: 'spread-capture-bot-v4' },
+  {
+    id: 'estimated_open_positions_value',
+    metricName: 'estimated_open_positions_value',
+    serviceA: 'spread-capture-bot-v3',
+    serviceB: 'spread-capture-bot-v4',
+  },
+  {
+    id: 'estimated_account_value',
+    metricName: 'estimated_account_value',
+    serviceA: 'spread-capture-bot-v3',
+    serviceB: 'spread-capture-bot-v4',
+  },
+  {
+    id: 'orders_buy',
+    metricName: 'orders_buy',
+    serviceA: 'spread-capture-bot-v3',
+    serviceB: 'spread-capture-bot-v4',
+    treatMissingAsZero: true,
+  },
+  {
+    id: 'orders_sell',
+    metricName: 'orders_sell',
+    serviceA: 'spread-capture-bot-v3',
+    serviceB: 'spread-capture-bot-v4',
+  },
+];
+
+// Step correction for money moved in/out of the account that isn't trading P&L (a withdrawal,
+// a deposit) — added to one composite definition's value for every bucket at/after the moment it
+// happened, so the sum keeps reading as if that transfer never occurred. A withdrawal needs a
+// positive delta (compensates the drop), a deposit a negative one. `sinceUnixSeconds` compares
+// directly against MetricPoint.bucket, which is epoch seconds floor-aligned to the selected
+// granularity's step (see metricWindowAt in metrics-granularity.ts) — the same threshold works
+// unchanged across minute/hour/day.
+interface CompositeMetricAdjustment {
+  definitionId: string;
+  sinceUnixSeconds: number;
+  delta: number;
+  note: string;
+}
+
+// Add one entry per real transfer, e.g.:
+// { definitionId: 'estimated_account_value', sinceUnixSeconds: 1735689600, delta: 1000, note: 'Вывод $1000, 2025-01-01' }
+const COMPOSITE_METRIC_ADJUSTMENTS: CompositeMetricAdjustment[] = [];
 
 // The 5-minute view exists only to declutter a compact card, not to change what a
 // metric means (that's still decided by its own `aggregation` for hour/day rollup
@@ -148,7 +199,6 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   protected readonly compositeServiceKey = COMPOSITE_SERVICE_KEY;
 
   private readonly metricsSettingsService = inject(MetricsSettingsService);
-  private readonly compositeMetricsSettingsService = inject(CompositeMetricsSettingsService);
   private readonly telemetry = inject(TelemetryService);
 
   private readonly now$$ = signal(Date.now());
@@ -157,12 +207,20 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   protected readonly expandedHeightPx$$ = computed(() => this.metricsSettingsService.cardSize$$().expandedHeightPx);
   protected readonly cardLayoutMode$$ = this.metricsSettingsService.cardLayoutMode$$;
   protected readonly activeTooltipMode$$ = this.metricsSettingsService.activeTooltipMode$$;
-  protected readonly granularityOptions = GRANULARITY_OPTIONS;
-  protected readonly granularityToggleItems: VToggleItem[] = this.granularityOptions.map((granularity) => ({
+  protected readonly granularityToggleItems: VToggleItem[] = METRIC_GRANULARITIES.map((granularity) => ({
     id: granularity,
     label: this.granularityLabel(granularity),
   }));
   protected readonly selectedGranularity$$ = this.metricsSettingsService.granularity$$;
+
+  // The one time axis every card on the dashboard shares — a function of the selected
+  // granularity and the ticking clock only, never of any card's data. The clock ticks twice as
+  // often as the smallest step, so `equal` keeps the window (and everything computed from it)
+  // from re-firing on ticks that don't move a boundary.
+  private readonly metricWindow$$ = computed(
+    () => metricWindowAt(this.selectedGranularity$$(), Math.floor(this.now$$() / 1000)),
+    { equal: isSameMetricWindow },
+  );
   protected readonly syncCrosshairEnabled$$ = this.metricsSettingsService.syncCrosshairEnabled$$;
   protected readonly forceZeroBaselineEnabled$$ = this.metricsSettingsService.forceZeroBaselineEnabled$$;
   protected readonly anomalyCorridorEnabled$$ = this.metricsSettingsService.anomalyCorridorEnabled$$;
@@ -174,7 +232,6 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   protected readonly dashboardServiceSelection$$ = this.metricsSettingsService.dashboardServiceSelection$$;
   protected readonly isSavingSettings$$ = this.metricsSettingsService.isSaving$$;
   protected readonly hasUnsavedSettings$$ = this.metricsSettingsService.isDirty$$;
-  protected readonly compositeDefinitions$$ = this.compositeMetricsSettingsService.definitions$$;
   private nowTickIntervalId: ReturnType<typeof setInterval> | null = null;
   private readonly minuteMetricCollapseCache = new MinuteMetricCollapseCache();
   private readonly isPageScrolled$$ = signal(window.scrollY > 0);
@@ -208,10 +265,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   private readonly expandedPanel$$ = signal<string>(DASHBOARD_PANEL_KEY);
   private readonly isSettingsPanelExpanded$$ = signal(false);
 
-  // Transient — every page load opens with the composite editor collapsed.
-  protected readonly isCompositeSettingsExpanded$$ = signal(false);
-
-  // Transient too — every page load opens with cards in their normal display mode.
+  // Transient — every page load opens with cards in their normal display mode.
   protected readonly isCardEditMode$$ = signal(false);
 
   protected readonly serviceOptions$$ = computed<MetricsServiceOption[]>(() => {
@@ -282,10 +336,10 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   // its cache entry sits unused and harmless.
   private readonly cardLiveSignalsCache = new Map<string, CardLiveSignals>();
 
-  // Builds the four data-dependent fields of one (service, metricName) card from
+  // Builds the data-dependent fields of one (service, metricName) card from
   // MetricsService.seriesFor(...) — this is the fine-grained reactivity boundary: each
   // of these is its own computed(), so a merge touching one metric only invalidates
-  // this metric's four computeds, not every card on the page. See plan §2.2-§2.3.
+  // this metric's own computeds, not every card on the page. See plan §2.2-§2.3.
   private regularCardLive(
     service: string,
     name: string,
@@ -298,30 +352,14 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
 
     const chartMode = computed(() => this.metricsSettingsService.metricChartMode(service, name));
     const points = computed(() => this.metricsService.seriesFor(service, name, this.selectedGranularity$$())());
-    const value = computed(() => {
-      const series = points();
-      return series[series.length - 1]?.value ?? 0;
-    });
-    const unit = metricUnit(service, name);
-    const displayValue = computed(() => formatMetricUnitValue(unit, value()));
-    // Collapsing only applies to the fitted-to-columns minute view — see
-    // collapsedDisplayAggregation's own comment for why 5-minute collapsing exists at all.
-    const display = computed(() =>
-      this.buildSeriesDisplayFor(
-        cacheKey,
-        points(),
-        aggregation,
-        integerValued,
-        chartMode(),
-        this.selectedGranularity$$() === 'minute',
-      ),
+    const entry = this.buildCardLive(
+      cacheKey,
+      points,
+      chartMode,
+      metricUnit(service, name),
+      aggregation,
+      integerValued,
     );
-    const fullWidthDisplay = computed(() => {
-      if (this.selectedGranularity$$() !== 'minute') return display();
-      return this.buildSeriesDisplayFor(cacheKey, points(), aggregation, integerValued, chartMode(), false);
-    });
-
-    const entry: CardLiveSignals = { chartMode, value, displayValue, display, fullWidthDisplay };
     this.cardLiveSignalsCache.set(cacheKey, entry);
     return entry;
   }
@@ -340,13 +378,14 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
     const cached = this.cardLiveSignalsCache.get(cacheKey);
     if (cached) return cached;
 
+    const adjustments = COMPOSITE_METRIC_ADJUSTMENTS.filter(
+      (adjustment) => adjustment.definitionId === definition.id,
+    );
     const chartMode = computed(() =>
       this.metricsSettingsService.metricChartMode(definition.serviceA, definition.metricName),
     );
-    // Combines two independent series (A + B) at matching buckets — the one shape of
-    // card whose raw points aren't already ring-buffer-bounded to a single window, so
-    // (unlike regularCardLive) it still needs an explicit window trim below; see
-    // buildSeriesDisplayFor's windowedPoints below and plan §2.2's note on this case.
+    // Combines two independent series (A + B) at matching buckets, then applies any step
+    // corrections for money transfers at/after their own moment (see COMPOSITE_METRIC_ADJUSTMENTS).
     const points = computed<MetricPoint[]>(() => {
       const granularity = this.selectedGranularity$$();
       const pointsA = this.metricsService.seriesFor(definition.serviceA, definition.metricName, granularity)();
@@ -358,31 +397,53 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
         : new Set(Array.from(valuesA.keys()).filter((bucket) => valuesB.has(bucket)));
       return Array.from(buckets)
         .sort((left, right) => left - right)
-        .map((bucket) => ({
-          service: COMPOSITE_SERVICE_KEY,
-          name: definition.id,
-          granularity,
-          bucket,
-          value: (valuesA.get(bucket) ?? 0) + (valuesB.get(bucket) ?? 0),
-        }));
+        .map((bucket) => {
+          const adjustment = adjustments.reduce(
+            (sum, entry) => (bucket >= entry.sinceUnixSeconds ? sum + entry.delta : sum),
+            0,
+          );
+          return {
+            service: COMPOSITE_SERVICE_KEY,
+            name: definition.id,
+            granularity,
+            bucket,
+            value: (valuesA.get(bucket) ?? 0) + (valuesB.get(bucket) ?? 0) + adjustment,
+          };
+        });
     });
-    const value = computed(() => {
-      const series = points();
-      return series[series.length - 1]?.value ?? 0;
-    });
-    const unit = metricUnit(definition.serviceA, definition.metricName);
-    const displayValue = computed(() => formatMetricUnitValue(unit, value()));
+    const entry = this.buildCardLive(
+      cacheKey,
+      points,
+      chartMode,
+      metricUnit(definition.serviceA, definition.metricName),
+      aggregation,
+      integerValued,
+    );
+    this.cardLiveSignalsCache.set(cacheKey, entry);
+    return entry;
+  }
+
+  // The pipeline shared by regular and composite cards: raw points → only those inside the
+  // shared time window → (collapsed for the compact minute view) → series. The header value
+  // and the chart both derive from the same windowed points, so they can never disagree
+  // about what counts as "in the window" — a series whose points all predate it reads as
+  // empty, same as one that never had data.
+  private buildCardLive(
+    cacheKey: string,
+    points: Signal<MetricPoint[]>,
+    chartMode: Signal<MetricChartMode>,
+    unit: MetricUnit,
+    aggregation: MetricAggregation,
+    integerValued: boolean,
+  ): CardLiveSignals {
     const windowedPoints = computed(() => {
-      const granularity = this.selectedGranularity$$();
-      const stepSeconds = METRICS_GRANULARITY_STEP_SECONDS[granularity];
-      const window = buildServiceMetricWindow(
-        points(),
-        previousCompletedBucket(this.now$$(), stepSeconds),
-        METRICS_GRANULARITY_WINDOW_PERIODS[granularity],
-        stepSeconds,
-      );
+      const window = this.metricWindow$$();
       return filterMetricPointsByWindow(points(), window.startBucket, window.endBucket);
     });
+    const value = computed(() => windowedPoints().at(-1)?.value ?? 0);
+    const displayValue = computed(() => formatMetricUnitValue(unit, value()));
+    // Collapsing only applies to the fitted-to-columns minute view — see
+    // collapsedDisplayAggregation's own comment for why 5-minute collapsing exists at all.
     const display = computed(() =>
       this.buildSeriesDisplayFor(
         cacheKey,
@@ -398,56 +459,40 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
       return this.buildSeriesDisplayFor(cacheKey, windowedPoints(), aggregation, integerValued, chartMode(), false);
     });
 
-    const entry: CardLiveSignals = { chartMode, value, displayValue, display, fullWidthDisplay };
-    this.cardLiveSignalsCache.set(cacheKey, entry);
-    return entry;
+    return { chartMode, value, displayValue, display, fullWidthDisplay };
   }
 
-  // Shared by regular and composite cards — window is derived from this card's own
-  // points, not a service-wide window shared across sibling cards (the old
-  // serviceMetricsData$$ used one window per service, from every metric's points
-  // combined). A metric that's fallen behind its siblings now shows its own real data
-  // range instead of an artificially extended trailing gap — and, more importantly,
-  // keeps each card's window a function of only its own series, which is what makes
-  // per-card fine-grained reactivity possible at all: a service-wide window would
-  // make every sibling card depend on every other metric's latest point.
+  // windowedPoints are already inside the shared window; collapsing keeps them inside the
+  // (5-minute-aligned) collapsed window too, since aligning a bucket down never leaves the
+  // aligned-down window.
   private buildSeriesDisplayFor(
     collapseCacheKey: string,
-    metricPoints: MetricPoint[],
+    windowedPoints: MetricPoint[],
     aggregation: MetricAggregation,
     integerValued: boolean,
     chartMode: MetricChartMode,
     useCollapsed: boolean,
   ): MetricChartCardSeriesDisplay {
-    const granularity = this.selectedGranularity$$();
-    const stepSeconds = METRICS_GRANULARITY_STEP_SECONDS[granularity];
-    const window = buildServiceMetricWindow(
-      metricPoints,
-      previousCompletedBucket(this.now$$(), stepSeconds),
-      METRICS_GRANULARITY_WINDOW_PERIODS[granularity],
-      stepSeconds,
-    );
+    const window = this.metricWindow$$();
+    const stepSeconds = METRIC_GRANULARITY_SPECS[this.selectedGranularity$$()].stepSeconds;
     const displayWindow = useCollapsed ? buildCollapsedMetricWindow(window, COLLAPSED_MINUTE_STEP_SECONDS) : window;
     const displayStepSeconds = useCollapsed ? COLLAPSED_MINUTE_STEP_SECONDS : stepSeconds;
     const displayPoints = useCollapsed
-      ? filterMetricPointsByWindow(
-          this.minuteMetricCollapseCache.collapse(
-            collapseCacheKey,
-            metricPoints,
-            collapsedDisplayAggregation(aggregation),
-            integerValued,
-            COLLAPSED_MINUTE_STEP_SECONDS,
-          ),
-          displayWindow.startBucket,
-          displayWindow.endBucket,
+      ? this.minuteMetricCollapseCache.collapse(
+          collapseCacheKey,
+          windowedPoints,
+          collapsedDisplayAggregation(aggregation),
+          integerValued,
+          COLLAPSED_MINUTE_STEP_SECONDS,
         )
-      : metricPoints;
+      : windowedPoints;
     const series =
       chartMode === 'bar'
         ? buildSparseBarSeriesFromPoints(displayPoints)
         : buildSparseLineSeriesFromPoints(displayPoints, displayStepSeconds);
     return {
       series,
+      scalePoints: windowedPoints,
       windowStartBucket: displayWindow.startBucket,
       windowEndBucket: displayWindow.endBucket,
       displayStepSeconds,
@@ -511,9 +556,9 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private compositeCards(): MetricChartCardData[] {
-    return this.compositeDefinitions$$()
-      .map((definition) => this.compositeCardData(definition))
-      .filter((card): card is MetricChartCardData => card !== null);
+    return COMPOSITE_METRIC_DEFINITIONS.map((definition) => this.compositeCardData(definition)).filter(
+      (card): card is MetricChartCardData => card !== null,
+    );
   }
 
   // Only the currently-expanded single-service settings panel needs its full catalog
@@ -986,34 +1031,6 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
     this.metricsSettingsService.setServiceCustomLabel(service, { long: value });
   }
 
-  protected toggleCompositeSettingsExpanded(): void {
-    this.isCompositeSettingsExpanded$$.update((value) => !value);
-  }
-
-  protected addCompositeDefinition(): void {
-    this.compositeMetricsSettingsService.addDefinition();
-  }
-
-  protected removeCompositeDefinition(id: string): void {
-    this.compositeMetricsSettingsService.removeDefinition(id);
-  }
-
-  protected setCompositeMetricName(id: string, value: string): void {
-    this.compositeMetricsSettingsService.setMetricName(id, value);
-  }
-
-  protected setCompositeServiceA(id: string, value: string): void {
-    this.compositeMetricsSettingsService.setServiceA(id, value);
-  }
-
-  protected setCompositeServiceB(id: string, value: string): void {
-    this.compositeMetricsSettingsService.setServiceB(id, value);
-  }
-
-  protected setCompositeTreatMissingAsZero(id: string, value: boolean): void {
-    this.compositeMetricsSettingsService.setTreatMissingAsZero(id, value);
-  }
-
   private nextDashboardOrder(service: string): number {
     const orders = Object.values(this.dashboardSelection$$()[service] ?? {});
     return orders.length > 0 ? Math.max(...orders) + 1 : 1;
@@ -1056,13 +1073,13 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
     return DASHBOARD_PANEL_KEY;
   }
 
-  // Union of every metric compositeDefinitions$$ references — the same set
+  // Union of every metric COMPOSITE_METRIC_DEFINITIONS references — the same set
   // whether reached via the Dashboard rows or the standalone composite panel,
   // since composite cards have no per-card dashboard toggle (see the comment
   // on isDashboardEnabled in buildCompositeCard above).
   private compositeScopeEntries(): MetricsScopeEntry[] {
     const namesByService = new Map<string, Set<string>>();
-    for (const definition of this.compositeDefinitions$$()) {
+    for (const definition of COMPOSITE_METRIC_DEFINITIONS) {
       if (!definition.metricName || !definition.serviceA || !definition.serviceB) continue;
       for (const service of [definition.serviceA, definition.serviceB]) {
         const names = namesByService.get(service) ?? new Set<string>();

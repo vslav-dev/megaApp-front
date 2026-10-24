@@ -1,6 +1,7 @@
 <v-modal [deviceType]="deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop'"
          [isOpen]="isModalOpen()"
          [isCloseButtonVisible]="false"
+         [isBackdropDimmed]="isBackdropDimmed()"
          mobileWidth="min(100vw, 520px)"
          desktopWidth="520px"
          [borderRadius]="3"

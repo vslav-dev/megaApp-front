@@ -12,6 +12,7 @@ export class FormModal {
   protected readonly deviceInfoService = inject(DeviceInfoService);
 
   public readonly isModalOpen = input<boolean>(false);
+  public readonly isBackdropDimmed = input<boolean>(true);
 
   public readonly closeOutput = output<void>();
 

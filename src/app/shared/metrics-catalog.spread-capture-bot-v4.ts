@@ -14,7 +14,101 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           unit: 'money',
           aggregation: 'last',
           description:
-            'Сколько живых денег (USD) свободно на торговом счету бота прямо сейчас — то, что не потрачено на открытые позиции и не нужно под уже выставленные ордера. Это не вся ценность счёта, а только «живые» деньги, готовые к новым покупкам. Число растёт, когда бот продаёт позиции, и падает, когда покупает новые.',
+            'Сколько USD бот может потратить на покупки: баланс USDC на счёте, ограниченный allowance (берётся меньшее из двух). Заявки на покупку из этой суммы ботом не вычитаются. Обновляется вместе с account-state (по сделке, реконнекту приватного WS-канала, при старте или раз в час), а не непрерывно. Растёт, когда бот продаёт позиции, и падает, когда покупает новые.',
+        }),
+        metric('estimated_open_positions_value', {
+          label: 'Estimated Open Positions Value',
+          color: MetricColor.Green600,
+          unit: 'money',
+          aggregation: 'last',
+          description:
+            'Сколько USD получил бы бот, если бы прямо сейчас продал все открытые позиции по бидам из последних загруженных стаканов (идём вглубь стакана, пока хватает объёма). Считается раз в минуту целиком из памяти, без запросов к бирже: стаканы берутся из кэша, который пополняется при обходе round-robin и dust-sweep (plans/34). Собственная buy-заявка бота из бидов вычитается, чтобы не принимать свой спрос за чужой. Позиции без стакана или без бидов оцениваются нулём — их доля видна в open_positions_uncovered_shares.',
+        }),
+        metric('estimated_account_value', {
+          label: 'Estimated Account Value',
+          color: MetricColor.Green600,
+          unit: 'money',
+          aggregation: 'last',
+          description:
+            'Оценка полной стоимости счёта в USD: free_cash плюс estimated_open_positions_value. Публикуется, только когда баланс уже известен (после первого успешного обновления account-state). Это оценка «если продать всё по бидам», а не рыночная цена позиций, поэтому двигается вместе с глубиной стаканов.',
+        }),
+        metric('open_positions_no_book_count', {
+          label: 'Open Positions: No Book',
+          color: MetricColor.Amber600,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Сколько позиций с ненулевым остатком не оценены, потому что в кэше нет ни одного стакана по их токену (обычно сразу после старта или у токена, выпавшего из обхода). В estimated_open_positions_value такая позиция даёт 0.',
+        }),
+        metric('open_positions_empty_bid_count', {
+          label: 'Open Positions: Empty Bid',
+          color: MetricColor.Amber600,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Сколько позиций не оценены, потому что в кэшированном стакане нет ни одной заявки на покупку (с учётом вычета собственной) — продать некому. В estimated_open_positions_value такая позиция даёт 0.',
+        }),
+        metric('open_positions_partial_depth_count', {
+          label: 'Open Positions: Partial Depth',
+          color: MetricColor.Amber600,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Сколько позиций оценены только частично: бидов в стакане хватило на часть объёма позиции. Недооценённый остаток входит в open_positions_uncovered_shares.',
+        }),
+        metric('open_positions_uncovered_shares', {
+          label: 'Open Positions: Uncovered Shares',
+          color: MetricColor.Amber600,
+          aggregation: 'last',
+          description:
+            'Суммарный объём в контрактах, который не нашёл бидов в стаканах и оценён нулём: позиции без стакана, с пустыми бидами и непокрытые хвосты при частичной глубине. Чем больше, тем сильнее занижена estimated_open_positions_value.',
+        }),
+        metric('open_positions_stale_book_count', {
+          label: 'Open Positions: Stale Book',
+          color: MetricColor.Amber600,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Сколько позиций оценены по устаревшему стакану: кэш по токену не обновлялся дольше трёх интервалов valuation-sweep (при минутном интервале — 3 минуты). Значит, токен выпал из обхода или загрузка его стаканов падает, и оценка по нему может отставать от рынка.',
+        }),
+        metric('open_positions_book_age_max_s', {
+          label: 'Open Positions: Oldest Book (s)',
+          color: MetricColor.Amber600,
+          aggregation: 'last',
+          description:
+            'Возраст в секундах самого старого стакана среди оценённых позиций. Растёт, если какой-то токен давно не попадал в обход, — оценка по нему устаревает.',
+        }),
+        metric('open_positions_top_level_only_value', {
+          label: 'Open Positions: Top-Level-Only Value',
+          color: MetricColor.Amber600,
+          unit: 'money',
+          aggregation: 'last',
+          description:
+            'На сколько USD упала бы estimated_open_positions_value, если убрать лучшую заявку на покупку в стакане каждой позиции. Чем ближе к самой оценке, тем сильнее она держится на одной заявке на токен и тем легче «прыгает» (plans/48 бота).',
+        }),
+        metric('open_positions_own_excluded_usd', {
+          label: 'Open Positions: Own Orders Excluded',
+          color: MetricColor.Amber600,
+          unit: 'money',
+          aggregation: 'last',
+          description:
+            'На сколько USD оценка была бы выше, если бы собственные buy-заявки бота не вычитались из стаканов. Верхняя граница того, насколько сама работа бота с ордерами двигает estimated_open_positions_value.',
+        }),
+        metric('book_ts_regress_total', {
+          label: 'Book Timestamp Regressions',
+          color: MetricColor.Amber600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз за минуту биржа отдала стакан токена с временной меткой старше той, что уже лежала в кэше, — признак отставшей реплики биржи (стакан откатился назад). Диагностика скачков estimated_open_positions_value (plans/48 бота).',
+        }),
+        metric('book_hash_flipflop_total', {
+          label: 'Book Hash Flip-Flops',
+          color: MetricColor.Amber600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз за минуту стакан токена вернулся к состоянию, которое был до предыдущего обновления (A→B→A): либо реальное мерцание котировок, либо переключение между репликами биржи. Если одновременно растёт book_ts_regress_total — вероятнее реплики.',
         }),
         metric('collateral_balance', {
           label: 'Collateral Balance',
@@ -22,14 +116,14 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           unit: 'money',
           aggregation: 'last',
           description:
-            'Сырой баланс USDC на счету прямо сейчас, до вычета allowance-cap (в отличие от free_cash, который уже учитывает и allowance, и то, что зарезервировано под открытые ордера). Используется для расчёта entry_price_ceiling_pts по CASH_PRICE_LADDER.',
+            'Баланс USDC на счёте так, как его отдаёт биржа, без ограничения по allowance (free_cash — меньшее из balance и allowance). Именно он управляет лестницей CASH_PRICE_LADDER, см. entry_price_ceiling_pts. Обновляется вместе с account-state.',
         }),
         metric('entry_price_ceiling_pts', {
           label: 'Entry Price Ceiling (pts)',
           color: MetricColor.Lime600,
           aggregation: 'last',
           description:
-            'Текущий потолок цены входа в пунктах, вычисленный по лестнице CASH_PRICE_LADDER на основе collateral_balance — чем меньше свободных денег, тем ниже (строже) потолок, вплоть до полной блокировки новых покупок на нулевой ступени. Если лестница не настроена, всегда равен плоскому MAX_ENTRY_BID_PTS.',
+            'Текущий потолок цены входа в пунктах — ступень лестницы CASH_PRICE_LADDER, выбранная по collateral_balance (подъём на ступень выше — с гистерезисом CASH_LADDER_RESUME_BUFFER_USD). Чем меньше денег, тем ниже потолок; на нулевой ступени он равен 0 и покупки заблокированы полностью (см. capital_preservation_active). Если лестница не настроена, равен плоскому MAX_ENTRY_BID_PTS.',
         }),
       ],
     },
@@ -43,7 +137,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько раз за эту минуту попытка отправить, переставить или отменить ордер на бирже закончилась ошибкой (биржа отказала). Ноль — это хорошо, значит все попытки прошли успешно. Название осталось с cycle-эпохи бота (см. plans/32) — по смыслу метрика не изменилась, просто больше не привязана к фиксированному 60-секундному циклу, а считается по мере событийной активности бота.',
+            'Общий счётчик ошибок за эту минуту: любая попытка поставить, переставить или отменить ордер, закончившаяся ошибкой или отказом биржи (в том числе без внятного ответа), плюс каждый сорвавшийся reconcile (см. reconcile_failures) и неудачная отмена дубля. Ноль — все попытки прошли успешно. Название осталось с cycle-эпохи бота (plans/32): метрика больше не привязана к фиксированному 60-секундному циклу, а считается по мере активности бота. Разбивка по исходам — в метриках *_refused, *_not_confirmed, *_transport_error и *_place_rejected групп Buy Actions и Sell Actions.',
         }),
         metric('reconcile_failures', {
           label: 'Reconcile Failures',
@@ -99,6 +193,14 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           integerValued: true,
           description:
             'Техническая отметка живости процесса — экспортёр метрик проставляет 1 в каждый минутный снепшот автоматически, для любой метрики этого сервиса, независимо от того, была ли реальная торговая активность. Подтверждает, что процесс жив и успешно сформировал снепшот за минуту; ничего не говорит о состоянии самой торговли.',
+        }),
+        metric('gauges_stale_minutes', {
+          label: 'Gauges Stale (min)',
+          color: MetricColor.Amber600,
+          aggregation: 'max',
+          integerValued: true,
+          description:
+            'Служебная метрика коллектора. Если за минуту ни один гейдж не обновлялся (например, один проход round-robin длится дольше минуты), в снепшот повторно публикуются последние известные значения гейджей, а эта метрика показывает, сколько минут им уже. Нормальная минута её не содержит; ненулевое значение значит, что гейджи в этом снепшоте не свежие.',
         }),
         metric('ms_since_last_mutation', {
           label: 'Time Since Last Mutation (ms)',
@@ -210,28 +312,6 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           description:
             'Самый большой REST-чанк round-robin обхода за эту минуту — на практике почти всегда 500 (BOOKS_CHUNK_SIZE).',
         }),
-        metric('hot_batch_max_wait_fired_total', {
-          label: 'Hot Batch Max-Wait Fired',
-          color: MetricColor.Amber600,
-          aggregation: 'sum',
-          integerValued: true,
-          removed: true,
-          removedNote:
-            'Механизм HOT_BATCH_MAX_WAIT убран целиком (см. plans/43) — новый взвешенный выбор со старением гарантирует отсутствие голодания без отдельного предохранителя-таймера, заменять нечем',
-          description:
-            'Сколько раз за эту минуту сработал предохранитель HOT_BATCH_MAX_WAIT — dirty-set не набрал полный размер батча вовремя, и накопленное отправили на reconcile неполным. На активном боевом аккаунте практически не должно срабатывать вообще (см. plans/31 component 2); частое ненулевое значение — сигнал, что universe заметно поредел.',
-        }),
-        metric('hot_batch_queue_depth', {
-          label: 'Hot Batch Queue Depth',
-          color: MetricColor.Amber600,
-          aggregation: 'last',
-          integerValued: true,
-          removed: true,
-          removedNote:
-            'Теперь hot_batch_pending_tokens — тот же смысл (сколько токенов сейчас ожидает), но без канала/потолка HOT_BATCH_QUEUE_CAP, которых с plans/43 больше не существует',
-          description:
-            "Сколько уже готовых, но ещё не взятых в обработку hot-batch'ей стояло в очереди перед тем, как консьюмер забрал очередной (потолок — HOT_BATCH_QUEUE_CAP). Консьюмер строго однопоточный (см. plans/31 component 4) — устойчиво растущее значение означает, что WS-поток набирает батчи быстрее, чем бот успевает их отторговывать, и это уже реальный бэкпрешер на приём новых сообщений.",
-        }),
         metric('account_state_refresh_total', {
           label: 'Account State Refreshes',
           color: MetricColor.Blue600,
@@ -246,7 +326,71 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько раз за эту минуту токен был поставлен на паузу из-за неподтверждённого исхода отмены/замены ордера (биржа не подтвердила отмену, транспортная ошибка) — реальное состояние заявки неизвестно, и бот временно перестаёт трогать этот токен в очередном round-robin проходе до следующего полного обновления account-state. Раньше (до plans/31) этот случай не был виден вообще никак.',
+            'Сколько раз за эту минуту токен был поставлен на паузу из-за неподтверждённого исхода постановки/отмены/замены ордера (нет внятного ответа биржи: обрыв, таймаут, голая 500) — реальное состояние заявки неизвестно, и бот временно перестаёт трогать этот токен в round-robin проходе. Пауза снимается по WS-событию именно об этом ордере либо точечной проверкой на бирже (см. pending_confirmation_resolved_by_check); явный отказ биржи (4xx, 429, 503 с известным телом) паузу не ставит. Сколько токенов на паузе прямо сейчас — pending_confirmation_tokens.',
+        }),
+        metric('pending_confirmation_tokens', {
+          label: 'Tokens Pending Confirmation',
+          color: MetricColor.Amber600,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Сколько токенов прямо сейчас заморожено паузой из-за неизвестного исхода ордера (см. account_state_pending_confirmation_total). В норме единицы; всплеск до сотен и тысяч — массовый сбой биржи (27.09: до ~1000 за минуту), который должен рассосаться за минуты. Если число не падает — пауза не снимается ни WS-событиями, ни точечной проверкой.',
+        }),
+        metric('pending_confirmation_resolved_by_check', {
+          label: 'Pause Resolved By Check',
+          color: MetricColor.Blue600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько пауз токенов за эту минуту снято точечной проверкой на бирже (запрос по ID ордера или по токену примерно через 30 секунд после паузы), а не WS-событием. Ноль — норма: WS-событие обычно приходит раньше. Стабильно ненулевое значение значит, что WS-события теряются.',
+        }),
+        metric('pending_confirmation_check_failed', {
+          label: 'Pause Check Failed',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько точечных проверок токена на паузе за эту минуту не получили ответа от биржи (ошибка или таймаут чтения). Пауза при этом остаётся, проверка повторится через ~30 секунд; при сбое биржи растёт вместе с pending_confirmation_tokens.',
+        }),
+        metric('order_events_unknown_status', {
+          label: 'Order Events: Unknown Status',
+          color: MetricColor.Amber600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько WS-событий по ордерам за эту минуту пришло со статусом, которого бот не знает (не LIVE/DELAYED, не MATCHED/INVALID и не CANCELED*). Такое событие ничего не меняет в кэше ордеров; сырой кадр пишется в лог (ws_order_event_unknown_status). Ноль — норма.',
+        }),
+        metric('order_events_total', {
+          label: 'Order Events',
+          color: MetricColor.Blue600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько WS-событий по собственным ордерам бот получил за эту минуту — все, включая нераспознанные и битые. Именно этим потоком поддерживается кэш открытых ордеров (orders_total), на активном аккаунте это сотни–тысячи событий в минуту. Сумма order_events_applied + order_events_removed + order_events_unknown_status + order_events_parse_failed равна этой метрике.',
+        }),
+        metric('order_events_applied', {
+          label: 'Order Events: Applied',
+          color: MetricColor.Blue600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Из order_events_total — сколько событий добавили или обновили живой ордер в кэше (статус LIVE/DELAYED с ненулевым остатком).',
+        }),
+        metric('order_events_removed', {
+          label: 'Order Events: Removed',
+          color: MetricColor.Blue600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Из order_events_total — сколько событий убрали ордер из кэша: терминальный статус (исполнен, отменён, невалиден) либо нулевой остаток.',
+        }),
+        metric('order_events_parse_failed', {
+          label: 'Order Events: Parse Failed',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Из order_events_total — сколько событий не удалось разобрать (битый JSON или нет id/asset_id). Ноль — норма; ненулевое значение значит, что формат кадров биржи изменился или кадры приходят обрезанными.',
         }),
         metric('ws_user_connected_total', {
           label: 'User WS Connected',
@@ -336,7 +480,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           color: MetricColor.Cyan700,
           aggregation: 'avg',
           description:
-            'Сколько миллисекунд заняли параллельные price-batch запросы (батчами по 200 токенов, 20 воркеров одновременно) ко всем токенам собранных рынков в этом discovery-цикле.',
+            'Сколько миллисекунд занял первый полный проход котировок (параллельные price-запросы батчами по всем токенам нового каталога) в этом discovery-цикле Live Books Fetcher-а.',
         }),
         metric('discovery_merge_ms', {
           label: 'Discovery Merge Duration (ms)',
@@ -351,7 +495,111 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько discovery-циклов подряд завершились ошибкой (Gamma недоступна или не отдала цены). При ошибке V4 сохраняет последний успешный снепшот каталога и продолжает торговать по нему как есть — ноль здесь означает, что discovery работает исправно.',
+            'Сколько новых сбоев discovery-цикла Live Books Fetcher-а произошло с прошлого обновления кандидатов: Gamma недоступна, не удалось сохранить каталог или первый проход котировок по новому каталогу сорвался. Это счётчик сбоев, а не серия подряд. При сбое торговля продолжается по последнему успешному каталогу — ноль означает, что discovery работает исправно.',
+        }),
+      ],
+    },
+    {
+      id: 'candidate-feed',
+      label: 'Candidate Feed',
+      metrics: [
+        metric('candidate_source_remote', {
+          label: 'Candidate Source: Remote',
+          color: MetricColor.Cyan700,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Флаг режима: 1, если бот берёт кандидатов у внешнего Live Books Fetcher-сервиса (задан адрес кандидатов), и 0, если считает их локальным discovery. На боевом всегда 1.',
+        }),
+        metric('candidate_feed_refresh_ms', {
+          label: 'Candidate Feed Refresh (ms)',
+          color: MetricColor.Cyan700,
+          aggregation: 'avg',
+          description:
+            'Сколько миллисекунд заняло последнее обновление списка кандидатов от Live Books Fetcher-а — HTTP-запрос и разбор ответа. Обновление идёт раз в ~30 минут.',
+        }),
+        metric('candidate_feed_generation', {
+          label: 'Candidate Feed Generation',
+          color: MetricColor.Cyan700,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Номер поколения (generation) снепшота Live Books Fetcher-а, по которому собран текущий список кандидатов. Меняется, когда fetcher отдаёт боту новый отбор; при ответах «не изменилось» остаётся прежним.',
+        }),
+        metric('candidate_feed_age_ms', {
+          label: 'Candidate Feed Age (ms)',
+          color: MetricColor.Cyan700,
+          aggregation: 'avg',
+          description:
+            'Возраст текущего снепшота кандидатов на момент обновления: сколько миллисекунд прошло с его публикации fetcher-ом. При ответах «не изменилось» растёт вместе со временем — высокое значение значит, что fetcher давно не публиковал новый отбор и бот торгует по устаревшему.',
+        }),
+        metric('candidate_feed_tokens', {
+          label: 'Candidate Feed Tokens',
+          color: MetricColor.Cyan700,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Сколько токенов (сторон рынков) в списке кандидатов, который бот получил от Live Books Fetcher-а. Ожидаемо совпадает с candidates_stage1_total (тот же отбор, но по числу реально полученных токенов) — расхождение указывало бы на рассинхрон ответа fetcher-а.',
+        }),
+        metric('candidate_feed_unchanged', {
+          label: 'Candidate Feed Unchanged',
+          color: MetricColor.Slate500,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Флаг: 1, если при последнем обновлении fetcher ответил «не изменилось» (HTTP 304 по ETag) и бот оставил прежний список кандидатов, 0 — пришёл новый список.',
+        }),
+        metric('candidate_feed_errors', {
+          label: 'Candidate Feed Errors',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз за эту минуту обновление списка кандидатов от Live Books Fetcher-а закончилось ошибкой (сервис недоступен, таймаут, невалидный ответ). Бот при этом продолжает работать по последнему успешно полученному списку, но он стареет — смотри candidate_feed_age_ms.',
+        }),
+      ],
+    },
+    {
+      id: 'redeem',
+      label: 'Redeem',
+      metrics: [
+        metric('redeem_sweep_redeemable_found', {
+          label: 'Redeem: Redeemable Found',
+          color: MetricColor.Teal700,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Сколько позиций на закрытых (resolved) рынках нашёл последний redeem-проход и попытался закрыть через relayer. Проход идёт раз в несколько минут; если закрывать нечего, метрика не публикуется.',
+        }),
+        metric('redeem_sweep_redeemed_total', {
+          label: 'Redeem: Redeemed',
+          color: MetricColor.Teal500,
+          aggregation: 'sum',
+          integerValued: true,
+          description: 'Сколько позиций redeem-проход успешно закрыл за эту минуту — деньги по ним вернулись на счёт.',
+        }),
+        metric('redeem_sweep_failed_total', {
+          label: 'Redeem: Failed',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько позиций redeem-проход не смог закрыть за эту минуту. Позиция остаётся и будет повторена следующим проходом.',
+        }),
+        metric('redeem_sweep_fetch_failed_total', {
+          label: 'Redeem: Fetch Failed',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз за эту минуту redeem-проход не смог получить список позиций из Data API — в этом проходе ничего не закрывалось.',
+        }),
+        metric('redeem_sweep_ms', {
+          label: 'Redeem Sweep Duration (ms)',
+          color: MetricColor.Violet600,
+          aggregation: 'avg',
+          description:
+            'Сколько миллисекунд занял последний redeem-проход, у которого были позиции на закрытие. Позиции закрываются строго по одной, поэтому время растёт пропорционально их числу.',
         }),
       ],
     },
@@ -380,14 +628,14 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           color: MetricColor.Cyan600,
           aggregation: 'avg',
           description:
-            'Средний реальный (эффективный) спред в пунктах среди кандидатов уровня 1 за последний полный проход round-robin обхода — диагностика, не влияет на торговые решения. Публикуется только когда есть хотя бы один кандидат с посчитанным спредом в этом проходе. Помогает видеть, насколько в среднем рынки не дотягивают до порога входа.',
+            'Средний реальный (эффективный) спред в пунктах по кандидатам уровня 1 за последний полный проход round-robin обхода — диагностика, не влияет на торговые решения. Кандидаты, у которых спред не измерить (нет стакана или очередь перед ценой слишком глубокая), в среднее не входят. Публикуется, только если в проходе был хотя бы один кандидат с измеримым спредом.',
         }),
         metric('candidates_stage2_effective_spread_min_pts', {
           label: 'Effective Spread: Min (pts)',
           color: MetricColor.Cyan600,
           aggregation: 'avg',
           description:
-            'Минимальный реальный (эффективный) спред в пунктах среди кандидатов уровня 1 за последний полный проход round-robin обхода — худший случай во всей вселенной за этот проход, публикуется только когда есть хотя бы один кандидат с посчитанным спредом. Полезно, чтобы понять, насколько близко к порогу входа находятся самые слабые кандидаты.',
+            'Минимальный реальный (эффективный) спред в пунктах по кандидатам уровня 1 за последний полный проход round-robin обхода — худший случай за проход. Кандидаты, у которых спред не измерить (нет стакана или слишком глубокая очередь), не учитываются. Публикуется, только если в проходе был хотя бы один кандидат с измеримым спредом.',
         }),
         metric('legacy_positions', {
           label: 'Legacy Positions',
@@ -439,7 +687,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько сторон рынка было отброшено уровнем 1 в этом цикле, потому что по ним нет валидной цены — цена покупки или продажи отсутствует, либо цена покупки оказалась выше цены продажи. Без корректной цены оценить рынок невозможно.',
+            'Сколько сторон рынка было отброшено уровнем 1 в последнем цикле отбора (~30 минут), потому что по ним нет валидной цены — цена покупки или продажи отсутствует, либо цена покупки оказалась выше цены продажи. Без корректной цены оценить рынок невозможно.',
         }),
         metric('candidates_stage1_dropped_bid_range', {
           label: 'Dropped: Bid Range',
@@ -447,7 +695,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько сторон рынка было отброшено уровнем 1 в этом цикле, потому что текущая цена покупки находится за пределами разрешённого диапазона входа V4 — рынок либо слишком дорогой, либо слишком дешёвый по текущим настройкам стратегии.',
+            'Сколько сторон рынка было отброшено уровнем 1 в последнем цикле отбора (~30 минут), потому что текущая цена покупки находится за пределами разрешённого диапазона входа V4 — рынок либо слишком дорогой, либо слишком дешёвый по текущим настройкам стратегии.',
         }),
         metric('candidates_stage1_dropped_spread', {
           label: 'Dropped: Spread',
@@ -455,7 +703,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько сторон рынка было отброшено уровнем 1 в этом цикле, потому что наивный спред (разница между топ-ценой покупки и топ-ценой продажи) меньше минимального порога. Это только грубая предварительная отсечка — окончательное решение по факту принимает живая проверка эффективного спреда уровня 2 (candidates_stage2_total).',
+            'Сколько сторон рынка было отброшено уровнем 1 в последнем цикле отбора (~30 минут), потому что наивный спред (разница между топ-ценой покупки и топ-ценой продажи) меньше минимального порога. Это только грубая предварительная отсечка — окончательное решение по факту принимает живая проверка эффективного спреда уровня 2 (candidates_stage2_total).',
         }),
         metric('candidates_stage1_dropped_volume', {
           label: 'Dropped: Volume',
@@ -463,7 +711,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько сторон рынка было отброшено уровнем 1 в этом цикле, потому что объём торгов по ним меньше минимально допустимого — слишком тихий рынок, чтобы безопасно входить и выходить из позиции.',
+            'Сколько сторон рынка было отброшено уровнем 1 в последнем цикле отбора (~30 минут), потому что объём торгов по ним меньше минимально допустимого — слишком тихий рынок, чтобы безопасно входить и выходить из позиции.',
         }),
         metric('candidates_stage1_dropped_days_to_end', {
           label: 'Dropped: Days to End',
@@ -471,7 +719,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько сторон рынка было отброшено уровнем 1 в этом цикле, потому что до завершения события осталось меньше минимально нужного количества дней. Рынки без даты завершения вообще сюда не попадают — для них отдельная причина, candidates_stage1_dropped_missing_dates.',
+            'Сколько сторон рынка было отброшено уровнем 1 в последнем цикле отбора (~30 минут), потому что до завершения события осталось меньше минимально нужного количества дней. Рынки без даты завершения вообще сюда не попадают — для них отдельная причина, candidates_stage1_dropped_missing_dates.',
         }),
         metric('candidates_stage1_dropped_missing_dates', {
           label: 'Dropped: Missing Dates',
@@ -479,7 +727,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько сторон рынка было отброшено уровнем 1 в этом цикле, потому что у рынка вообще нет даты начала или даты завершения. Раньше такие рынки тихо смешивались с «резолвится слишком скоро» под одной меткой — теперь видно отдельно.',
+            'Сколько сторон рынка было отброшено уровнем 1 в последнем цикле отбора (~30 минут), потому что у рынка вообще нет даты начала или даты завершения. Раньше такие рынки тихо смешивались с «резолвится слишком скоро» под одной меткой — теперь видно отдельно.',
         }),
         metric('candidates_stage1_dropped_market_age', {
           label: 'Dropped: Market Age',
@@ -487,7 +735,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько сторон рынка было отброшено уровнем 1 в этом цикле, потому что сам рынок слишком молодой, создан совсем недавно — у новых рынков обычно ещё нестабильные цены, и бот выжидает, пока рынок «устоится».',
+            'Сколько сторон рынка было отброшено уровнем 1 в последнем цикле отбора (~30 минут), потому что сам рынок слишком молодой, создан совсем недавно — у новых рынков обычно ещё нестабильные цены, и бот выжидает, пока рынок «устоится».',
         }),
       ],
     },
@@ -501,7 +749,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько ордеров (заявок на покупку или продажу) сейчас реально стоит у бота на бирже Polymarket, по данным самой биржи. Это общее число открытых заявок прямо сейчас; разбивка на покупку и продажу — в orders_buy и orders_sell.',
+            'Сколько ордеров (заявок на покупку или продажу) бот сейчас считает открытыми на бирже Polymarket. Это память бота, а не ответ биржи: она меняется по WS-событиям, по точным ответам биржи на постановку/отмену и по точечной проверке; периодический REST-обход её только сверяет (см. orders_audit_extra_in_cache и orders_audit_missing_in_cache). Разбивка на покупку и продажу — в orders_buy и orders_sell.',
         }),
         metric('orders_buy', {
           label: 'Buy Orders',
@@ -514,10 +762,10 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
         metric('orders_sell', {
           label: 'Sell Orders',
           color: MetricColor.Blue600,
-          aggregation: 'last',
+          aggregation: 'max',
           integerValued: true,
           description:
-            'Сколько именно заявок на продажу сейчас стоит открытыми на бирже. Каждая такая заявка защищает уже купленную ботом позицию — она выставлена, чтобы при подходящей цене продать то, что уже куплено.',
+            'Сколько именно заявок на продажу стоит открытыми на бирже. На минутном графике — текущее значение, на 5-минутных карточках, часовом и дневном — максимум за период. Каждая такая заявка защищает уже купленную ботом позицию — она выставлена, чтобы при подходящей цене продать то, что уже куплено.',
         }),
         metric('orders_buy_shares', {
           label: 'Buy Orders: Shares',
@@ -568,7 +816,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько заявок на покупку или продажу бот реально успешно выставил на биржу в этом цикле — то есть запрос принят биржей. Считает и совсем новые заявки, и те, что появились после переустановки уже стоящей заявки.',
+            'Сколько заявок на покупку или продажу бот реально успешно выставил на биржу — запрос принят биржей. Считает и совсем новые заявки, и те, что появились после переустановки уже стоящей заявки. Это факт выполнения, в отличие от решений buy_place/sell_place (они считают намерение); раздельно по сторонам — в buy_place_confirmed и sell_place_confirmed.',
         }),
         metric('trade_cancel', {
           label: 'Cancel Actions',
@@ -576,7 +824,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько заявок бот реально успешно отменил на бирже в этом цикле. Считает и самостоятельные отмены, и отмены, которые были частью переустановки заявки.',
+            'Сколько заявок бот реально успешно отменил на бирже одной отдельной отменой (решение stop) либо отменой sell-заявки без выставления замены. Переустановка заявки (отмена и новая постановка), доведённая до конца, считается одним trade_post, а не отменой; раздельно по сторонам — в buy_cancel_confirmed и sell_cancel_confirmed.',
         }),
         metric('duplicate_orders_canceled', {
           label: 'Duplicate Orders Canceled',
@@ -592,7 +840,39 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько попыток отменить обнаруженный дублирующий ордер биржа не подтвердила (запрос прошёл, но статус остался неясен). Токен в этом случае временно приостанавливается для hot-batch до следующего полного обновления account-state (см. account_state_pending_confirmation_total) — реальное состояние неизвестно, полагаться на локальный кэш нельзя.',
+            'Сколько попыток отменить обнаруженный дублирующий ордер биржа не подтвердила (запрос прошёл, но статус остался неясен). Токен в этом случае временно приостанавливается до WS-события по этому ордеру или точечной проверки на бирже (см. account_state_pending_confirmation_total) — реальное состояние неизвестно, полагаться на локальный кэш нельзя.',
+        }),
+        metric('duplicate_orders_cancel_refused', {
+          label: 'Duplicate Orders Cancel Refused',
+          color: MetricColor.Amber600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько попыток отменить дублирующий ордер биржа явно отклонила (HTTP 4xx/429, 503 «cancels are disabled») либо отмена была придержана локальными воротами на время остановки отмен. Это точное «нет»: ордер остался как был, токен не паузится. Дубль будет отменён при ближайшей возможности.',
+        }),
+        metric('duplicate_orders_already_gone', {
+          label: 'Duplicate Orders Already Gone',
+          color: MetricColor.Blue600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько «дублей» биржа назвала уже несуществующими («order can\'t be found» — отменён или исполнен раньше). Запись просто убирается из кэша: это была устаревшая запись в памяти бота, а не реальный второй ордер.',
+        }),
+        metric('orders_audit_extra_in_cache', {
+          label: 'Orders Audit: Extra In Cache',
+          color: MetricColor.Amber600,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Итог последнего REST-аудита (раз в 4 часа и после реконнекта WS): сколько ордеров бот держит в памяти всё время обхода, а биржа в списке открытых их не показала. Аудит только сверяет и ничего не меняет. Устойчиво ненулевое значение — потерянные WS-события; такой ордер уйдёт при первой отмене по нему («can\'t be found»).',
+        }),
+        metric('orders_audit_missing_in_cache', {
+          label: 'Orders Audit: Missing In Cache',
+          color: MetricColor.Red600,
+          aggregation: 'last',
+          integerValued: true,
+          description:
+            'Итог последнего REST-аудита: сколько ордеров биржа показала открытыми, а в памяти бота их не было. Ноль — норма. Ненулевое значение — бот не знает о части своих ордеров (потерянное WS-событие или потерянный ответ на постановку); ID-примеры пишутся в лог (orders_audited, missing_sample). Список биржи под нагрузкой отстаёт, поэтому единичные значения — не повод для тревоги.',
         }),
         metric('duplicate_orders_cancel_failed', {
           label: 'Duplicate Orders Cancel Failed',
@@ -600,7 +880,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько попыток отменить обнаруженный дублирующий ордер закончились ошибкой биржи. Если не ноль — на рынке может временно остаться лишняя открытая заявка до следующей попытки в одном из следующих циклов.',
+            'Сколько попыток отменить обнаруженный дублирующий ордер закончились транспортной ошибкой (запрос ушёл, но внятного ответа нет: обрыв, таймаут). Токен при этом ставится на паузу до WS-события по ордеру или точечной проверки (см. account_state_pending_confirmation_total); лишняя заявка может остаться, пока исход не прояснится.',
         }),
       ],
     },
@@ -614,7 +894,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько раз в этом цикле бот впервые поставил новую заявку на покупку на рынке, где раньше открытой заявки на покупку не было. Ноль — нормально, если все целевые позиции уже набраны или подходящих новых рынков сейчас нет.',
+            'Сколько раз за эту минуту бот принял решение поставить новую заявку на покупку на рынке, где открытой заявки на покупку не было. Это счётчик решений: считается в момент решения, даже если биржа потом отказала (фактически выставленные — buy_place_confirmed). Ноль — нормально, если все целевые позиции уже набраны или подходящих новых рынков нет.',
         }),
         metric('buy_keep', {
           label: 'Buy Keep',
@@ -622,7 +902,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько уже стоящих заявок на покупку бот в этом цикле оставил без изменений, потому что цена и размер всё ещё подходящие. Как и с продажей, большое число тут — признак стабильности рынка, а не проблема.',
+            'Сколько раз за эту минуту бот при проверке токена оставил стоящую заявку на покупку без изменений, потому что цена и размер всё ещё подходящие. Одна и та же заявка считается при каждой проверке (каждый проход round-robin), поэтому число зависит от размера вселенной. Большое значение — признак стабильности рынка, а не проблема.',
         }),
         metric('buy_replace', {
           label: 'Buy Replace',
@@ -630,7 +910,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько уже стоящих заявок на покупку бот в этом цикле отменил и переставил заново — по новой цене или с новым размером (подробности — в группе Buy: Reasons).',
+            'Сколько раз за эту минуту бот решил отменить и переставить стоящую заявку на покупку заново — по новой цене или с новым размером (подробности — в группе Buy: Reasons). Как и buy_place, считает решения, а не завершённые переустановки.',
         }),
         metric('buy_blocked', {
           label: 'Buy Blocked',
@@ -638,7 +918,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько раз в этом цикле бот хотел поставить или поддержать заявку на покупку, но не смог — конкретная причина в группе Buy: Reasons.',
+            'Сколько раз за эту минуту бот хотел поставить или поддержать заявку на покупку, но не смог — конкретная причина в группе Buy: Reasons.',
         }),
         metric('buy_stop', {
           label: 'Buy Stop',
@@ -646,7 +926,87 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на покупку бот в этом цикле отменил полностью, потому что покупать дальше уже не нужно или нельзя — например, нужный размер позиции уже набран, рынок выпал из списка кандидатов или попал в чёрный список. Точная причина — в группе Buy: Reasons.',
+            'Сколько раз за эту минуту бот решил не покупать на токене и снять его заявку на покупку, если она есть: нужный размер уже набран, рынок выпал из кандидатов, токен в чёрном списке, спред схлопнулся, очередь слишком глубокая или включён cash-floor guard. Считает решения по каждому токену при каждой проверке, а не только реальные отмены. Точная причина — в группе Buy: Reasons.',
+        }),
+        metric('buy_place_refused', {
+          label: 'Buy Place Refused',
+          color: MetricColor.Amber600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз биржа явно отказала в постановке заявки на покупку (HTTP 4xx/429, 503 с известным телом про остановку торгов) — точное «нет»: ничего не выставлено, токен не паузится и не уходит в backoff, торговля продолжится сразу после сбоя. Отличается от buy_place_not_confirmed, где ответа нет вовсе.',
+        }),
+        metric('buy_place_not_confirmed', {
+          label: 'Buy Place Not Confirmed',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз постановка заявки на покупку закончилась без внятного ответа биржи (обрыв, таймаут, голая 500) — ордер мог быть принят. Токен ставится на паузу до WS-события или точечной проверки на бирже (см. account_state_pending_confirmation_total).',
+        }),
+        metric('buy_cancel_refused', {
+          label: 'Buy Cancel Refused',
+          color: MetricColor.Amber600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз биржа явно отказала в отмене заявки на покупку, либо отмена была придержана локальными воротами на время «cancels are disabled». Ордер остался как был, токен не паузится.',
+        }),
+        metric('buy_cancel_not_confirmed', {
+          label: 'Buy Cancel Not Confirmed',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз отмена заявки на покупку не получила внятного ответа (обрыв, таймаут, голая 500, отмена не подтверждена по ID) — ордер мог остаться живым. Токен ставится на паузу до WS-события или точечной проверки на бирже.',
+        }),
+        metric('buy_cancel_already_gone', {
+          label: 'Buy Cancel Already Gone',
+          color: MetricColor.Blue600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз при отмене заявки на покупку биржа ответила «order can\'t be found» — ордер уже отменён или исполнен. Запись убирается из кэша, а замена (если она была) ставится дальше.',
+        }),
+        metric('buy_place_confirmed', {
+          label: 'Buy Place Confirmed',
+          color: MetricColor.Orange600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько заявок на покупку биржа реально приняла за эту минуту — новая постановка или постановка после переустановки. Факт выполнения, в отличие от решения buy_place.',
+        }),
+        metric('buy_place_rejected', {
+          label: 'Buy Place Rejected',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз биржа отклонила постановку заявки на покупку по понятной причине: не хватило баланса, дубликат ордера, нарушение tick size или неизвестный токен. Каждый такой отказ запускает backoff для токена (buy_backoff_active), а tick size и неизвестный токен ещё и отправляют его в чёрный список (blacklisted_entries). Нехватка баланса отдельно — в buy_exchange_rejected_insufficient_balance.',
+        }),
+        metric('buy_place_blocked_invalid_request', {
+          label: 'Buy Place Blocked: Invalid Request',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз постановка заявки на покупку упала ещё в самом боте, до обращения к бирже: некорректный token ID, цена или объём, не приводимые к допустимым значениям, или ошибка подписи. Ордер заведомо не выставлен, токен не паузится.',
+        }),
+        metric('buy_cancel_confirmed', {
+          label: 'Buy Cancel Confirmed',
+          color: MetricColor.Orange600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько заявок на покупку биржа подтвердила отменёнными отдельной отменой (решение stop, в том числе массовая отмена cash-floor guard). Отмена внутри переустановки сюда не входит — такая переустановка считается в buy_place_confirmed.',
+        }),
+        metric('buy_cancel_transport_error', {
+          label: 'Buy Cancel Transport Error',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз запрос отмены заявки на покупку (отдельной или внутри переустановки) закончился транспортной ошибкой — обрыв или таймаут без ответа биржи. Ордер мог остаться живым, токен ставится на паузу до WS-события или точечной проверки.',
         }),
         metric('buy_backoff_active', {
           label: 'Buy Backoff Active',
@@ -654,7 +1014,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько разных рынков прямо сейчас находятся под активным backoff на стороне покупки — бот временно ничего там не размещает после недавней серии ошибок подряд. Снимается само по себе по истечении таймера backoff.',
+            'Сколько разных рынков прямо сейчас находятся под активным backoff на стороне покупки — бот временно ничего там не ставит после отказов биржи (buy_place_rejected). Каждый новый отказ подряд удлиняет паузу по ряду Фибоначчи в минутах (до суток), успешная постановка сбрасывает счёт; пауза истекает сама.',
         }),
         metric('blacklisted_entries', {
           label: 'Blacklisted Entries',
@@ -662,7 +1022,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько разных рынков сейчас находятся в «чёрном списке» на покупку — это рынки, где биржа несколько раз подряд отказала в покупке из-за нехватки баланса, и бот временно перестал туда заходить, чтобы не тратить попытки впустую. Рынок убирается из списка автоматически, когда перестаёт быть проблемным. Это защитный механизм, а не показатель размера потерь.',
+            'Сколько токенов сейчас в «чёрном списке» на покупку — биржа ответила на ордер по ним нарушением tick size или «неизвестный токен». Из списка токен не выходит до перезапуска бота: для него покупки (а при invalid token — и продажи) остановлены насовсем. Защитный механизм; растущее число значит, что в кандидатах появляются токены, с которыми биржа не работает.',
         }),
         metric('capital_preservation_active', {
           label: 'Capital Preservation Active',
@@ -670,7 +1030,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Флаг cash-floor guard: 1, если свободного баланса стало настолько мало, что бот аварийно снял все BUY-ордера и блокирует новые (см. buy_stop_capital_preservation) — 0 в норме. Снимается автоматически, как только баланс восстанавливается выше порога плюс буфер гистерезиса (CASH_LADDER_RESUME_BUFFER_USD).',
+            'Флаг cash-floor guard: 1, если баланс (collateral_balance) упал до нулевой ступени лестницы CASH_PRICE_LADDER, на которой цена входа равна 0, — новые покупки заблокированы, а при каждом обновлении account-state бот снимает все стоящие BUY-ордера. 0 в норме. Возврат на ступень выше — только когда баланс превысит её порог на буфер CASH_LADDER_RESUME_BUFFER_USD.',
         }),
       ],
     },
@@ -700,7 +1060,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько раз в этом цикле заявка на покупку не была поставлена или обновлена, потому что рынок сейчас под активным backoff (buy_backoff_active) — недавно уже была серия ошибок на этой стороне, и бот временно выжидает вместо того, чтобы сразу пробовать снова.',
+            'Сколько раз за эту минуту заявка на покупку не была поставлена или обновлена, потому что рынок сейчас под активным backoff (buy_backoff_active) — биржа недавно отказывала по нему, и бот выжидает вместо того, чтобы сразу пробовать снова.',
         }),
         metric('buy_blocked_trading_halted', {
           label: 'Buy Blocked: Trading Halted',
@@ -724,7 +1084,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько заявок на покупку бот переставил в этом цикле только из-за изменения цены — желаемый размер позиции не менялся, просто появилась более выгодная цена для входа.',
+            'Сколько заявок на покупку бот переставил за эту минуту только из-за изменения цены — желаемый размер позиции не менялся, просто появилась более выгодная цена для входа.',
         }),
         metric('buy_replace_size_change', {
           label: 'Buy Replace: Size Change',
@@ -732,7 +1092,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на покупку бот переставил в этом цикле из-за изменения нужного объёма докупки — например, часть заявки уже исполнилась, или целевой размер позиции изменился, а цена осталась прежней.',
+            'Сколько заявок на покупку бот переставил за эту минуту из-за изменения нужного объёма докупки — например, часть заявки уже исполнилась, или целевой размер позиции изменился, а цена осталась прежней.',
         }),
         metric('buy_stop_no_deficit', {
           label: 'Buy Stop: No Deficit',
@@ -740,7 +1100,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на покупку бот отменил в этом цикле, потому что нужный размер позиции уже набран целиком — докупать больше не требуется. Это хороший, ожидаемый исход.',
+            'Сколько заявок на покупку бот отменил за эту минуту, потому что нужный размер позиции уже набран целиком — докупать больше не требуется. Это хороший, ожидаемый исход.',
         }),
         metric('buy_stop_market_dropped_out', {
           label: 'Buy Stop: Market Dropped Out',
@@ -748,7 +1108,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на покупку бот отменил в этом цикле, потому что рынок, где уже стояла заявка, перестал проходить фильтры на новый вход — например, спред сузился, объём упал или рынок больше не кандидат уровня 1. Продолжать наращивать позицию там больше нельзя, хотя уже купленное при этом не трогается.',
+            'Сколько заявок на покупку бот отменил за эту минуту, потому что рынок, где уже стояла заявка, перестал проходить фильтры на новый вход — например, спред сузился, объём упал или рынок больше не кандидат уровня 1. Продолжать наращивать позицию там больше нельзя, хотя уже купленное при этом не трогается.',
         }),
         metric('buy_stop_no_candidate', {
           label: 'Buy Stop: No Candidate',
@@ -756,7 +1116,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Похоже на buy_stop_market_dropped_out, но для случая, когда заявки на покупку ещё не было: рынок к началу цикла уже не входил в список кандидатов, поэтому новую заявку на покупку по нему даже не стали выставлять.',
+            'Похоже на buy_stop_market_dropped_out, но для случая, когда заявки на покупку нет: токен не входит в кандидаты уровня 1 (бот ведёт его только из-за позиции или чужого ордера), поэтому покупку по нему даже не рассматривают. Считается при каждой проверке такого токена, поэтому масштаб — legacy_positions, умноженное на число проходов за минуту.',
         }),
         metric('buy_stop_entry_blacklisted', {
           label: 'Buy Stop: Entry Blacklisted',
@@ -764,7 +1124,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на покупку бот отменил или не стал выставлять в этом цикле из-за того, что рынок попал в чёрный список на покупку (blacklisted_entries) — биржа несколько раз подряд отказала там в покупке из-за нехватки баланса, и бот временно перестал туда заходить.',
+            'Сколько раз за эту минуту бот отказался покупать на токене из чёрного списка (blacklisted_entries) — биржа ответила по нему нарушением tick size или «неизвестный токен»; стоящая заявка при этом снимается. Считается при каждой проверке такого токена.',
         }),
         metric('buy_stop_queue_too_deep', {
           label: 'Buy Stop: Queue Too Deep',
@@ -772,7 +1132,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на покупку бот отменил в этом цикле, потому что перед выгодной ценой уже стоит слишком большой объём чужих заявок на покупку (больше разрешённого лимита в USD) — войти по разумной цене сейчас не получится.',
+            'Сколько заявок на покупку бот отменил за эту минуту, потому что перед выгодной ценой уже стоит слишком большой объём чужих заявок на покупку (больше разрешённого лимита в USD) — войти по разумной цене сейчас не получится.',
         }),
         metric('buy_stop_effective_spread_too_tight', {
           label: 'Buy Stop: Effective Spread Too Tight',
@@ -780,7 +1140,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на покупку бот отменил в этом цикле, потому что живая проверка эффективного спреда (candidates_stage2_total) прямо сейчас не проходит порог — реальный спред между ценой покупки и продажи на актуальном стакане схлопнулся. Сторону SELL это не касается: уже купленную позицию бот продолжает закрывать независимо от текущего спреда.',
+            'Сколько заявок на покупку бот отменил за эту минуту, потому что живая проверка эффективного спреда (candidates_stage2_total) прямо сейчас не проходит порог — реальный спред между ценой покупки и продажи на актуальном стакане схлопнулся. Сторону SELL это не касается: уже купленную позицию бот продолжает закрывать независимо от текущего спреда.',
         }),
         metric('buy_stop_capital_preservation', {
           label: 'Buy Stop: Capital Preservation',
@@ -788,7 +1148,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на покупку бот массово отменил из-за срабатывания cash-floor guard — свободного баланса стало настолько мало, что бот аварийно снимает вообще все BUY-ордера, чтобы не уйти в отрицательный кэш. Это событийная, не по одному токену реакция: срабатывает целиком при каждом обновлении account-state, пока guard активен.',
+            'Сколько раз за эту минуту решение о покупке по токену было остановлено cash-floor guard (capital_preservation_active): пока он включён, каждая проверка любого токена заканчивается этим решением, а стоящая заявка снимается. Значение пропорционально числу проверок, а не числу отменённых ордеров — реальные отмены массовой чисткой при обновлении account-state считаются в buy_cancel_confirmed.',
         }),
       ],
     },
@@ -802,14 +1162,14 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько раз в этом цикле бот впервые поставил заявку на продажу по какой-то купленной позиции, у которой раньше не было ни одной заявки на продажу. Ноль — нормально, если все уже купленные позиции и так уже сопровождаются продающими заявками.',
+            'Сколько раз за эту минуту бот принял решение поставить заявку на продажу по купленной позиции, у которой не было ни одной заявки на продажу (включая ликвидацию «пыли»). Это счётчик решений: считается в момент решения, даже если биржа потом отказала (фактически выставленные — sell_place_confirmed). Ноль — нормально, если все позиции и так уже сопровождаются заявками на продажу.',
         }),
         metric('sell_dust_liquidation_attempted_shares', {
           label: 'Sell Dust Liquidation Attempted (shares)',
           color: MetricColor.Pink600,
           aggregation: 'sum',
           description:
-            'Суммарный объём в контрактах, который бот в этом цикле пытался продать как «пыль» — остаток позиции настолько маленький, что обычная логика продажи его не покрывает. Раз в несколько минут бот отдельно пытается закрыть такие мелкие хвосты позиций (если размещение удалось — попадает также в sell_place).',
+            'Суммарный объём в контрактах, который бот за эту минуту решил продать как «пыль» — остаток позиции на рынке, который больше не кандидат, настолько мал, что не пройдёт как обычная заявка, поэтому его продают сразу по рынку (FAK). Такие хвосты ищет отдельный часовой dust-sweep проход (см. dust_sweep_batches_total); решение входит и в sell_place.',
         }),
         metric('sell_keep', {
           label: 'Sell Keep',
@@ -817,7 +1177,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько уже стоящих заявок на продажу бот в этом цикле оставил без изменений, потому что их цена и размер всё ещё оптимальны. Большое число — хороший знак стабильности: бот не дёргает заявки без нужды.',
+            'Сколько раз за эту минуту бот при проверке токена оставил стоящую заявку на продажу без изменений, потому что её цена и размер всё ещё оптимальны (или заявку нельзя улучшить из-за слишком глубокой очереди либо мелкого остатка). Одна и та же заявка считается при каждой проверке — каждом проходе round-robin. Большое число — признак стабильности: бот не дёргает заявки без нужды.',
         }),
         metric('sell_replace', {
           label: 'Sell Replace',
@@ -825,7 +1185,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько уже стоящих заявок на продажу бот в этом цикле отменил и переставил заново — по новой цене или с другим размером (подробная причина — в группе Sell: Reasons). Сама переустановка — это нормальная рабочая активность, а не ошибка.',
+            'Сколько раз за эту минуту бот решил отменить и переставить стоящую заявку на продажу заново — по новой цене или с другим размером (подробная причина — в группе Sell: Reasons). Как и sell_place, считает решения, а не завершённые переустановки. Сама переустановка — нормальная рабочая активность, а не ошибка.',
         }),
         metric('sell_blocked', {
           label: 'Sell Blocked',
@@ -833,7 +1193,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько раз в этом цикле бот хотел поставить или поддержать заявку на продажу, но не смог — конкретная причина в группе Sell: Reasons.',
+            'Сколько раз за эту минуту бот хотел поставить или поддержать заявку на продажу, но не смог — конкретная причина в группе Sell: Reasons.',
         }),
         metric('sell_stop', {
           label: 'Sell Stop',
@@ -841,7 +1201,87 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на продажу бот в этом цикле отменил полностью, без переустановки, потому что продавать больше нечего — позиция уже распродана. Это ожидаемое завершение жизненного цикла позиции, а не сбой.',
+            'Сколько раз за эту минуту бот при проверке токена решил не продавать, потому что продавать нечего (нет позиции) или токен в чёрном списке на продажу (invalid token / tick size); стоящая заявка, если она есть, снимается. Считает решения при каждой проверке каждого токена без позиции, поэтому значение большое и ожидаемое, а не число отменённых ордеров.',
+        }),
+        metric('sell_place_refused', {
+          label: 'Sell Place Refused',
+          color: MetricColor.Amber600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз биржа явно отказала в постановке заявки на продажу (HTTP 4xx/429, 503 с известным телом про остановку торгов) — точное «нет»: ничего не выставлено, токен не паузится и не уходит в backoff. Отличается от sell_place_not_confirmed, где ответа нет вовсе.',
+        }),
+        metric('sell_place_not_confirmed', {
+          label: 'Sell Place Not Confirmed',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз постановка заявки на продажу закончилась без внятного ответа биржи (обрыв, таймаут, голая 500) — ордер мог быть принят. Токен ставится на паузу до WS-события или точечной проверки на бирже (см. account_state_pending_confirmation_total).',
+        }),
+        metric('sell_cancel_refused', {
+          label: 'Sell Cancel Refused',
+          color: MetricColor.Amber600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз биржа явно отказала в отмене заявки на продажу, либо отмена была придержана локальными воротами на время «cancels are disabled». Ордер остался как был, токен не паузится.',
+        }),
+        metric('sell_cancel_not_confirmed', {
+          label: 'Sell Cancel Not Confirmed',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз отмена заявки на продажу не получила внятного ответа (обрыв, таймаут, голая 500, отмена не подтверждена по ID) — ордер мог остаться живым. Токен ставится на паузу до WS-события или точечной проверки на бирже.',
+        }),
+        metric('sell_cancel_already_gone', {
+          label: 'Sell Cancel Already Gone',
+          color: MetricColor.Blue600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз при отмене заявки на продажу биржа ответила «order can\'t be found» — ордер уже отменён или исполнен (в том числе снят биржей при закрытии рынка). Запись убирается из кэша, а замена (если она была) ставится дальше.',
+        }),
+        metric('sell_place_confirmed', {
+          label: 'Sell Place Confirmed',
+          color: MetricColor.Pink600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько заявок на продажу биржа реально приняла за эту минуту — новая постановка или постановка после переустановки. Факт выполнения, в отличие от решения sell_place.',
+        }),
+        metric('sell_place_rejected', {
+          label: 'Sell Place Rejected',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз биржа отклонила постановку заявки на продажу по понятной причине: не хватило баланса токенов, дубликат ордера, нарушение tick size или неизвестный токен. Каждый такой отказ запускает backoff для токена (sell_backoff_active), а tick size и неизвестный токен ещё и отправляют его в чёрный список на продажу. Нехватка баланса отдельно — в sell_exchange_rejected_insufficient_balance.',
+        }),
+        metric('sell_place_blocked_invalid_request', {
+          label: 'Sell Place Blocked: Invalid Request',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз постановка заявки на продажу упала ещё в самом боте, до обращения к бирже: некорректный token ID, цена или объём, не приводимые к допустимым значениям, или ошибка подписи. Ордер заведомо не выставлен, токен не паузится.',
+        }),
+        metric('sell_cancel_confirmed', {
+          label: 'Sell Cancel Confirmed',
+          color: MetricColor.Pink600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько заявок на продажу биржа подтвердила отменёнными отдельной отменой (решение stop). Отмена внутри переустановки сюда не входит — такая переустановка считается в sell_place_confirmed.',
+        }),
+        metric('sell_cancel_transport_error', {
+          label: 'Sell Cancel Transport Error',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько раз запрос отмены заявки на продажу (отдельной или внутри переустановки) закончился транспортной ошибкой — обрыв или таймаут без ответа биржи. Ордер мог остаться живым, токен ставится на паузу до WS-события или точечной проверки.',
         }),
         metric('sell_backoff_active', {
           label: 'Sell Backoff Active',
@@ -849,7 +1289,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           integerValued: true,
           description:
-            'Сколько разных рынков прямо сейчас находятся под активным backoff на стороне продажи — бот временно ничего там не переставляет после недавней серии ошибок подряд. Снимается само по себе по истечении таймера backoff.',
+            'Сколько разных рынков прямо сейчас находятся под активным backoff на стороне продажи — бот временно ничего там не переставляет после отказов биржи (sell_place_rejected). Каждый новый отказ подряд удлиняет паузу по ряду Фибоначчи в минутах (до суток), успешная постановка сбрасывает счёт; пауза истекает сама.',
         }),
       ],
     },
@@ -863,7 +1303,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько раз в этом цикле бот не смог поставить или обновить заявку на продажу, потому что не было доступного стакана покупателей по этому рынку — без него непонятно, по какой цене продавать безопасно. Ноль — значит со стаканами для продажи всё было в порядке.',
+            'Сколько раз за эту минуту бот не смог поставить или обновить заявку на продажу, потому что не было доступного стакана покупателей по этому рынку — без него непонятно, по какой цене продавать безопасно. Ноль — значит со стаканами для продажи всё было в порядке.',
         }),
         metric('sell_blocked_below_min', {
           label: 'Sell Blocked: Below Min',
@@ -879,7 +1319,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько раз бот не стал ставить заявку на продажу, потому что перед выгодной ценой уже стоит слишком большой объём чужих заявок (больше разрешённого лимита в USD) — то есть очередь на продажу слишком глубокая, и заявка бота простояла бы там почти без шансов исполниться по адекватной цене.',
+            'Сколько раз бот не стал ставить новую заявку на продажу, потому что перед выгодной ценой уже стоит слишком большой объём чужих заявок (больше разрешённого лимита в USD) — очередь на продажу слишком глубокая, и заявка бота простояла бы там почти без шансов исполниться по адекватной цене. Если заявка на продажу уже стоит, при глубокой очереди она остаётся как есть и считается в sell_keep.',
         }),
         metric('sell_blocked_backoff', {
           label: 'Sell Blocked: Backoff',
@@ -887,7 +1327,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько раз в этом цикле заявка на продажу не была поставлена или обновлена, потому что рынок сейчас под активным backoff (sell_backoff_active) на этой стороне — недавно уже была серия ошибок, бот временно выжидает.',
+            'Сколько раз за эту минуту заявка на продажу не была поставлена или обновлена, потому что рынок сейчас под активным backoff (sell_backoff_active) на этой стороне — биржа недавно отказывала по нему, бот временно выжидает.',
         }),
         metric('sell_blocked_trading_halted', {
           label: 'Sell Blocked: Trading Halted',
@@ -897,13 +1337,21 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           description:
             'Сколько раз бот не стал ставить или поддерживать заявку на продажу, потому что глобальный стоп-гейт торговли сейчас активен (биржа недавно отвечала 503 или похожей ошибкой достаточно часто, чтобы приостановить новые ордера).',
         }),
+        metric('sell_exchange_rejected_insufficient_balance', {
+          label: 'Sell Rejected: Insufficient Balance',
+          color: MetricColor.Pink600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Сколько sell-ордеров биржа отклонила из-за нехватки баланса — бот пытался продать больше контрактов, чем биржа считает доступными. Каждый такой отказ запускает backoff токена (sell_backoff_active). Ненулевое значение редкое и стоит разбора по логам.',
+        }),
         metric('sell_replace_reprice', {
           label: 'Sell Replace: Reprice',
           color: MetricColor.Pink600,
           aggregation: 'avg',
           integerValued: true,
           description:
-            'Сколько заявок на продажу бот переставил в этом цикле только из-за изменения цены — размер заявки остался тот же, просто рынок изменился и появилась более выгодная или более безопасная цена для продажи. У V4 нет нижней границы цены выхода, поэтому репрайс может уводить цену продажи вниз вслед за рынком без ограничения снизу.',
+            'Сколько заявок на продажу бот переставил за эту минуту только из-за изменения цены — размер заявки остался тот же, просто рынок изменился и появилась более выгодная или более безопасная цена для продажи. У V4 нет нижней границы цены выхода, поэтому репрайс может уводить цену продажи вниз вслед за рынком без ограничения снизу.',
         }),
         metric('sell_replace_expand', {
           label: 'Sell Replace: Expand',
@@ -911,7 +1359,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на продажу бот переставил в этом цикле, увеличив размер. Это происходит, когда позиция выросла — например, докупили ещё контрактов — и старая заявка на продажу покрывала только часть позиции, а новая покрывает больше.',
+            'Сколько заявок на продажу бот переставил за эту минуту, увеличив размер. Это происходит, когда позиция выросла — например, докупили ещё контрактов — и старая заявка на продажу покрывала только часть позиции, а новая покрывает больше.',
         }),
         metric('sell_replace_reduce', {
           label: 'Sell Replace: Reduce',
@@ -919,7 +1367,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на продажу бот переставил в этом цикле, уменьшив размер. Обычно это значит, что часть позиции уже была продана ранее, и заявку нужно скорректировать под то, что осталось.',
+            'Сколько заявок на продажу бот переставил за эту минуту, уменьшив размер. Обычно это значит, что часть позиции уже была продана ранее, и заявку нужно скорректировать под то, что осталось.',
         }),
         metric('sell_stop_no_inventory', {
           label: 'Sell Stop: No Inventory',
@@ -927,7 +1375,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько заявок на продажу бот отменил в этом цикле, потому что продавать больше нечего — позиция по этому рынку уже полностью распродана. Сейчас это единственная причина, по которой продажа вообще останавливается.',
+            'Сколько раз за эту минуту бот при проверке токена решил не продавать, потому что продавать нечего — позиции по рынку нет или она полностью распродана (стоящая заявка, если есть, снимается). Считается при каждой проверке каждого токена без позиции, включая кандидатов на покупку, поэтому значение большое и ожидаемое. Остальная часть sell_stop — токены из чёрного списка на продажу — отдельной метрики не имеет.',
         }),
       ],
     },
@@ -1056,62 +1504,27 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           description:
             'Сколько рынков в текущем рабочем списке бота больше не входят в список кандидатов, но у бота там либо открытая позиция, либо открытый ордер.',
         }),
-        metric('estimated_account_value', {
-          label: 'Estimated Account Value',
-          color: MetricColor.Green600,
-          unit: 'money',
-          aggregation: 'last',
+        metric('hot_batch_max_wait_fired_total', {
+          label: 'Hot Batch Max-Wait Fired',
+          color: MetricColor.Amber600,
+          aggregation: 'sum',
+          integerValued: true,
           removed: true,
           removedNote:
-            'Замены нет (см. plans/32) — считалась поверх стакана по всему инвентарю на каждом проходе; event-driven архитектура нарочно не тянет книги по тихим токенам, оживление метрики означало бы вернуть тот самый REST-трафик, от которого ушли. Осталась только free_cash (бесплатная часть — из уже читаемого баланса).',
+            'Механизм HOT_BATCH_MAX_WAIT убран целиком (см. plans/43) — новый взвешенный выбор со старением гарантировал отсутствие голодания без отдельного предохранителя-таймера; с plans/44 и сам hot-batch триггер заменён циклическим round-robin, заменять нечем',
           description:
-            'Оценочная полная стоимость торгового счёта в USD: свободные деньги (free_cash) плюс то, сколько реально можно было бы получить, если бы бот сейчас продал все купленные позиции по текущим ценам в стакане (estimated_open_positions_value).',
+            'Сколько раз за эту минуту сработал предохранитель HOT_BATCH_MAX_WAIT — dirty-set не набрал полный размер батча вовремя, и накопленное отправили на reconcile неполным. На активном боевом аккаунте практически не должно срабатывать вообще (см. plans/31 component 2); частое ненулевое значение — сигнал, что universe заметно поредел.',
         }),
-        metric('estimated_open_positions_value', {
-          label: 'Estimated Open Positions Value',
-          color: MetricColor.Green600,
-          unit: 'money',
-          aggregation: 'last',
-          removed: true,
-          removedNote: 'Замены нет — см. estimated_account_value',
-          description:
-            'Сколько реально можно было бы получить прямо сейчас, если бы бот продал все открытые позиции по текущим ценам в стакане.',
-        }),
-        metric('open_positions_no_book_count', {
-          label: 'Open Positions: No Book',
+        metric('hot_batch_queue_depth', {
+          label: 'Hot Batch Queue Depth',
           color: MetricColor.Amber600,
           aggregation: 'last',
           integerValued: true,
           removed: true,
-          removedNote: 'Замены нет — см. estimated_account_value',
+          removedNote:
+            'Замены нет (plans/43, plans/44) — очередь готовых hot-batch и её потолок HOT_BATCH_QUEUE_CAP убраны вместе с hot-batch триггером, round-robin обход строго последовательный',
           description:
-            'Сколько позиций остались без стакана заявок на покупку, необходимого для оценки estimated_open_positions_value.',
-        }),
-        metric('open_positions_empty_bid_count', {
-          label: 'Open Positions: Empty Bid',
-          color: MetricColor.Amber600,
-          aggregation: 'last',
-          integerValued: true,
-          removed: true,
-          removedNote: 'Замены нет — см. estimated_account_value',
-          description: 'Стакан по рынку есть, но заявок на покупку в нём нет ни одной.',
-        }),
-        metric('open_positions_partial_depth_count', {
-          label: 'Open Positions: Partial Depth',
-          color: MetricColor.Amber600,
-          aggregation: 'last',
-          integerValued: true,
-          removed: true,
-          removedNote: 'Замены нет — см. estimated_account_value',
-          description: 'Заявок на покупку хватило только на часть позиции.',
-        }),
-        metric('open_positions_uncovered_shares', {
-          label: 'Open Positions: Uncovered Shares',
-          color: MetricColor.Amber600,
-          aggregation: 'last',
-          removed: true,
-          removedNote: 'Замены нет — см. estimated_account_value',
-          description: 'Сколько контрактов из купленных позиций не оценены в деньгах из-за нехватки стакана.',
+            "Сколько уже готовых, но ещё не взятых в обработку hot-batch'ей стояло в очереди перед тем, как консьюмер забрал очередной (потолок — HOT_BATCH_QUEUE_CAP). Консьюмер строго однопоточный (см. plans/31 component 4) — устойчиво растущее значение означает, что WS-поток набирает батчи быстрее, чем бот успевает их отторговывать, и это уже реальный бэкпрешер на приём новых сообщений.",
         }),
         metric('no_mutation_streak', {
           label: 'No-Mutation Streak',
@@ -1302,6 +1715,14 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           color: MetricColor.Orange600,
           aggregation: 'avg',
           description: 'Текущий RSS процесса бота: сколько физической памяти реально держит сам сервис прямо сейчас.',
+        }),
+        metric('process_goroutines', {
+          label: 'Bot Goroutines',
+          color: MetricColor.Violet400,
+          aggregation: 'avg',
+          integerValued: true,
+          description:
+            'Сколько горутин живёт в процессе бота (последний замер минуты). Всплески совпадают с обработкой чанков round-robin — на каждый токен чанка запускается своя горутина (см. cycle_chunk_size_avg); устойчиво растущий «пол» между чанками указывает на утечку.',
         }),
       ],
     },

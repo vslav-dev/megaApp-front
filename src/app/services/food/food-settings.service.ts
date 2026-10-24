@@ -18,6 +18,7 @@ interface FoodSettings {
   statsDateRange: SavedDateRange | null;
   statsTopProductsMetric: TopProductsMetric;
   statsAccordionOpenBlocks: FoodStatsBlock[];
+  statsWeightBmiBands: boolean;
 }
 
 const DEFAULT_FOOD_SETTINGS: FoodSettings = {
@@ -25,6 +26,7 @@ const DEFAULT_FOOD_SETTINGS: FoodSettings = {
   statsDateRange: null,
   statsTopProductsMetric: TopProductsMetric.Kcal,
   statsAccordionOpenBlocks: getFoodStatsBlockOrder(),
+  statsWeightBmiBands: true,
 };
 
 // Sole owner of the `food` namespace store — every food-domain server setting (diary height,
@@ -46,6 +48,9 @@ export class FoodSettingsService {
   public readonly statsAccordionOpenBlocks$$: Signal<FoodStatsBlock[]> = computed(
     () => this.settingsStore.value$$().statsAccordionOpenBlocks,
   );
+  public readonly statsWeightBmiBands$$: Signal<boolean> = computed(
+    () => this.settingsStore.value$$().statsWeightBmiBands,
+  );
 
   public ready(): Promise<void> {
     return this.settingsStore.ready();
@@ -65,6 +70,10 @@ export class FoodSettingsService {
 
   public setStatsAccordionOpenBlocks(blocks: FoodStatsBlock[]): void {
     this.settingsStore.set('statsAccordionOpenBlocks', blocks);
+  }
+
+  public setStatsWeightBmiBands(isEnabled: boolean): void {
+    this.settingsStore.set('statsWeightBmiBands', isEnabled);
   }
 
   public reset(): void {

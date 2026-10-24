@@ -22,6 +22,7 @@ import { FoodAddModalService, ModalState } from '@app/services/food/food-add-mod
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { KeyboardService } from '@app/services/keyboard.service';
+import { DiaryEntryWithFullData } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VAccordion } from '@ui-kit/components/v-expand/v-accordion';
 import { VExpand } from '@ui-kit/components/v-expand/v-expand';
@@ -188,8 +189,20 @@ export class FoodDiary {
       this.openAddFoodModal();
     });
 
-  protected setBackgroundStyle(percent: number): { [key: string]: string } {
+  // An archived product's fill is hatched: the filled part is made of diagonal stripes with
+  // transparent gaps, so whatever is behind the row (light or dark theme background) shows through.
+  // The entry that is being edited right now shows its draft share, any other one its saved share.
+  protected getFillPercent(food: DiaryEntryWithFullData): number {
+    const draft = this.foodDiaryService.draftEntryPercent$$();
+    return draft?.diaryId === food.id ? draft.percent : food.foodKcalPercentageOfDaysNorm;
+  }
+
+  protected setBackgroundStyle(percent: number, isArchived: boolean): { [key: string]: string } {
     const percentCapped = percent <= 100 ? percent : 100;
+    if (isArchived) {
+      const hatching = 'repeating-linear-gradient(120deg, var(--gradient-color) 0 8px, transparent 8px 14px)';
+      return { background: `${hatching} right / ${percentCapped}% 100% no-repeat` };
+    }
     return {
       background: `linear-gradient(to left, var(--gradient-color) ${percentCapped}%, var(--gradient-bg) ${percentCapped}%)`,
     };

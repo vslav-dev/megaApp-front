@@ -12,17 +12,19 @@ import {
   viewChild,
 } from '@angular/core';
 import { ChartThemeService } from '@app/services/chart-theme.service';
+import { MoneyComputeService } from '@app/services/money-compute.service';
 import { MoneyService } from '@app/services/money.service';
 import { TelemetryService } from '@app/services/telemetry.service';
-import { CATEGORY_DIM_ALPHA } from '@app/shared/categorical-palette';
+import { CATEGORY_DIM_ALPHA, SeriesColor, seriesColorById } from '@app/shared/categorical-palette';
 import { createCategoryHoverHighlight } from '@app/shared/category-hover-highlight';
 import {
   ChartColors,
-  EXPENSE_CATEGORY_CONFIG,
+  EXPENSE_SERIES_ORDER,
   createExpenseChartConfig,
-  expenseCategoricalPalette,
   formatMonthYearLabel,
+  seriesOrderIndex,
 } from '@app/shared/chart-config';
+import { EXPENSE_VIRTUAL_SERIES, EXPENSE_VIRTUAL_SERIES_NAMES } from '@app/shared/money-series';
 import { convertAmount } from '@app/shared/money-utils';
 import { ExpenseChartData } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -44,7 +46,8 @@ import {
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 interface ExpenseChartSeries {
-  categoryId: number | null;
+  // Series id: a category id, or EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED.
+  categoryId: number;
   categoryName: string;
 }
 
@@ -63,10 +66,11 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
   protected readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   protected readonly yMaxElem = viewChild.required<VInput>('yMaxElem');
   protected readonly chart$$ = signal<Chart | null>(null);
-  protected readonly disabledCategoryIds$$ = computed(() => this.moneyService.disabledCategoryIds$$());
+  protected readonly enabledIds$$ = computed(() => this.moneyService.enabledExpenseSeriesIds$$());
   protected readonly yearlyMode$$ = computed(() => this.moneyService.yearlyMode$$());
 
   private readonly moneyService = inject(MoneyService);
+  private readonly moneyComputeService = inject(MoneyComputeService);
   private readonly chartThemeService = inject(ChartThemeService);
   private readonly telemetry = inject(TelemetryService);
   private readonly today = new Date().toISOString().substring(0, 10);
@@ -93,8 +97,8 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
   // Chart.js caches a scale's resolved grid/border/ticks color internally — mutating
   // chart.data and calling chart.update('none') doesn't reliably repaint it after a theme
   // toggle (see the identical comment/fix in food-stats-charts.ts). Recreating the chart
-  // whenever the ChartColors reference changes sidesteps it; plain data updates stay a
-  // cheap in-place mutation.
+  // whenever the theme (light/dark) changes sidesteps it; plain data updates, including a new
+  // category palette, stay a cheap in-place mutation.
   private lastColors: ChartColors | null = null;
 
   private yearBoundaries: { year: string; startIdx: number; endIdx: number }[] = [];
@@ -117,21 +121,22 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
     const categories = this.dataInput().categories;
     const series: ExpenseChartSeries[] = categories.map((cat) => ({ categoryId: cat.id, categoryName: cat.name }));
     if (this.dataInput().monthRows.some((r) => r.uncategorizedAmount > 0)) {
-      series.push({ categoryId: null, categoryName: 'Uncategorized' });
+      series.push({
+        categoryId: EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED,
+        categoryName: EXPENSE_VIRTUAL_SERIES_NAMES[EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED],
+      });
     }
-    const configOrder = new Map(EXPENSE_CATEGORY_CONFIG.map((c, i) => [c.name, i]));
-    series.sort((a, b) => {
-      const ia = configOrder.get(a.categoryName) ?? Number.MAX_SAFE_INTEGER;
-      const ib = configOrder.get(b.categoryName) ?? Number.MAX_SAFE_INTEGER;
-      return ia - ib;
-    });
+    series.sort(
+      (a, b) =>
+        seriesOrderIndex(EXPENSE_SERIES_ORDER, a.categoryName) - seriesOrderIndex(EXPENSE_SERIES_ORDER, b.categoryName),
+    );
     return series;
   });
 
   protected readonly activeSeries$$ = computed(() => {
     const series = this.allSeriesList$$();
-    const disabled = this.disabledCategoryIds$$();
-    return series.filter((s) => !disabled.has(s.categoryId));
+    const enabled = this.enabledIds$$();
+    return series.filter((s) => enabled.has(s.categoryId));
   });
 
   private readonly chartUpdateEffect = effect(() => {
@@ -140,6 +145,7 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
     const yearly = this.yearlyMode$$();
     const ymax = this.yMaxInput$$();
     const monthRange = this.monthRangeInput();
+    const seriesColors = this.moneyComputeService.expenseSeriesColors$$();
     // Dataset colors here are category-identity colors, not theme colors — colors$$ is only
     // needed to detect a theme switch and recreate the chart so its grid/tick colors repaint.
     const colors = this.chartThemeService.colors$$();
@@ -147,14 +153,14 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       'money.expense_chart_render',
       () => {
         let chart = this.chart$$();
-        if (chart && colors !== this.lastColors) {
+        if (chart && colors.isDark !== this.lastColors?.isDark) {
           chart.destroy();
           chart = this.createChart(colors);
           this.chart$$.set(chart);
         }
         this.lastColors = colors;
         if (!chart) return;
-        this.rebuildChartDatasets(chart, data, activeSeries, yearly, ymax, monthRange, colors);
+        this.rebuildChartDatasets(chart, data, activeSeries, yearly, ymax, monthRange, colors, seriesColors);
       },
       () => ({ months: data.monthRows.length, series: activeSeries.length, yearly }),
     );
@@ -249,9 +255,8 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
   }
 
   protected readonly allEnabled$$ = computed(() => {
-    const series = this.allSeriesList$$();
-    const disabled = this.disabledCategoryIds$$();
-    return series.every((s) => !disabled.has(s.categoryId));
+    const enabled = this.enabledIds$$();
+    return this.allSeriesList$$().every((s) => enabled.has(s.categoryId));
   });
 
   protected readonly allNoneLabel$$ = computed(() => (this.allEnabled$$() ? 'None' : 'All'));
@@ -275,27 +280,23 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
   }
 
   protected toggleAll(): void {
-    const series = this.allSeriesList$$();
-    if (this.allEnabled$$()) {
-      this.moneyService.setDisabledCategoryIds(new Set(series.map((s) => s.categoryId)));
-    } else {
-      this.moneyService.setDisabledCategoryIds(new Set());
-    }
+    this.moneyService.setEnabledExpenseSeriesIds(
+      this.allEnabled$$() ? new Set() : new Set(this.allSeriesList$$().map((s) => s.categoryId)),
+    );
   }
 
-  protected toggleCategory(categoryId: number | null, checked: boolean): void {
-    const current = this.disabledCategoryIds$$();
-    const updated = new Set(current);
+  protected toggleCategory(categoryId: number, checked: boolean): void {
+    const updated = new Set(this.enabledIds$$());
     if (checked) {
-      updated.delete(categoryId);
-    } else {
       updated.add(categoryId);
+    } else {
+      updated.delete(categoryId);
     }
-    this.moneyService.setDisabledCategoryIds(updated);
+    this.moneyService.setEnabledExpenseSeriesIds(updated);
   }
 
-  protected isCategoryEnabled(categoryId: number | null): boolean {
-    return !this.disabledCategoryIds$$().has(categoryId);
+  protected isCategoryEnabled(categoryId: number): boolean {
+    return this.enabledIds$$().has(categoryId);
   }
 
   protected onCategoryMouseEnter(categoryName: string): void {
@@ -306,10 +307,10 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
     this.hoveredCategoryName$$.set(null);
   }
 
-  protected getCategoryColor(categoryId: number | null, allSeries: ExpenseChartSeries[]): string {
-    const series = allSeries.find((s) => s.categoryId === categoryId);
-    return expenseCategoricalPalette.getColor(
-      series?.categoryName ?? 'Uncategorized',
+  protected getCategoryColor(categoryId: number): string {
+    return seriesColorById(
+      this.moneyComputeService.expenseSeriesColors$$(),
+      categoryId,
       this.chartThemeService.colors$$(),
     );
   }
@@ -322,6 +323,7 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
     yMaxRaw: string,
     monthRange: [string, string] | null,
     colors: ChartColors,
+    seriesColors: ReadonlyMap<number, SeriesColor>,
   ): void {
     const effectiveData: ExpenseChartData =
       !yearly && monthRange !== null
@@ -332,7 +334,7 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
         : data;
     const months = effectiveData.monthRows.map((r) => r.period);
     let labels: string[];
-    let yearlyValues: Map<number | null, number[]> | null = null;
+    let yearlyValues: Map<number, number[]> | null = null;
 
     if (yearly) {
       const yearLabels: string[] = [];
@@ -351,7 +353,7 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
         months.forEach((m, i) => {
           const year = m.substring(0, 4);
           const val =
-            s.categoryId === null
+            s.categoryId === EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED
               ? effectiveData.monthRows[i].uncategorizedAmount
               : (effectiveData.monthRows[i].categoryAmounts[s.categoryId] ?? 0);
           yearVals[yearIndexMap.get(year)!] += val;
@@ -379,8 +381,8 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       : () => '';
 
     const datasets: ChartDataset<'bar'>[] = activeSeries.map((series) => {
-      const color = expenseCategoricalPalette.getColor(series.categoryName, colors);
-      const dimColor = expenseCategoricalPalette.getColor(series.categoryName, colors, CATEGORY_DIM_ALPHA);
+      const color = seriesColorById(seriesColors, series.categoryId, colors);
+      const dimColor = seriesColorById(seriesColors, series.categoryId, colors, CATEGORY_DIM_ALPHA);
       const resolveColor = () => {
         const hovered = this.hoveredCategoryName$$();
         return hovered === null || hovered === series.categoryName ? color : dimColor;
@@ -388,9 +390,9 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       const seriesValues: number[] = yearly
         ? yearlyValues!.get(series.categoryId)!
         : months.map((_, i) =>
-            series.categoryId === null
+            series.categoryId === EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED
               ? effectiveData.monthRows[i].uncategorizedAmount
-              : (effectiveData.monthRows[i].categoryAmounts[series.categoryId!] ?? 0),
+              : (effectiveData.monthRows[i].categoryAmounts[series.categoryId] ?? 0),
           );
       return {
         label: series.categoryName,

@@ -30,6 +30,34 @@
       </v-button>
     }
 
+    <!-- One @if level only: content projection into v-prefix needs the button to be the block's root element. -->
+    @if (isArchiveSearchAvailable$$() && isArchiveSearch$$()) {
+      <v-button class="v-primary mr-2"
+                v-prefix
+                tabindex="-1"
+                [isLabelHidden]="true"
+                [padding]="1"
+                (mousedown)="$event.preventDefault()"
+                (click)="toggleArchiveSearch()">
+        <v-icon v-prefix
+                [name]="Icon.Archive"
+                [size]="6" />
+      </v-button>
+    } @else if (isArchiveSearchAvailable$$()) {
+      <v-button class="mr-2"
+                surface="flat"
+                v-prefix
+                tabindex="-1"
+                [isLabelHidden]="true"
+                [padding]="1"
+                (mousedown)="$event.preventDefault()"
+                (click)="toggleArchiveSearch()">
+        <v-icon v-prefix
+                [name]="Icon.Archive"
+                [size]="6" />
+      </v-button>
+    }
+
     @if (query() !== '') {
       <v-button surface="link"
                 [isLinkStatic]="true"
@@ -74,6 +102,9 @@
           <div class="flex flex-col justify-between h-full">
             <div>
               <span class="catalogue-entry-name">{{ getDisplayName(catalogueEntry) }}</span>
+              @if (catalogueEntry.archived) {
+                <span class="catalogue-entry-badge ml-1">архив</span>
+              }
             </div>
             @if (extractedWeight$$() !== null) {
               <div class="flex justify-end">
