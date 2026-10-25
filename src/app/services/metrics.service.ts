@@ -40,6 +40,17 @@ interface MetricsHistoryRequest {
   scope: MetricsScopeEntry[];
 }
 
+// What one history batch carried, plus what it reveals about the server — evidence for whether
+// the clock-derived request target (see buildHistoryRequest) ever runs ahead of the server's data.
+interface MetricsHistoryBatchResult {
+  pointCount: number;
+  // Request's minute target minus the freshest minute bucket in the response, in seconds; > 0
+  // means the server had not reached the target yet. null when the response had no minute points.
+  minuteLagSeconds: number | null;
+  // Client clock minus the response's Date header, in seconds; null when the header is absent.
+  clockSkewSeconds: number | null;
+}
+
 // One persisted IndexedDB record per series — see
 // plans/35-metrics-dashboard-viewport-rendering.implementation-plan.md §2.4.
 interface MetricSeriesRecord {
@@ -56,6 +67,11 @@ interface SeriesBuffer {
   buffer: MetricRingBuffer;
   pointsSignal: WritableSignal<MetricPoint[]>;
   readonlyPointsSignal: Signal<MetricPoint[]>;
+}
+
+function minNullable(left: number | null, right: number | null): number | null {
+  if (left === null || right === null) return left ?? right;
+  return Math.min(left, right);
 }
 
 @Service()
@@ -274,10 +290,18 @@ export class MetricsService {
     const startedAt = performance.now();
     const refresh$ = from(requests).pipe(
       concatMap((request) => this.fetchHistoryBatch(request)),
-      reduce((total, batchPoints) => total + batchPoints, 0),
+      // The freshest batch speaks for the server: a batch of quiet metrics lags on its own account.
+      reduce<MetricsHistoryBatchResult, MetricsHistoryBatchResult>(
+        (total, batch) => ({
+          pointCount: total.pointCount + batch.pointCount,
+          minuteLagSeconds: minNullable(total.minuteLagSeconds, batch.minuteLagSeconds),
+          clockSkewSeconds: batch.clockSkewSeconds ?? total.clockSkewSeconds,
+        }),
+        { pointCount: 0, minuteLagSeconds: null, clockSkewSeconds: null },
+      ),
     );
     refresh$.subscribe({
-      next: (pointCount) => {
+      next: ({ pointCount, minuteLagSeconds, clockSkewSeconds }) => {
         this.retryAfterMs = 0;
         this.hasNotifiedHistoryError = false;
         this.isRefreshing$$.set(false);
@@ -286,6 +310,8 @@ export class MetricsService {
           points: pointCount,
           batches: requests.length,
           retainedPoints: this.totalBufferedPointCount(),
+          ...(minuteLagSeconds === null ? {} : { minuteLagSeconds }),
+          ...(clockSkewSeconds === null ? {} : { clockSkewSeconds }),
         });
         if (showNotification) {
           this.resolvePendingRefreshNotification();
@@ -320,18 +346,17 @@ export class MetricsService {
     });
   }
 
-  // Resolves with the number of points the batch carried. Merging and cursor advance happen
-  // here, per batch, so progress survives a later batch failing.
-  private fetchHistoryBatch(request: MetricsHistoryRequest): Observable<number> {
+  // Merging and cursor advance happen here, per batch, so progress survives a later batch failing.
+  private fetchHistoryBatch(request: MetricsHistoryRequest): Observable<MetricsHistoryBatchResult> {
     const body: MetricsHistoryRequestBody = {
       minuteSince: request.since.minute,
       hourSince: request.since.hour,
       daySince: request.since.day,
       scope: request.scope,
     };
-    return this.http.post('/api/metrics/history', body, { responseType: 'arraybuffer' }).pipe(
+    return this.http.post('/api/metrics/history', body, { observe: 'response', responseType: 'arraybuffer' }).pipe(
       map((response) => {
-        const points = decodeMetricsWireToPoints(response);
+        const points = decodeMetricsWireToPoints(response.body ?? new ArrayBuffer(0));
         this.mergePoints(points, false);
         // Advance every metric the request named, not only ones that appeared in the
         // response — Flatline's response is authoritative for the whole requested
@@ -349,7 +374,17 @@ export class MetricsService {
           }
         }
         this.scheduleCacheWrite();
-        return points.length;
+
+        let latestMinuteBucket = 0;
+        for (const point of points) {
+          if (point.granularity === 'minute') latestMinuteBucket = Math.max(latestMinuteBucket, point.bucket);
+        }
+        const serverDate = Date.parse(response.headers.get('Date') ?? '');
+        return {
+          pointCount: points.length,
+          minuteLagSeconds: latestMinuteBucket > 0 ? request.targets.minute - latestMinuteBucket : null,
+          clockSkewSeconds: Number.isNaN(serverDate) ? null : Math.round((Date.now() - serverDate) / 1000),
+        };
       }),
     );
   }
