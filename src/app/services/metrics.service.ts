@@ -95,7 +95,6 @@ export class MetricsService {
   private readonly pendingPersistKeys = new Set<string>();
 
   private isCacheLoaded = false;
-  private latestRealtimeMinuteBucket = 0;
   private historyCheckedThrough = emptyMetricsCursorMap();
   private retryAfterMs = 0;
   private hasNotifiedHistoryError = false;
@@ -167,18 +166,12 @@ export class MetricsService {
         const points = decodeMetricsWireToPoints(frame.payload);
         this.telemetry.measure(
           'metrics.realtime_batch',
-          () => this.mergePoints(points, true),
+          () => this.mergePoints(points),
           () => ({
             inputPoints: points.length,
             retainedPoints: this.totalBufferedPointCount(),
           }),
         );
-        return;
-      }
-      if (frame.frameType === MetricsBinaryFrameType.Latest) {
-        for (const point of decodeMetricsWireToPoints(frame.payload)) {
-          this.latestRealtimeMinuteBucket = Math.max(this.latestRealtimeMinuteBucket, point.bucket);
-        }
       }
     });
   }
@@ -339,7 +332,7 @@ export class MetricsService {
     return this.http.post('/api/metrics/history', body, { responseType: 'arraybuffer' }).pipe(
       map((response) => {
         const points = decodeMetricsWireToPoints(response);
-        this.mergePoints(points, false, false);
+        this.mergePoints(points, false);
         // Advance every metric the request named, not only ones that appeared in the
         // response — Flatline's response is authoritative for the whole requested
         // range, so a metric absent from it genuinely had no points there, not "we
@@ -372,17 +365,17 @@ export class MetricsService {
     this.refreshHistory();
   }
 
-  private mergePoints(newPoints: MetricPoint[] | null, isRealtime: boolean, shouldSave = true): void {
+  private mergePoints(newPoints: MetricPoint[] | null, shouldSave = true): void {
     if (!newPoints || newPoints.length === 0) return;
 
     const touchedKeys = new Set<string>();
     for (const point of newPoints) {
-      this.insertPoint(point, isRealtime, touchedKeys);
+      this.insertPoint(point, touchedKeys);
     }
     this.publishTouchedSeries(touchedKeys, shouldSave);
   }
 
-  private insertPoint(point: MetricPoint, isRealtime: boolean, touchedKeys: Set<string>): void {
+  private insertPoint(point: MetricPoint, touchedKeys: Set<string>): void {
     if (
       !point?.service ||
       !point.name ||
@@ -401,10 +394,6 @@ export class MetricsService {
     // also called from seriesFor(), which UI code calls from inside computed()s to read a
     // series that may have no data yet — writing a signal there throws NG0600.
     this.registerKnownService(point.service);
-
-    if (point.granularity === 'minute' && isRealtime) {
-      this.latestRealtimeMinuteBucket = Math.max(this.latestRealtimeMinuteBucket, point.bucket);
-    }
   }
 
   private entryFor(service: string, name: string, granularity: MetricGranularity): SeriesBuffer {
@@ -512,8 +501,10 @@ export class MetricsService {
   // some already-known points back (harmless, deduped by key in insertPoint),
   // never under-fetches. See §4.2-4.3 of the plan referenced above.
   private buildHistoryRequest(scope: MetricsScopeEntry[], force: boolean): MetricsHistoryRequest | null {
-    const latestMinuteBucket =
-      this.latestRealtimeMinuteBucket > 0 ? this.latestRealtimeMinuteBucket : Math.floor(Date.now() / 60_000) * 60 - 60;
+    // Anchored to the wall clock, never to the last realtime frame: the WS is unsubscribed while
+    // no charts are open (and may be down), so a frame-derived bucket goes stale and makes a
+    // returning view believe it is already caught up.
+    const latestMinuteBucket = Math.floor(Date.now() / 60_000) * 60 - 60;
 
     const since = emptyMetricsHistoryWatermarks();
     const targets = emptyMetricsHistoryWatermarks();

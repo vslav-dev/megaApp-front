@@ -300,6 +300,30 @@ describe('MetricsService — history heartbeat (subscriptionEffect/syncHistoryHe
     httpMock.verify();
   });
 
+  it('catches up on re-entering the view after time has passed, even though live frames stopped while it was closed', async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, httpMock, appRef, metricsBinaryFrames$ } = setup();
+      await flushCacheLoad();
+      const scope = [{ service: 'api', metricNames: ['requests'] }];
+      service.setScope(scope);
+      appRef.tick();
+      httpMock.expectOne((r) => r.url === '/api/metrics/history').flush(encodeMetricsWireFixture([]));
+      pushUpdate(metricsBinaryFrames$, [metricPoint({ bucket: Math.floor(Date.now() / 60_000) * 60 })]);
+
+      service.unsubscribe();
+      appRef.tick();
+      vi.advanceTimersByTime(10 * 60_000);
+
+      service.setScope(scope);
+      appRef.tick();
+      httpMock.expectOne((r) => r.url === '/api/metrics/history').flush(encodeMetricsWireFixture([]));
+      httpMock.verify();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not drop a scope change that arrives while a request is in flight — a follow-up request picks up the new scope once the first settles', async () => {
     const { service, httpMock, isConnected$$, appRef } = setup();
     await flushCacheLoad();
