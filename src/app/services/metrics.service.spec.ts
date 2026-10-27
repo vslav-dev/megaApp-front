@@ -50,6 +50,9 @@ function setup(options: { persistedSeries?: unknown[] } = {}) {
     sessionState$$: signal<AuthSessionState>(AuthSessionState.Unknown),
   };
 
+  const telemetryFake = createTelemetryFake();
+  vi.spyOn(telemetryFake, 'recordAfterPaint');
+
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(withXhr()),
@@ -57,7 +60,7 @@ function setup(options: { persistedSeries?: unknown[] } = {}) {
       { provide: NetworkService, useValue: networkServiceFake },
       { provide: NotificationService, useValue: notificationServiceFake },
       { provide: IndexedDbCacheService, useValue: indexedDbCacheFake },
-      { provide: TelemetryService, useValue: createTelemetryFake() },
+      { provide: TelemetryService, useValue: telemetryFake },
       { provide: AuthService, useValue: authServiceFake },
     ],
   });
@@ -69,6 +72,7 @@ function setup(options: { persistedSeries?: unknown[] } = {}) {
     isConnected$$,
     appRef: TestBed.inject(ApplicationRef),
     indexedDbCacheFake,
+    telemetryFake,
   };
 }
 
@@ -205,6 +209,50 @@ describe('MetricsService.forceRefresh — refreshHistory (binary /api/metrics/hi
     httpMock.verify();
   });
 
+  it('reports how far the server lagged behind the request target and the client clock skew in telemetry', () => {
+    vi.useFakeTimers();
+    try {
+      const now = Date.UTC(2026, 0, 1, 12, 0, 30);
+      vi.setSystemTime(now);
+      const targetMinute = Math.floor(now / 60_000) * 60 - 60;
+      const { service, httpMock, telemetryFake } = setup();
+      service.setScope([{ service: 'api', metricNames: ['requests'] }]);
+      service.forceRefresh();
+
+      httpMock.expectOne('/api/metrics/history').flush(
+        encodeMetricsWireFixture([
+          {
+            service: 'api',
+            metricName: 'requests',
+            granularity: 'minute',
+            points: [{ bucket: targetMinute - 120, value: 1 }],
+          },
+        ]),
+        { headers: { Date: new Date(now - 5_000).toUTCString() } },
+      );
+
+      expect(telemetryFake.recordAfterPaint).toHaveBeenCalledWith(
+        'metrics.history_refresh',
+        expect.any(Number),
+        expect.objectContaining({ minuteLagSeconds: 120, clockSkewSeconds: 5 }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('omits the lag and skew attributes when the response has no minute points and no Date header', () => {
+    const { service, httpMock, telemetryFake } = setup();
+    service.setScope([{ service: 'api', metricNames: ['requests'] }]);
+    service.forceRefresh();
+
+    httpMock.expectOne('/api/metrics/history').flush(encodeMetricsWireFixture([]));
+
+    const attributes = vi.mocked(telemetryFake.recordAfterPaint).mock.calls[0][2];
+    expect(attributes).not.toHaveProperty('minuteLagSeconds');
+    expect(attributes).not.toHaveProperty('clockSkewSeconds');
+  });
+
   it('does nothing without a scope — no view has charts open, nothing to fetch', () => {
     const { service, httpMock } = setup();
     service.forceRefresh();
@@ -298,6 +346,30 @@ describe('MetricsService — history heartbeat (subscriptionEffect/syncHistoryHe
     expect(secondRequest.request.body.scope).toEqual([{ service: 'other', metricNames: ['errors'] }]);
     secondRequest.flush(encodeMetricsWireFixture([]));
     httpMock.verify();
+  });
+
+  it('catches up on re-entering the view after time has passed, even though live frames stopped while it was closed', async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, httpMock, appRef, metricsBinaryFrames$ } = setup();
+      await flushCacheLoad();
+      const scope = [{ service: 'api', metricNames: ['requests'] }];
+      service.setScope(scope);
+      appRef.tick();
+      httpMock.expectOne((r) => r.url === '/api/metrics/history').flush(encodeMetricsWireFixture([]));
+      pushUpdate(metricsBinaryFrames$, [metricPoint({ bucket: Math.floor(Date.now() / 60_000) * 60 })]);
+
+      service.unsubscribe();
+      appRef.tick();
+      vi.advanceTimersByTime(10 * 60_000);
+
+      service.setScope(scope);
+      appRef.tick();
+      httpMock.expectOne((r) => r.url === '/api/metrics/history').flush(encodeMetricsWireFixture([]));
+      httpMock.verify();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not drop a scope change that arrives while a request is in flight — a follow-up request picks up the new scope once the first settles', async () => {

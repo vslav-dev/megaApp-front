@@ -40,6 +40,17 @@ interface MetricsHistoryRequest {
   scope: MetricsScopeEntry[];
 }
 
+// What one history batch carried, plus what it reveals about the server — evidence for whether
+// the clock-derived request target (see buildHistoryRequest) ever runs ahead of the server's data.
+interface MetricsHistoryBatchResult {
+  pointCount: number;
+  // Request's minute target minus the freshest minute bucket in the response, in seconds; > 0
+  // means the server had not reached the target yet. null when the response had no minute points.
+  minuteLagSeconds: number | null;
+  // Client clock minus the response's Date header, in seconds; null when the header is absent.
+  clockSkewSeconds: number | null;
+}
+
 // One persisted IndexedDB record per series — see
 // plans/35-metrics-dashboard-viewport-rendering.implementation-plan.md §2.4.
 interface MetricSeriesRecord {
@@ -56,6 +67,11 @@ interface SeriesBuffer {
   buffer: MetricRingBuffer;
   pointsSignal: WritableSignal<MetricPoint[]>;
   readonlyPointsSignal: Signal<MetricPoint[]>;
+}
+
+function minNullable(left: number | null, right: number | null): number | null {
+  if (left === null || right === null) return left ?? right;
+  return Math.min(left, right);
 }
 
 @Service()
@@ -95,7 +111,6 @@ export class MetricsService {
   private readonly pendingPersistKeys = new Set<string>();
 
   private isCacheLoaded = false;
-  private latestRealtimeMinuteBucket = 0;
   private historyCheckedThrough = emptyMetricsCursorMap();
   private retryAfterMs = 0;
   private hasNotifiedHistoryError = false;
@@ -167,18 +182,12 @@ export class MetricsService {
         const points = decodeMetricsWireToPoints(frame.payload);
         this.telemetry.measure(
           'metrics.realtime_batch',
-          () => this.mergePoints(points, true),
+          () => this.mergePoints(points),
           () => ({
             inputPoints: points.length,
             retainedPoints: this.totalBufferedPointCount(),
           }),
         );
-        return;
-      }
-      if (frame.frameType === MetricsBinaryFrameType.Latest) {
-        for (const point of decodeMetricsWireToPoints(frame.payload)) {
-          this.latestRealtimeMinuteBucket = Math.max(this.latestRealtimeMinuteBucket, point.bucket);
-        }
       }
     });
   }
@@ -281,10 +290,18 @@ export class MetricsService {
     const startedAt = performance.now();
     const refresh$ = from(requests).pipe(
       concatMap((request) => this.fetchHistoryBatch(request)),
-      reduce((total, batchPoints) => total + batchPoints, 0),
+      // The freshest batch speaks for the server: a batch of quiet metrics lags on its own account.
+      reduce<MetricsHistoryBatchResult, MetricsHistoryBatchResult>(
+        (total, batch) => ({
+          pointCount: total.pointCount + batch.pointCount,
+          minuteLagSeconds: minNullable(total.minuteLagSeconds, batch.minuteLagSeconds),
+          clockSkewSeconds: batch.clockSkewSeconds ?? total.clockSkewSeconds,
+        }),
+        { pointCount: 0, minuteLagSeconds: null, clockSkewSeconds: null },
+      ),
     );
     refresh$.subscribe({
-      next: (pointCount) => {
+      next: ({ pointCount, minuteLagSeconds, clockSkewSeconds }) => {
         this.retryAfterMs = 0;
         this.hasNotifiedHistoryError = false;
         this.isRefreshing$$.set(false);
@@ -293,6 +310,8 @@ export class MetricsService {
           points: pointCount,
           batches: requests.length,
           retainedPoints: this.totalBufferedPointCount(),
+          ...(minuteLagSeconds === null ? {} : { minuteLagSeconds }),
+          ...(clockSkewSeconds === null ? {} : { clockSkewSeconds }),
         });
         if (showNotification) {
           this.resolvePendingRefreshNotification();
@@ -327,19 +346,18 @@ export class MetricsService {
     });
   }
 
-  // Resolves with the number of points the batch carried. Merging and cursor advance happen
-  // here, per batch, so progress survives a later batch failing.
-  private fetchHistoryBatch(request: MetricsHistoryRequest): Observable<number> {
+  // Merging and cursor advance happen here, per batch, so progress survives a later batch failing.
+  private fetchHistoryBatch(request: MetricsHistoryRequest): Observable<MetricsHistoryBatchResult> {
     const body: MetricsHistoryRequestBody = {
       minuteSince: request.since.minute,
       hourSince: request.since.hour,
       daySince: request.since.day,
       scope: request.scope,
     };
-    return this.http.post('/api/metrics/history', body, { responseType: 'arraybuffer' }).pipe(
+    return this.http.post('/api/metrics/history', body, { observe: 'response', responseType: 'arraybuffer' }).pipe(
       map((response) => {
-        const points = decodeMetricsWireToPoints(response);
-        this.mergePoints(points, false, false);
+        const points = decodeMetricsWireToPoints(response.body ?? new ArrayBuffer(0));
+        this.mergePoints(points, false);
         // Advance every metric the request named, not only ones that appeared in the
         // response — Flatline's response is authoritative for the whole requested
         // range, so a metric absent from it genuinely had no points there, not "we
@@ -356,7 +374,17 @@ export class MetricsService {
           }
         }
         this.scheduleCacheWrite();
-        return points.length;
+
+        let latestMinuteBucket = 0;
+        for (const point of points) {
+          if (point.granularity === 'minute') latestMinuteBucket = Math.max(latestMinuteBucket, point.bucket);
+        }
+        const serverDate = Date.parse(response.headers.get('Date') ?? '');
+        return {
+          pointCount: points.length,
+          minuteLagSeconds: latestMinuteBucket > 0 ? request.targets.minute - latestMinuteBucket : null,
+          clockSkewSeconds: Number.isNaN(serverDate) ? null : Math.round((Date.now() - serverDate) / 1000),
+        };
       }),
     );
   }
@@ -372,17 +400,17 @@ export class MetricsService {
     this.refreshHistory();
   }
 
-  private mergePoints(newPoints: MetricPoint[] | null, isRealtime: boolean, shouldSave = true): void {
+  private mergePoints(newPoints: MetricPoint[] | null, shouldSave = true): void {
     if (!newPoints || newPoints.length === 0) return;
 
     const touchedKeys = new Set<string>();
     for (const point of newPoints) {
-      this.insertPoint(point, isRealtime, touchedKeys);
+      this.insertPoint(point, touchedKeys);
     }
     this.publishTouchedSeries(touchedKeys, shouldSave);
   }
 
-  private insertPoint(point: MetricPoint, isRealtime: boolean, touchedKeys: Set<string>): void {
+  private insertPoint(point: MetricPoint, touchedKeys: Set<string>): void {
     if (
       !point?.service ||
       !point.name ||
@@ -401,10 +429,6 @@ export class MetricsService {
     // also called from seriesFor(), which UI code calls from inside computed()s to read a
     // series that may have no data yet — writing a signal there throws NG0600.
     this.registerKnownService(point.service);
-
-    if (point.granularity === 'minute' && isRealtime) {
-      this.latestRealtimeMinuteBucket = Math.max(this.latestRealtimeMinuteBucket, point.bucket);
-    }
   }
 
   private entryFor(service: string, name: string, granularity: MetricGranularity): SeriesBuffer {
@@ -512,8 +536,10 @@ export class MetricsService {
   // some already-known points back (harmless, deduped by key in insertPoint),
   // never under-fetches. See §4.2-4.3 of the plan referenced above.
   private buildHistoryRequest(scope: MetricsScopeEntry[], force: boolean): MetricsHistoryRequest | null {
-    const latestMinuteBucket =
-      this.latestRealtimeMinuteBucket > 0 ? this.latestRealtimeMinuteBucket : Math.floor(Date.now() / 60_000) * 60 - 60;
+    // Anchored to the wall clock, never to the last realtime frame: the WS is unsubscribed while
+    // no charts are open (and may be down), so a frame-derived bucket goes stale and makes a
+    // returning view believe it is already caught up.
+    const latestMinuteBucket = Math.floor(Date.now() / 60_000) * 60 - 60;
 
     const since = emptyMetricsHistoryWatermarks();
     const targets = emptyMetricsHistoryWatermarks();

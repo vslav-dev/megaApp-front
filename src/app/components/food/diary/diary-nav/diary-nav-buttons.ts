@@ -58,6 +58,11 @@ export class DiaryNavButtons {
     return this.foodDiaryService.selectedDayIso$$() === calculateTodayIsoWithUserTimeShift();
   });
 
+  // Undo arrow points left (back to today from the future); mirrored when today lies ahead.
+  protected readonly isPastDaySelected$$: Signal<boolean> = computed(() => {
+    return this.foodDiaryService.selectedDayIso$$() < calculateTodayIsoWithUserTimeShift();
+  });
+
   protected readonly primaryActionIcon$$: Signal<IconName> = computed(() => {
     return this.isTodaySelected$$() ? IconName.CalendarMonth : IconName.Undo;
   });

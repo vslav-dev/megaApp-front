@@ -28,7 +28,8 @@
                 (onClick)="onDateControlClick()">
         <v-icon v-prefix
                 [name]="primaryActionIcon$$()"
-                [size]="5" />
+                [size]="5"
+                [class.-scale-x-100]="isPastDaySelected$$()" />
       </v-button>
 
       <ng-container [ngTemplateOutlet]="dateInputTemplate" />
@@ -74,7 +75,8 @@
               (onClick)="onDateControlClick()">
       <v-icon v-prefix
               [name]="primaryActionIcon$$()"
-              [size]="8" />
+              [size]="8"
+              [class.-scale-x-100]="isPastDaySelected$$()" />
     </v-button>
 
     <v-button surface="raised"
