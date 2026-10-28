@@ -1,4 +1,4 @@
-import { inject, Injectable, signal, WritableSignal } from '@angular/core';
+import { inject, Service, signal, WritableSignal } from '@angular/core';
 import { CatalogueEntry, SearchScope } from '@app/shared/types';
 import { FoodCatalogueService } from './food-catalogue.service';
 
@@ -39,9 +39,7 @@ type StateTransitionMap = {
   };
 };
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class FoodAddModalService {
   private readonly foodCatalogueService = inject(FoodCatalogueService);
 

@@ -58,7 +58,7 @@
       <div v-header
            #diaryEntryHeader
            class="v-theme-transition relative p-2"
-           [ngStyle]="setBackgroundStyle(getFillPercent(food), food.isFoodArchived)">
+           [style]="setBackgroundStyle(getFillPercent(food), food.isFoodArchived)">
 
         @if (foodCatalogueService.getSquircleImageUrl(food.foodCatalogueId); as squircleImageUrl) {
           <img [src]="squircleImageUrl"
@@ -89,8 +89,8 @@
       <div v-body
            class="p-4">
         @defer (on timer(300)) {
-          <diary-entry-edit-form [diaryEntry]="food"
-                                 (onServerSuccessfullEditResponse)="closeAllAccordions()" />
+          <diary-entry-edit-form [diaryEntryInput]="food"
+                                 (entryChangedOutput)="closeAllAccordions()" />
         }
       </div>
     </v-expand>
@@ -143,7 +143,7 @@
      (click)="closeAllAccordions()"></div>
 
 <v-modal [deviceType]="deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop'"
-         [isOpen]="isDeleteDayConfirmOpen"
+         [isOpen]="isDeleteDayConfirmOpen$$()"
          mobileWidth="min(100vw, 320px)"
          desktopWidth="320px"
          [borderRadius]="3"

@@ -4,11 +4,11 @@ import {
   Component,
   ElementRef,
   OnDestroy,
-  ViewChild,
   computed,
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { FoodAddModalService } from '@app/services/food/food-add-modal.service';
 import { PhotoCaptureService } from '@app/services/photo-capture.service';
@@ -20,15 +20,13 @@ import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 @Component({
   selector: 'camera-preview',
   templateUrl: './camera-preview.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VIcon, VButton],
 })
 export class CameraPreview implements AfterViewInit, OnDestroy {
-  @ViewChild('video')
-  private readonly video!: ElementRef<HTMLVideoElement>;
-
-  @ViewChild('canvas')
-  private readonly canvas!: ElementRef<HTMLCanvasElement>;
+  // Rendered only while the live camera is shown (not for an error or a taken photo), hence optional.
+  private readonly videoElem = viewChild<ElementRef<HTMLVideoElement>>('video');
+  private readonly canvasElem = viewChild<ElementRef<HTMLCanvasElement>>('canvas');
 
   protected readonly isLoading$$ = signal(false);
   protected readonly photoDataUrl$$ = signal<string>('');
@@ -75,9 +73,10 @@ export class CameraPreview implements AfterViewInit, OnDestroy {
         },
       });
 
-      if (this.video?.nativeElement) {
-        this.video.nativeElement.srcObject = this.cameraStream;
-        await this.video.nativeElement.play();
+      const video = this.videoElem()?.nativeElement;
+      if (video) {
+        video.srcObject = this.cameraStream;
+        await video.play();
       }
       this.telemetry.record('food.photo_camera_start', performance.now() - startedAt);
     } catch (error) {
@@ -91,12 +90,12 @@ export class CameraPreview implements AfterViewInit, OnDestroy {
 
   public takePhoto(): void {
     const startedAt = performance.now();
-    if (!this.video?.nativeElement || !this.canvas?.nativeElement) {
+    const video = this.videoElem()?.nativeElement;
+    const canvas = this.canvasElem()?.nativeElement;
+    if (!video || !canvas) {
       return;
     }
 
-    const video = this.video.nativeElement;
-    const canvas = this.canvas.nativeElement;
     const ctx = canvas.getContext('2d');
 
     if (!ctx) {

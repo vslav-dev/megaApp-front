@@ -14,7 +14,7 @@ import { CatalogueEntry, DiaryEntry, HistoryEntryAction } from '@app/shared/type
 @Component({
   selector: 'food-search',
   templateUrl: './food-search.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FoodProductPicker],
 })
 export class FoodSearch {

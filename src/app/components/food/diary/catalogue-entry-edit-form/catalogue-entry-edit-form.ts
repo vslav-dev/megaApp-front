@@ -25,7 +25,7 @@ const POSITIVE_DECIMAL_PATTERN = /^\d*[.,]?\d*$/;
 @Component({
   selector: 'catalogue-entry-edit-form',
   templateUrl: './catalogue-entry-edit-form.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DefaultModal, ReactiveFormsModule, VButton, VCheckbox, VIcon, VInput],
 })
 export class CatalogueEntryEditForm implements OnInit {

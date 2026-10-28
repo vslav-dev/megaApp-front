@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { effect, inject, Injectable } from '@angular/core';
+import { effect, inject, Service } from '@angular/core';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
 import { LocalStorageService } from '@app/services/local-storage.service';
 import { NetworkService } from '@app/services/network.service';
@@ -24,7 +24,7 @@ import { FoodStatsService } from './food-stats.service';
 // trusting whatever it last happened to load. The one thing this service is deliberately NOT
 // responsible for: diary's own day-to-day segment fetching as the user navigates the calendar —
 // that stays exactly as before (ensureDiarySegmentEffect$$ in FoodDiaryService).
-@Injectable({ providedIn: 'root' })
+@Service()
 export class FoodSyncCoordinatorService {
   // Calendar date of the last confirmed-complete sync (bootstrap or a successful catch-up) —
   // §2.2. A reconnect re-fetches diary [checkpoint, today] inclusive instead of guessing a fixed

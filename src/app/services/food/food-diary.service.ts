@@ -1,5 +1,4 @@
-import { HttpClient } from '@angular/common/http';
-import { computed, effect, inject, Injectable, signal, Signal, WritableSignal } from '@angular/core';
+import { computed, effect, inject, Service, signal, Signal, WritableSignal } from '@angular/core';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
 import { IndexedDbCacheService } from '@app/services/indexed-db-cache.service';
 import {
@@ -29,10 +28,8 @@ import {
 } from '@app/shared/types';
 import { calculateTodayIsoWithUserTimeShift, dateToIsoNoTimeNoTZ } from '@app/shared/utils';
 import { firstValueFrom, Subject } from 'rxjs';
-import { LocalStorageService } from '../local-storage.service';
-import { NetworkService } from '../network.service';
 import { NotificationService } from '../notification.service';
-import { SyncEngineService, SyncOperationMode, SyncOperationType } from '../sync-engine.service';
+import { SyncOperationMode, SyncOperationType } from '../sync-engine.service';
 import { TelemetryService } from '../telemetry.service';
 import { BaseFoodService } from './food-base.service';
 import { FoodCatalogueService } from './food-catalogue.service';
@@ -52,9 +49,7 @@ const DEFAULT_NUTRIENTS = {
   consumedFiber: 0,
 };
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class FoodDiaryService extends BaseFoodService {
   private readonly diaryRaw$$: WritableSignal<Diary> = signal({});
   private readonly deletedDaySnapshot$$: WritableSignal<DeletedDiaryDaySnapshot | null> = signal(null);
@@ -178,13 +173,8 @@ export class FoodDiaryService extends BaseFoodService {
     }
   });
 
-  constructor(
-    http: HttpClient,
-    localStorageService: LocalStorageService,
-    networkService: NetworkService,
-    syncEngine: SyncEngineService,
-  ) {
-    super(http, localStorageService, networkService, syncEngine);
+  constructor() {
+    super();
     this.loadDeletedDaySnapshotFromLocalStorage();
     this.subscribe();
   }

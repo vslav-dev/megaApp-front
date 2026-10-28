@@ -77,7 +77,7 @@ Chart.register(
 @Component({
   selector: 'food-stats-charts',
   templateUrl: './food-stats-charts.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VButton, VCard, VSlider, StatsHelpIcon],
 })
 export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {

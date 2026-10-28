@@ -1,5 +1,4 @@
-import { HttpClient } from '@angular/common/http';
-import { effect, inject, Injectable, signal, WritableSignal } from '@angular/core';
+import { effect, inject, Service, signal, WritableSignal } from '@angular/core';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
 import { NotificationService } from '@app/services/notification.service';
 import { FOOD_IMAGE_GENERATION_FALLBACK_MS, FOOD_SEARCH_SEND_DEBOUNCE_MS } from '@app/shared/const';
@@ -26,15 +25,11 @@ import {
 } from '@app/shared/types';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { LocalStorageService } from '../local-storage.service';
-import { NetworkService } from '../network.service';
-import { SyncEngineService, SyncOperationError, SyncOperationMode, SyncOperationType } from '../sync-engine.service';
+import { SyncOperationError, SyncOperationMode, SyncOperationType } from '../sync-engine.service';
 import { TelemetryService } from '../telemetry.service';
 import { BaseFoodService } from './food-base.service';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class FoodCatalogueService extends BaseFoodService {
   private readonly CATALOGUE_STORAGE_KEY = 'food_catalogue';
   private readonly CATALOGUE_VERSION_STORAGE_KEY = 'food_catalogue_version';
@@ -82,13 +77,8 @@ export class FoodCatalogueService extends BaseFoodService {
     }
   });
 
-  constructor(
-    http: HttpClient,
-    localStorageService: LocalStorageService,
-    networkService: NetworkService,
-    syncEngine: SyncEngineService,
-  ) {
-    super(http, localStorageService, networkService, syncEngine);
+  constructor() {
+    super();
     this.loadCatalogueFromLocalStorage();
     this.loadSearchCacheFromLocalStorage();
     this.setupSearchWebSocketListener();

@@ -1,5 +1,4 @@
-import { HttpClient } from '@angular/common/http';
-import { computed, effect, inject, Injectable, Signal, signal, WritableSignal } from '@angular/core';
+import { computed, effect, inject, Service, Signal, signal, WritableSignal } from '@angular/core';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
 import { exhaustRequest } from '@app/shared/decorators/exhaust-request.decorator';
 import {
@@ -12,9 +11,6 @@ import {
 import { FoodStatsResponse, FoodStatsSummary, FoodStatsTopProduct, Stats, StatsChartData } from '@app/shared/types';
 import { firstValueFrom } from 'rxjs';
 import { dateToIsoNoTimeNoTZ, formatDateTicks, isoDaysBefore } from '../../shared/utils';
-import { LocalStorageService } from '../local-storage.service';
-import { NetworkService } from '../network.service';
-import { SyncEngineService } from '../sync-engine.service';
 import { TelemetryService } from '../telemetry.service';
 import { BaseFoodService } from './food-base.service';
 import { FoodDiaryService } from './food-diary.service';
@@ -40,9 +36,7 @@ const EMPTY_STATS_SUMMARY: FoodStatsSummary = {
 // whether a requested clip can be satisfied by the default window or needs ensureFullHistoryLoaded().
 const DEFAULT_STATS_WINDOW_DAYS = 90;
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class FoodStatsService extends BaseFoodService {
   private static readonly DAYS_IN_YEAR = 365;
   private static readonly GRANULARITY_WEEK_SWITCH_DAYS = 370;
@@ -171,13 +165,8 @@ export class FoodStatsService extends BaseFoodService {
     }
   });
 
-  constructor(
-    http: HttpClient,
-    localStorageService: LocalStorageService,
-    networkService: NetworkService,
-    syncEngine: SyncEngineService,
-  ) {
-    super(http, localStorageService, networkService, syncEngine);
+  constructor() {
+    super();
     this.loadStatsFromLocalStorageOnInit();
     // Refetch after every diary/weight mutation, live-window dates included — milestones (summary$$)
     // only ever come from a real server response (see summary$$ below), so a live-window edit that
