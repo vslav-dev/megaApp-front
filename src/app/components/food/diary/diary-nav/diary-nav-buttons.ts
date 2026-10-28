@@ -7,6 +7,7 @@ import {
   ElementRef,
   inject,
   Signal,
+  signal,
   viewChild,
 } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
@@ -26,7 +27,7 @@ import { AccordionGroupService } from '@ui-kit/services/accordion-group.service'
   selector: 'diary-nav-buttons',
   templateUrl: './diary-nav-buttons.html',
   styleUrl: './diary-nav-buttons.scss',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule, FitTextOnOverflowDirective, VButton, VIcon],
 })
 export class DiaryNavButtons {
@@ -34,11 +35,9 @@ export class DiaryNavButtons {
 
   protected readonly dateInputElem = viewChild<ElementRef<HTMLInputElement>>('dateInputElem');
 
-  protected initDateTodayWithUserHourShift: Date = calcDateWithUserTimeShift(new Date());
+  protected readonly maxDateIso$$ = signal(dateToIsoNoTimeNoTZ(calcDateWithUserTimeShift(new Date())));
 
-  protected maxDateIso: string = dateToIsoNoTimeNoTZ(this.initDateTodayWithUserHourShift);
-
-  protected readonly formCalendarSelectedDay: FormControl<string> = new FormControl<string>(this.maxDateIso, {
+  protected readonly formCalendarSelectedDay: FormControl<string> = new FormControl<string>(this.maxDateIso$$(), {
     nonNullable: true,
   });
 
@@ -143,8 +142,7 @@ export class DiaryNavButtons {
 
   private refreshTodayReference(): Date {
     const todayDate = calcDateWithUserTimeShift(new Date());
-    this.initDateTodayWithUserHourShift = todayDate;
-    this.maxDateIso = dateToIsoNoTimeNoTZ(todayDate);
+    this.maxDateIso$$.set(dateToIsoNoTimeNoTZ(todayDate));
     return todayDate;
   }
 

@@ -31,31 +31,31 @@
      [class.pb-4]="hasOpenPanel$$()">
   <v-expand #infoPanelElem
             class="justify-self-end"
-            [isWithoutAnimation]="disablePanelsAnimationTemporarily"
+            [isWithoutAnimation]="disablePanelsAnimationTemporarily$$()"
             animationTimingFunction="linear">
     <div v-body
          class="readable-text-bg p-2">
-      <diary-entry-product-info [diaryEntry]="diaryEntry" />
+      <diary-entry-product-info [diaryEntry]="diaryEntryInput()" />
     </div>
   </v-expand>
 
   <v-expand #chartsPanelElem
             class="justify-self-end"
-            [isWithoutAnimation]="disablePanelsAnimationTemporarily"
+            [isWithoutAnimation]="disablePanelsAnimationTemporarily$$()"
             animationTimingFunction="linear">
     <div v-body
          class="readable-text-bg p-2">
-      <nutrition-summary [diaryEntry]="diaryEntry" />
+      <nutrition-summary [diaryEntry]="diaryEntryInput()" />
     </div>
   </v-expand>
 
   <v-expand #historyPanelElem
             class="justify-self-end"
-            [isWithoutAnimation]="disablePanelsAnimationTemporarily"
+            [isWithoutAnimation]="disablePanelsAnimationTemporarily$$()"
             animationTimingFunction="linear">
     <div v-body
          class="w-max justify-self-end readable-text-bg flex flex-col gap-2 p-2">
-      @for (historyEntry of diaryEntry.history; track $index) {
+      @for (historyEntry of diaryEntryInput().history; track $index) {
         <div class="relative">
           <v-icon class="absolute -left-[6px] -top-[2px] scale-75"
                   [name]="chooseIconForHistoryEntry(historyEntry)"
@@ -103,7 +103,7 @@
              [fontWeight]="500"
              textAlign="right"
              (onInputChanged)="onNewWeightInput()">
-      @if (foodWeightNewControl.value !== null) {
+      @if (foodWeightNewValue$$() !== null) {
         <v-button surface="link"
                   [isLinkStatic]="true"
                   v-prefix
@@ -120,7 +120,7 @@
         </v-button>
       }
 
-      @if (foodWeightNewControl.value !== null) {
+      @if (foodWeightNewValue$$() !== null) {
         <span v-postfix
               class="ml-1 mr-3"> г. </span>
       }
@@ -135,7 +135,7 @@
              [fontWeight]="500"
              textAlign="right"
              (onInputChanged)="onChangeWeightInput()">
-      @if (foodWeightChangeControl.value !== null) {
+      @if (foodWeightChangeValue$$() !== null) {
         <v-button surface="link"
                   [isLinkStatic]="true"
                   v-prefix
@@ -152,7 +152,7 @@
         </v-button>
       }
 
-      @if (foodWeightChangeControl.value !== null) {
+      @if (foodWeightChangeValue$$() !== null) {
         <span v-postfix
               class="ml-1 mr-3"> г. </span>
       }
@@ -174,7 +174,7 @@
 </form>
 
 <v-modal [deviceType]="deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop'"
-         [isOpen]="isDeleteConfirmOpen"
+         [isOpen]="isDeleteConfirmOpen$$()"
          mobileWidth="min(100vw, 300px)"
          desktopWidth="300px"
          [borderRadius]="3"

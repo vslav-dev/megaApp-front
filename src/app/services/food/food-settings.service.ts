@@ -1,4 +1,4 @@
-import { computed, Injectable, Signal } from '@angular/core';
+import { computed, Service, Signal } from '@angular/core';
 import { FoodStatsBlock, getFoodStatsBlockOrder } from '@app/components/food/stats/food-stats-block';
 import { NamespaceSettingsStore } from '@app/services/settings/namespace-settings-store';
 
@@ -32,9 +32,7 @@ const DEFAULT_FOOD_SETTINGS: FoodSettings = {
 // Sole owner of the `food` namespace store — every food-domain server setting (diary height,
 // stats range/metric/accordion state) reads and writes through here, never through a second
 // NamespaceSettingsStore('food', ...) instance.
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class FoodSettingsService {
   private readonly settingsStore = new NamespaceSettingsStore<FoodSettings>('food', DEFAULT_FOOD_SETTINGS);
 

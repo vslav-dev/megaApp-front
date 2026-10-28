@@ -5,8 +5,7 @@ import { DiaryEntry } from '@app/shared/types';
 @Component({
   selector: 'diary-entry-product-info',
   templateUrl: './diary-entry-product-info.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DiaryEntryProductInfo {
   public readonly diaryEntry = input.required<DiaryEntry>();

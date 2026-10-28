@@ -21,7 +21,7 @@ export type NutrientType = (typeof NutrientType)[keyof typeof NutrientType];
 @Component({
   selector: 'nutrition-summary',
   templateUrl: './nutrition-summary.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VProgress],
 })
 export class NutritionSummary {

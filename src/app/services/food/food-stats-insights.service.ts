@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, Signal } from '@angular/core';
+import { computed, inject, Service, Signal } from '@angular/core';
 import { FoodStatsService } from '@app/services/food/food-stats.service';
 import { FoodDayBand, isFoodStreakSuccessBand, resolveFoodDayBand } from '@app/shared/food-day-band';
 import { FoodStatsSummary, FoodStatsTopProduct } from '@app/shared/types';
@@ -40,9 +40,7 @@ interface StreakStats {
 
 const RIBBON_WINDOW_DAYS = 30;
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class FoodStatsInsightsService {
   private readonly foodStatsService = inject(FoodStatsService);
 

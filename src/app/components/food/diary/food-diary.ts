@@ -1,4 +1,3 @@
-import { NgStyle } from '@angular/common';
 import {
   afterRenderEffect,
   ChangeDetectionStrategy,
@@ -36,9 +35,8 @@ import { NutritionSummary } from './nutrition-summary/nutrition-summary';
   selector: 'food-diary',
   templateUrl: './food-diary.html',
   styleUrl: './food-diary.scss',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    NgStyle,
     DiaryNavButtons,
     DiaryEntryEditForm,
     BMI,
@@ -133,7 +131,7 @@ export class FoodDiary {
     this.accordionGroupService.isAnyOpen(FOOD_DIARY_ACCORDION_GROUP_ID),
   );
 
-  protected isDeleteDayConfirmOpen = false;
+  protected readonly isDeleteDayConfirmOpen$$ = signal(false);
   protected readonly Icon = IconName;
 
   private static readonly DAY_PROGRESS_STEP = 25;
@@ -217,15 +215,15 @@ export class FoodDiary {
     if (!this.hasSelectedDayDiaryEntries$$()) return;
 
     this.closeAllAccordions();
-    this.isDeleteDayConfirmOpen = true;
+    this.isDeleteDayConfirmOpen$$.set(true);
   }
 
   protected closeDeleteDayConfirmationModal(): void {
-    this.isDeleteDayConfirmOpen = false;
+    this.isDeleteDayConfirmOpen$$.set(false);
   }
 
   protected async onDeleteDayConfirmed(): Promise<void> {
-    this.isDeleteDayConfirmOpen = false;
+    this.isDeleteDayConfirmOpen$$.set(false);
     await this.foodDiaryService.deleteSelectedDayEntries();
   }
 

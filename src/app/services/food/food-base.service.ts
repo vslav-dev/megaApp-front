@@ -1,19 +1,16 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { inject } from '@angular/core';
 import { LocalStorageService } from '../local-storage.service';
 import { NetworkService } from '../network.service';
 import { SyncEngineService, SyncOperationInput } from '../sync-engine.service';
 
-@Injectable()
 export abstract class BaseFoodService {
-  protected abstract getStorageKey(): string;
+  protected readonly http = inject(HttpClient);
+  protected readonly localStorageService = inject(LocalStorageService);
+  protected readonly networkService = inject(NetworkService);
+  protected readonly syncEngine = inject(SyncEngineService);
 
-  constructor(
-    protected readonly http: HttpClient,
-    protected readonly localStorageService: LocalStorageService,
-    protected readonly networkService: NetworkService,
-    protected readonly syncEngine: SyncEngineService,
-  ) {}
+  protected abstract getStorageKey(): string;
 
   protected saveToLocalStorage<T>(data: T): void {
     this.localStorageService.setUserScoped(this.getStorageKey(), data);

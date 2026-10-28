@@ -30,7 +30,7 @@ interface ProductHistoryRow {
   selector: 'food-stats-product-history',
   templateUrl: './product-history.html',
   styleUrl: './product-history.scss',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VCard, VButton, VIcon, VChip, StatsHelpIcon],
 })
 export class ProductHistory {

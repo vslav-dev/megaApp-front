@@ -1,4 +1,4 @@
-<div [class.mb-4]="searchResults$$().length === 0"
+<div [class.mb-4]="!hasSearchResults$$()"
      class="flex justify-center gap-4 px-4 pt-4">
   <v-input class="catalogue-entry-name-input w-full"
            (onEnterPressed)="onEnterPressed($event)"
@@ -78,7 +78,7 @@
 </div>
 
 @if (isLegacySearch$$()) {
-  <div [class.mb-4]="searchResults$$().length === 0"
+  <div [class.mb-4]="!hasSearchResults$$()"
        class="shadow-orange-500/30 flex-nowrap flex items-center gap-2 px-2 py-1 mx-4 mt-4 font-medium text-white origin-top bg-orange-500 rounded-lg shadow-lg">
     <v-icon [name]="Icon.Warning"
             [size]="5" />
@@ -86,9 +86,10 @@
   </div>
 }
 
-<div [ngClass]="searchResults$$().length > 0 ? 'pt-4 pb-4' : ''"
-     class="grid-auto-fill grid gap-2 pl-4 pr-4 overflow-y-auto rounded-lg">
-  @if (searchResults$$().length > 0) {
+<div class="grid-auto-fill grid gap-2 pl-4 pr-4 overflow-y-auto rounded-lg"
+     [class.pt-4]="hasSearchResults$$()"
+     [class.pb-4]="hasSearchResults$$()">
+  @if (hasSearchResults$$()) {
     <div flipAnimate
          class="contents">
       @for (catalogueEntry of searchResults$$(); track catalogueEntry.id) {
@@ -117,7 +118,7 @@
     </div>
   }
 
-  @if (searchResults$$().length > 0 && allowCreateNewProduct()) {
+  @if (hasSearchResults$$() && allowCreateNewProduct()) {
     <v-card [animate.enter]="AnimationClass.FADE_SCALE_IN"
             class="w-full h-full cursor-pointer"
             [padding]="2"
@@ -130,7 +131,7 @@
   }
 </div>
 
-@if (searchResults$$().length > 0 && deviceInfoService.isMobileScreen$$()) {
+@if (hasSearchResults$$() && deviceInfoService.isMobileScreen$$()) {
   <div class="sticky bottom-0 flex justify-start px-4 pb-4">
     <v-button class="v-danger"
               [isLabelHidden]="true"

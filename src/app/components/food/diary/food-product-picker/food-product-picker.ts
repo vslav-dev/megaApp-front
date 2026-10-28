@@ -1,4 +1,3 @@
-import { NgClass } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -34,8 +33,8 @@ export interface ProductPickerSelection {
   selector: 'food-product-picker',
   templateUrl: './food-product-picker.html',
   styleUrl: './food-product-picker.scss',
-  changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [VInput, VButton, VIcon, VCard, FlipAnimateDirective, NgClass],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VInput, VButton, VIcon, VCard, FlipAnimateDirective],
 })
 export class FoodProductPicker {
   public readonly query = model<string>('');
@@ -60,6 +59,7 @@ export class FoodProductPicker {
       ? this.foodCatalogueService.legacySearchResults$$()
       : this.foodCatalogueService.searchResults$$(),
   );
+  protected readonly hasSearchResults$$ = computed(() => this.searchResults$$().length > 0);
   protected readonly extractedWeight$$ = signal<number | null>(null);
 
   private readonly authService = inject(AuthService);

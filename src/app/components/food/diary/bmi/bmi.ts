@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, Signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, Signal } from '@angular/core';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { BMI_CATEGORIES, BMI_SCALE, bmiToKg } from '@app/shared/bmi-bands';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
@@ -11,10 +11,10 @@ interface BmiSegment {
 @Component({
   selector: 'bmi',
   templateUrl: './bmi.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VIcon],
 })
-export class BMI implements OnInit {
+export class BMI {
   protected readonly Icon = IconName;
 
   protected readonly bmiSegments: BmiSegment[] = BMI_CATEGORIES.map((category, idx) => {
@@ -25,7 +25,7 @@ export class BMI implements OnInit {
     };
   });
 
-  protected bmiSegmentsWidthFractions: number[] = [];
+  protected readonly bmiSegmentsWidthFractions: number[] = this.calculateBmiSegmentsWidthFractions();
 
   protected readonly bmiPointerPercent$$: Signal<number | null> = computed(() => this.calculateBmiPointerPercent());
 
@@ -34,10 +34,6 @@ export class BMI implements OnInit {
   );
 
   private readonly foodDiaryService = inject(FoodDiaryService);
-
-  public ngOnInit(): void {
-    this.bmiSegmentsWidthFractions = this.calculateBmiSegmentsWidthFractions();
-  }
 
   protected bmiKgThresholdValue(idx: number): number {
     return this.bmiSegmentsThresholdsInKgs$$()[idx];

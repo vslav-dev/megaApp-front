@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { inject, Service } from '@angular/core';
 import { ProductHistoryEntry, ServerResponseWithData } from '@app/shared/types';
 import { map, Observable } from 'rxjs';
 
@@ -7,7 +7,7 @@ import { map, Observable } from 'rxjs';
 // set changes on every add/remove, so there is nothing worth caching between calls. Returns an
 // Observable (not a Promise) specifically so callers can keep the Subscription and unsubscribe()
 // to cancel an in-flight request for real when the tracked-product set changes again mid-flight.
-@Injectable({ providedIn: 'root' })
+@Service()
 export class FoodProductHistoryService {
   private readonly http = inject(HttpClient);
 

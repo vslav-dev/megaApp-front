@@ -37,7 +37,7 @@ function weightExpressionValidator(control: AbstractControl<string | null>): Val
 @Component({
   selector: 'diary-entry-add-form',
   templateUrl: './diary-entry-add-form.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, UiProgressIcon, VButton, VIcon, VInput, VRollingNumber],
 })
 export class DiaryEntryAddForm implements AfterViewInit, OnDestroy {

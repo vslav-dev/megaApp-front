@@ -1,4 +1,4 @@
-import { computed, effect, inject, Injectable, OnDestroy, signal, WritableSignal } from '@angular/core';
+import { computed, effect, inject, OnDestroy, Service, signal, WritableSignal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
@@ -14,7 +14,7 @@ export const MAX_TRACKED_PRODUCTS = 20;
 // split the calories chart, and it lives in root. It also keeps the tracked set alive across the
 // remounts of food-stats-product-history (mobile diary↔stats toggle, 2↔3 stats column boundary, see
 // plan 31). Reset on sign-out, like the stats it feeds; a full page reload clears it too.
-@Injectable({ providedIn: 'root' })
+@Service()
 export class FoodProductHistoryStateService implements OnDestroy {
   private readonly foodProductHistoryService = inject(FoodProductHistoryService);
   private readonly foodCatalogueService = inject(FoodCatalogueService);
