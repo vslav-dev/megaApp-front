@@ -1,19 +1,14 @@
 <div class="flex items-stretch justify-center w-full min-w-0 gap-2 p-2">
 
   <div class="w-96 flex flex-col flex-shrink-0 gap-2">
-    <v-card [config]="{
-              padding: 2,
-              borderRadius: 2,
-            }">
+    <v-card [borderRadius]="2"
+            [padding]="2">
       <div class="flex gap-2">
-        <v-button [class.v-flat]="activeTab$$() === MoneyTab.Setup"
-                  [class.flex-grow]="activeTab$$() === MoneyTab.Setup"
-                  [class.v-link]="activeTab$$() !== MoneyTab.Setup"
-                  [class.v-link-static]="activeTab$$() !== MoneyTab.Setup"
-                  [config]="{
-                    padding: 2,
-                    isLabelHidden: activeTab$$() !== MoneyTab.Setup,
-                  }"
+        <v-button [class.flex-grow]="activeTab$$() === MoneyTab.Setup"
+                  [surface]="activeTab$$() === MoneyTab.Setup ? 'flat' : 'link'"
+                  [isLinkStatic]="activeTab$$() !== MoneyTab.Setup"
+                  [isLabelHidden]="activeTab$$() !== MoneyTab.Setup"
+                  [padding]="2"
                   (onClick)="setActiveTab(MoneyTab.Setup)">
           <v-icon v-prefix
                   [name]="Icon.Settings"
@@ -21,14 +16,11 @@
           Setup
         </v-button>
 
-        <v-button [class.v-flat]="activeTab$$() === MoneyTab.Categories"
-                  [class.flex-grow]="activeTab$$() === MoneyTab.Categories"
-                  [class.v-link]="activeTab$$() !== MoneyTab.Categories"
-                  [class.v-link-static]="activeTab$$() !== MoneyTab.Categories"
-                  [config]="{
-                    padding: 2,
-                    isLabelHidden: activeTab$$() !== MoneyTab.Categories,
-                  }"
+        <v-button [class.flex-grow]="activeTab$$() === MoneyTab.Categories"
+                  [surface]="activeTab$$() === MoneyTab.Categories ? 'flat' : 'link'"
+                  [isLinkStatic]="activeTab$$() !== MoneyTab.Categories"
+                  [isLabelHidden]="activeTab$$() !== MoneyTab.Categories"
+                  [padding]="2"
                   (onClick)="setActiveTab(MoneyTab.Categories)">
           <v-icon v-prefix
                   [name]="Icon.Category"
@@ -36,14 +28,11 @@
           Categories
         </v-button>
 
-        <v-button [class.v-flat]="activeTab$$() === MoneyTab.Assets"
-                  [class.flex-grow]="activeTab$$() === MoneyTab.Assets"
-                  [class.v-link]="activeTab$$() !== MoneyTab.Assets"
-                  [class.v-link-static]="activeTab$$() !== MoneyTab.Assets"
-                  [config]="{
-                    padding: 2,
-                    isLabelHidden: activeTab$$() !== MoneyTab.Assets,
-                  }"
+        <v-button [class.flex-grow]="activeTab$$() === MoneyTab.Assets"
+                  [surface]="activeTab$$() === MoneyTab.Assets ? 'flat' : 'link'"
+                  [isLinkStatic]="activeTab$$() !== MoneyTab.Assets"
+                  [isLabelHidden]="activeTab$$() !== MoneyTab.Assets"
+                  [padding]="2"
                   (onClick)="setActiveTab(MoneyTab.Assets)">
           <v-icon v-prefix
                   [name]="Icon.Enterprise"
@@ -51,14 +40,11 @@
           Assets
         </v-button>
 
-        <v-button [class.v-flat]="activeTab$$() === MoneyTab.Transactions"
-                  [class.flex-grow]="activeTab$$() === MoneyTab.Transactions"
-                  [class.v-link]="activeTab$$() !== MoneyTab.Transactions"
-                  [class.v-link-static]="activeTab$$() !== MoneyTab.Transactions"
-                  [config]="{
-                    padding: 2,
-                    isLabelHidden: activeTab$$() !== MoneyTab.Transactions,
-                  }"
+        <v-button [class.flex-grow]="activeTab$$() === MoneyTab.Transactions"
+                  [surface]="activeTab$$() === MoneyTab.Transactions ? 'flat' : 'link'"
+                  [isLinkStatic]="activeTab$$() !== MoneyTab.Transactions"
+                  [isLabelHidden]="activeTab$$() !== MoneyTab.Transactions"
+                  [padding]="2"
                   (onClick)="setActiveTab(MoneyTab.Transactions)">
           <v-icon v-prefix
                   [name]="Icon.List"
@@ -69,38 +55,6 @@
     </v-card>
 
     @if (activeTab$$() === MoneyTab.Setup) {
-      <v-card [config]="{
-                padding: 2,
-                borderRadius: 2,
-              }">
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-400">Display currency</span>
-          <div>
-            <v-toggle [items]="currencyToggleItems"
-                      [value]="[displayCurrency$$()]"
-                      (valueChange)="setDisplayCurrency($event[0])"></v-toggle>
-          </div>
-        </div>
-        @if (!isChartDataReady$$()) {
-          <div
-               class="dark:border-gray-700 mt-3 pt-2 border-t border-gray-200 h-[61px] flex items-center justify-center">
-            <div class="animate-spin w-4 h-4 border-2 rounded-full"
-                 style="border-color: var(--v-color-primary); border-top-color: transparent;"></div>
-          </div>
-        } @else if (allChartMonths$$().length > 1) {
-          <div class="dark:border-gray-700 pt-2 mt-3 border-t border-gray-200">
-            <div class="flex justify-between mb-2 text-xs text-gray-400">
-              <span>{{ sliderStartLabel$$() }}</span>
-              <span>Selected: {{ sliderRangeLabel$$() }}</span>
-              <span>{{ sliderEndLabel$$() }}</span>
-            </div>
-            <v-slider [range]="sliderRange$$()"
-                      [config]="chartRangeSliderConfig$$()"
-                      (rangeChange)="onChartRangeChange($event)" />
-          </div>
-        }
-      </v-card>
-
       <accounts-list />
       <organizations-list />
       <currencies-list />
@@ -115,6 +69,77 @@
     }
 
     @if (activeTab$$() === MoneyTab.Transactions) {
+      <v-expand [isChevronVisible]="true">
+        <div v-header
+             class="flex items-center gap-2 p-2">
+          <v-icon [name]="Icon.Settings"
+                  [size]="5"></v-icon>
+          <span class="text-sm">Settings</span>
+        </div>
+        <div v-body
+             class="flex flex-col gap-2 p-2">
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-400">Display currency</span>
+            <div class="flex items-center gap-2">
+              <div class="flex gap-1">
+                @for (item of currencyToggleItems; track item.id) {
+                  <v-button surface="flat"
+                            [class.v-primary]="displayCurrency$$() === item.id"
+                            [padding]="1"
+                            (onClick)="setDisplayCurrency(item.id)">{{ item.label }}</v-button>
+                }
+              </div>
+
+              <div class="v-theme-transition self-stretch w-px border-l border-[var(--v-color-border-subtle)]"></div>
+
+              <v-button surface="flat"
+                        [class.v-primary]="convertToUnifiedCurrency$$()"
+                        [isLabelHidden]="true"
+                        [padding]="2"
+                        (onClick)="toggleConvertToUnifiedCurrency()">
+                <v-icon v-prefix
+                        [name]="Icon.CurrencyExchange"
+                        [size]="4"></v-icon>
+              </v-button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-400">Transactions follow chart checkboxes</span>
+            <v-button surface="flat"
+                      [class.v-primary]="linkTransactionsToCharts$$()"
+                      [isLabelHidden]="true"
+                      [padding]="2"
+                      (onClick)="toggleLinkTransactionsToCharts()">
+              <v-icon v-prefix
+                      [name]="Icon.FilterList"
+                      [size]="4"></v-icon>
+            </v-button>
+          </div>
+          @if (!isChartDataReady$$()) {
+            <div
+                 class="v-theme-transition pt-2 border-t border-[var(--v-color-border-subtle)] h-[61px] flex items-center justify-center">
+              <div class="animate-spin w-4 h-4 border-2 rounded-full"
+                   style="border-color: var(--v-color-primary); border-top-color: transparent;"></div>
+            </div>
+          } @else if (allChartMonths$$().length > 1) {
+            <div class="v-theme-transition pt-2 border-t border-[var(--v-color-border-subtle)]">
+              <div class="flex justify-between mb-2 text-xs text-gray-400">
+                <span>{{ sliderStartLabel$$() }}</span>
+                <span>Selected: {{ sliderRangeLabel$$() }}</span>
+                <span>{{ sliderEndLabel$$() }}</span>
+              </div>
+              <v-slider [range]="sliderRange$$()"
+                        [valueList]="chartRangeSliderValueList$$()"
+                        [isRange]="true"
+                        [min]="0"
+                        [max]="chartRangeSliderMax$$()"
+                        [thumbBorderRadius]="2"
+                        (rangeChange)="onChartRangeChange($event)" />
+            </div>
+          }
+        </div>
+      </v-expand>
+
       <accounts-balance />
       <transactions-list />
     }
@@ -122,10 +147,8 @@
 
   <div class="flex flex-col flex-1 max-w-full min-w-0 gap-2">
     <v-card class="w-full max-w-full min-w-0"
-            [config]="{
-              padding: 3,
-              borderRadius: 2,
-            }">
+            [borderRadius]="2"
+            [padding]="3">
       @if (isChartDataReady$$()) {
         <expense-chart [dataInput]="expenseChartData$$()"
                        [monthRangeInput]="monthRangeForCharts$$()"
@@ -140,10 +163,8 @@
     </v-card>
 
     <v-card class="w-full max-w-full min-w-0"
-            [config]="{
-              padding: 3,
-              borderRadius: 2,
-            }">
+            [borderRadius]="2"
+            [padding]="3">
       @if (isChartDataReady$$()) {
         <income-chart [dataInput]="incomeChartData$$()"
                       [monthRangeInput]="monthRangeForCharts$$()"
@@ -157,10 +178,8 @@
     </v-card>
 
     <v-card class="w-full max-w-full min-w-0"
-            [config]="{
-              padding: 3,
-              borderRadius: 2,
-            }">
+            [borderRadius]="2"
+            [padding]="3">
       @if (isChartDataReady$$()) {
         <balances-chart [dataInput]="balanceChartDataClipped$$()"
                         [currencySymbolInput]="displayCurrencySymbol$$()" />

@@ -1,5 +1,13 @@
-import { NgClass } from '@angular/common';
-import { Component, computed, effect, ElementRef, inject, OnInit, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '@app/services/auth.service';
 import { DeviceInfoService } from '@app/services/device-info.service';
@@ -14,9 +22,10 @@ import { DarkSwitch } from '../settings/dark-switch/dark-switch';
   selector: 'navigation',
   templateUrl: './navigation.html',
   styleUrl: './navigation.scss',
-  imports: [VButton, VIcon, NgClass, DarkSwitch, MetricsHealthDot],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VButton, VIcon, DarkSwitch, MetricsHealthDot],
 })
-export class Navigation implements OnInit {
+export class Navigation {
   protected readonly desktopNav = viewChild<ElementRef>('desktopNav');
   protected readonly fader = viewChild.required<ElementRef>('fader');
 
@@ -26,7 +35,7 @@ export class Navigation implements OnInit {
 
   protected readonly navigationService = inject(NavigationService);
   protected readonly authService = inject(AuthService);
-  private readonly deviceInfoService = inject(DeviceInfoService);
+  protected readonly deviceInfoService = inject(DeviceInfoService);
   private readonly router = inject(Router);
 
   private resizeObserver: ResizeObserver | null = null;
@@ -64,16 +73,10 @@ export class Navigation implements OnInit {
 
   protected readonly isDesktop$$ = computed(() => this.deviceInfoService.isDesktopScreen$$());
 
-  protected readonly shouldHideFabButtons$$ = computed(
-    () => !this.isDesktop$$() && this.deviceInfoService.isKeyboardOpen$$(),
-  );
-
   protected readonly visibleButtons$$ = computed(() => {
     const place = this.isDesktop$$() ? 'desktop' : 'mobile';
     return this.navigationService.prepButtons(place);
   });
-
-  public ngOnInit(): void {}
 
   protected toggleMenuCollapse(): void {
     this.navigationService.toggleCollapse();

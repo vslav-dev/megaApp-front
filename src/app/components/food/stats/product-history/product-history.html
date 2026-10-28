@@ -1,0 +1,100 @@
+<v-card class="v-theme-transition"
+        [borderRadius]="2"
+        [padding]="2">
+  <div class="flex flex-col gap-3">
+    <div class="flex items-center justify-between gap-2">
+      <div class="text-lg font-semibold">История продукта</div>
+      <food-stats-help-icon>
+        <div class="flex flex-col gap-2">
+          <div>Добавьте один или несколько продуктов, чтобы увидеть все дни, когда вы их ели: сколько грамм и какой это
+            был процент от суточной нормы.</div>
+        </div>
+      </food-stats-help-icon>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2 text-sm">
+      @for (product of trackedProducts$$(); track product.id) {
+        <v-chip (onRemove)="state.removeProduct(product.id)">
+          {{ product.name }}
+          @if (product.archived) {
+            <span class="ml-1 text-xs text-[color:var(--v-color-text-muted)]">архив</span>
+          }
+        </v-chip>
+      }
+      @if (isLimitReached$$()) {
+        <span class="ml-auto text-[color:var(--v-color-text-muted)]">Максимум {{ maxTrackedProducts }} продуктов</span>
+      }
+      <v-button surface="flat"
+                [class.ml-auto]="!isLimitReached$$()"
+                [isDisabled]="isLimitReached$$()"
+                [paddingX]="2"
+                paddingY="2px"
+                (onClick)="openPicker()">
+        <v-icon v-prefix
+                [name]="Icon.Add"
+                [size]="6" />
+        {{ trackedProducts$$().length === 0 ? 'Выбрать' : 'Добавить' }}
+      </v-button>
+    </div>
+
+    @if (error$$()) {
+      <div class="text-sm text-[color:var(--v-color-danger)]">{{ error$$() }}</div>
+    } @else if (trackedProducts$$().length === 0) {
+      <div class="text-sm text-[color:var(--v-color-text-muted)]">Выберите продукт, чтобы увидеть, когда вы его ели</div>
+    } @else if (isLoading$$() || rows$$().length > 0) {
+      <div class="relative history-container">
+        @if (isLoading$$()) {
+          <div class="loading-overlay flex items-center justify-center">
+            <div class="animate-spin w-6 h-6 border-2 rounded-full"
+                 style="border-color: var(--v-color-primary); border-top-color: transparent;"></div>
+          </div>
+        }
+
+        @if (rows$$().length > 0) {
+          <div class="history-grid text-sm"
+               [class.with-product-col]="showProductColumn$$()">
+            <div class="history-header text-[color:var(--v-color-text-muted)]">Дата</div>
+            @if (showProductColumn$$()) {
+              <div class="history-header text-[color:var(--v-color-text-muted)]">Продукт</div>
+            }
+            <div class="history-header text-[color:var(--v-color-text-muted)] text-right">Граммы</div>
+            <div title="Процент от суточной нормы"
+                 class="history-header text-[color:var(--v-color-text-muted)] text-right">%</div>
+            <div class="history-header history-header-empty"></div>
+
+            @for (row of rows$$(); track $index) {
+              <div class="history-cell">{{ row.dateLabel }}</div>
+              @if (showProductColumn$$()) {
+                <div class="history-cell flex min-w-0 items-baseline gap-1">
+                  <span class="truncate"
+                        [title]="row.productName">{{ row.productName }}</span>
+                  @if (row.isProductArchived) {
+                    <span class="shrink-0 text-xs text-[color:var(--v-color-text-muted)]">архив</span>
+                  }
+                </div>
+              }
+              <div class="history-cell text-right">{{ row.foodWeight }} г.</div>
+              <div class="history-cell text-right">{{ row.percentOfNorm }}%</div>
+              <div class="history-cell text-right">
+                <v-button surface="link"
+                          [isLinkStatic]="true"
+                          [isLabelHidden]="true"
+                          class="rotate-45"
+                          [paddingX]="1"
+                          [paddingY]="1"
+                          [bgOpacity]="0"
+                          (onClick)="goToDate(row.dateIso)">
+                  <v-icon v-prefix
+                          [name]="Icon.SwitchAccessShortcut"
+                          [size]="4" />
+                </v-button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="text-sm text-[color:var(--v-color-text-muted)]">Записей не найдено</div>
+    }
+  </div>
+</v-card>

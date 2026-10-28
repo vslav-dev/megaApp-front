@@ -1,60 +1,218 @@
-import { Injectable, Signal, computed, inject } from '@angular/core';
-import { INCOME_CHART_ALLOWED_CATEGORIES, INCOME_VIRTUAL_SERIES } from '../shared/chart-config';
-import { convertAmount } from '../shared/money-utils';
+import { Service, Signal, computed, inject, signal } from '@angular/core';
+import { SeriesColor, SeriesColorInput, assignSeriesColors } from '../shared/categorical-palette';
+import { EXPENSE_SERIES_ORDER, INCOME_SERIES_ORDER, seriesOrderIndex } from '../shared/chart-config';
+import {
+  EXPENSE_VIRTUAL_SERIES,
+  EXPENSE_VIRTUAL_SERIES_NAMES,
+  INCOME_VIRTUAL_SERIES,
+  INCOME_VIRTUAL_SERIES_NAMES,
+  SeriesChart,
+  SeriesResolver,
+  createSeriesResolver,
+} from '../shared/money-series';
+import {
+  areArraysShallowEqual,
+  convertAmount,
+  generateMonthRange,
+  parseTransactionDetails,
+  toPositiveNumber,
+} from '../shared/money-utils';
+import { buildPositionLots, buildTradeSeriesIndex } from '../shared/position-lots';
 import {
   Account,
-  AssetType,
+  Asset,
   BalanceChartAccountSeries,
   BalanceChartData,
   Category,
+  CategoryType,
   Currency,
   ExpenseCategory,
   ExpenseChartData,
+  IncomeChartCategorySeries,
   IncomeChartData,
-  InvestAssetTrade,
-  PositionLotRow,
+  SeriesShare,
   Transaction,
   TransactionKind,
 } from '../shared/types';
 import { MoneyService } from './money.service';
+import { TelemetryService } from './telemetry.service';
 
+// Native-currency monthly sums. income/expense are keyed month → account → series id (see money-series.ts);
+// dividends sit in the income buckets under their virtual series.
 interface MonthlyBuckets {
   accountDelta: Record<string, Record<number, number>>;
   fxInvestDelta: Record<string, Record<number, number>>;
   brokerDelta: Record<string, Record<string, number>>;
   income: Record<string, Record<number, Record<number, number>>>;
   expense: Record<string, Record<number, Record<number, number>>>;
-  dividends: Record<string, Record<number, number>>;
 }
 
-@Injectable({ providedIn: 'root' })
+export interface CategoryColorDraft extends SeriesColorInput {
+  categoryType: CategoryType;
+}
+
+// The colors preview shows the typical chart: an average over the last year.
+const SHARE_WINDOW_MONTHS = 12;
+
+// Series with a positive total, as shares of their sum, ordered like the chart stacks them (names
+// not in `order` keep their relative order, after the listed ones).
+function toSeriesShares(
+  totals: ReadonlyMap<number, number>,
+  names: ReadonlyMap<number, string>,
+  order: readonly string[],
+): SeriesShare[] {
+  const positive = [...names].filter(([id]) => (totals.get(id) ?? 0) > 0);
+  const grandTotal = positive.reduce((sum, [id]) => sum + totals.get(id)!, 0);
+  return positive
+    .sort(([, a], [, b]) => seriesOrderIndex(order, a) - seriesOrderIndex(order, b))
+    .map(([id, name]) => ({ id, name, share: totals.get(id)! / grandTotal }));
+}
+
+@Service()
 export class MoneyComputeService {
   private readonly moneyService = inject(MoneyService);
+  private readonly telemetry = inject(TelemetryService);
   private readonly fxTickers = new Set(['USD', 'EUR']);
 
+  private readonly accountTickers$$: Signal<Map<number, string>> = computed(() => {
+    const currencyById = new Map(this.moneyService.currencies$$().map((c) => [c.id, c]));
+    const tickers = new Map<number, string>();
+    for (const account of this.moneyService.accounts$$()) {
+      const currency = account.id ? currencyById.get(account.currencyId) : undefined;
+      if (currency) tickers.set(account.id!, currency.ticker);
+    }
+    return tickers;
+  });
+
+  private readonly assetById$$ = computed(() => {
+    const assetById = new Map<number, Asset>();
+    for (const asset of this.moneyService.assets$$()) {
+      if (asset.id !== undefined) assetById.set(asset.id, asset);
+    }
+    return assetById;
+  });
+
+  // Only buys/sells feed the position lots. Compared element by element, so editing an expense
+  // (which keeps every other transaction object) does not recompute the lots.
+  private readonly tradeTransactions$$ = computed(
+    () =>
+      this.moneyService
+        .transactions$$()
+        .filter((tx) => tx.kind === TransactionKind.INVEST_BUY || tx.kind === TransactionKind.INVEST_SELL),
+    { equal: areArraysShallowEqual },
+  );
+
+  private readonly positionLots$$ = computed(() =>
+    this.telemetry.measure(
+      'money.position_lots',
+      () =>
+        buildPositionLots({
+          transactions: this.tradeTransactions$$(),
+          assetById: this.assetById$$(),
+          accountTickers: this.accountTickers$$(),
+          targetTicker: this.moneyService.displayCurrency$$(),
+          getRatesForDate: (dateISO) => this.moneyService.getRatesForDate(dateISO),
+          now: new Date(),
+        }),
+      (result) => ({ lots: result.length }),
+    ),
+  );
+
+  private readonly tradeSeriesIndex$$ = computed(() => buildTradeSeriesIndex(this.positionLots$$()));
+
+  // Which chart series a transaction feeds. Depends on the categories only; the position lots behind
+  // buy/sell series are read lazily, so charts resolving expenses/incomes never wait for them.
+  public readonly seriesResolver$$: Signal<SeriesResolver> = computed(() =>
+    createSeriesResolver(this.moneyService.categories$$(), () => this.tradeSeriesIndex$$()),
+  );
+
+  // A category color being edited in the category form, shown on the charts before it is saved.
+  private readonly colorDraft$$ = signal<CategoryColorDraft | null>(null);
+
+  public readonly expenseSeriesColors$$: Signal<Map<number, SeriesColor>> = computed(() =>
+    this.buildSeriesColors(
+      CategoryType.EXPENSE,
+      Object.values(EXPENSE_VIRTUAL_SERIES),
+      this.draftFor(CategoryType.EXPENSE),
+    ),
+  );
+
+  public readonly incomeSeriesColors$$: Signal<Map<number, SeriesColor>> = computed(() =>
+    this.buildSeriesColors(
+      CategoryType.INCOME,
+      Object.values(INCOME_VIRTUAL_SERIES),
+      this.draftFor(CategoryType.INCOME),
+    ),
+  );
+
+  public setColorDraft(draft: CategoryColorDraft | null): void {
+    this.colorDraft$$.set(draft);
+  }
+
+  // How much of the last year's total each series is, in the order the chart stacks them.
+  public readonly expenseSeriesShares$$: Signal<SeriesShare[]> = computed(() => this.buildExpenseSeriesShares());
+
+  public readonly incomeSeriesShares$$: Signal<SeriesShare[]> = computed(() => this.buildIncomeSeriesShares());
+
+  // The colors a chart would have if `draft` were saved as a category's color — the live preview in
+  // the category form. The draft replaces the stored category with that id, or joins as a new one.
+  public previewSeriesColors(categoryType: CategoryType, draft: SeriesColorInput): Map<number, SeriesColor> {
+    const virtualSeriesIds =
+      categoryType === CategoryType.EXPENSE
+        ? Object.values(EXPENSE_VIRTUAL_SERIES)
+        : Object.values(INCOME_VIRTUAL_SERIES);
+    return this.buildSeriesColors(categoryType, virtualSeriesIds, draft);
+  }
+
   private readonly monthlyBuckets$$: Signal<MonthlyBuckets> = computed(() =>
-    this.buildBuckets(
-      this.moneyService.transactions$$(),
-      this.moneyService.accounts$$(),
-      this.moneyService.currencies$$(),
-      this.moneyService.categories$$(),
+    this.telemetry.measure(
+      'money.monthly_buckets',
+      () =>
+        this.buildBuckets(
+          this.moneyService.transactions$$(),
+          this.moneyService.accounts$$(),
+          this.moneyService.currencies$$(),
+          this.seriesResolver$$(),
+        ),
+      (result) => ({
+        transactions: this.moneyService.transactions$$().length,
+        months: Object.keys(result.accountDelta).length,
+      }),
     ),
   );
 
-  private readonly positionLotRows$$: Signal<PositionLotRow[]> = computed(() =>
-    this.buildPositionLotRows(
-      this.moneyService.investAssetTrades$$(),
-      this.moneyService.accounts$$(),
-      this.moneyService.currencies$$(),
-      this.moneyService.displayCurrency$$(),
+  public readonly balanceChartData$$: Signal<BalanceChartData> = computed(() =>
+    this.telemetry.measure(
+      'money.balance_model',
+      () => this.buildBalanceChartData(),
+      (result) => ({
+        months: result.dates.length,
+        series: result.accountSeries.length,
+      }),
     ),
   );
 
-  public readonly balanceChartData$$: Signal<BalanceChartData> = computed(() => this.buildBalanceChartData());
+  public readonly incomeChartData$$: Signal<IncomeChartData> = computed(() =>
+    this.telemetry.measure(
+      'money.income_model',
+      () => this.buildIncomeChartData(),
+      (result) => ({
+        months: result.months.length,
+        series: result.categorySeries.length,
+      }),
+    ),
+  );
 
-  public readonly incomeChartData$$: Signal<IncomeChartData> = computed(() => this.buildIncomeChartData());
-
-  public readonly expenseChartData$$: Signal<ExpenseChartData> = computed(() => this.buildExpenseChartData());
+  public readonly expenseChartData$$: Signal<ExpenseChartData> = computed(() =>
+    this.telemetry.measure(
+      'money.expense_model',
+      () => this.buildExpenseChartData(),
+      (result) => ({
+        months: result.monthRows.length,
+        categories: result.categories.length,
+      }),
+    ),
+  );
 
   // ── Bucket builder ────────────────────────────────────────────────────────
 
@@ -62,7 +220,7 @@ export class MoneyComputeService {
     transactions: Transaction[],
     accounts: Account[],
     currencies: Currency[],
-    categories: Category[],
+    resolveSeries: SeriesResolver,
   ): MonthlyBuckets {
     const buckets: MonthlyBuckets = {
       accountDelta: {},
@@ -70,7 +228,6 @@ export class MoneyComputeService {
       brokerDelta: {},
       income: {},
       expense: {},
-      dividends: {},
     };
 
     const currencyById = new Map(currencies.map((c) => [c.id, c]));
@@ -81,10 +238,10 @@ export class MoneyComputeService {
       if (currency && this.fxTickers.has(currency.ticker)) fxInvestAccountIds.add(a.id);
     });
 
-    const giftCategoryId = categories.find((c) => c.name === 'Подарок')?.id ?? null;
-
     for (const tx of transactions) {
       const { accountId, amount, kind } = tx;
+      // A zero income/expense (e.g. a refunded order) carries nothing: no balance delta, no phantom chart series.
+      if (amount === 0 && (kind === TransactionKind.INCOME || kind === TransactionKind.EXPENSE)) continue;
       const month = tx.dateISO.substring(0, 7);
 
       const cashDelta = this.getTxCashDelta(tx);
@@ -99,9 +256,9 @@ export class MoneyComputeService {
       }
 
       if (kind === TransactionKind.INVEST_BUY || kind === TransactionKind.INVEST_SELL) {
-        const details = this.parseDetails(tx.detailsJSON);
-        const assetId = this.toPositiveNumber(details?.assetId);
-        const quantity = this.toPositiveNumber(details?.quantity);
+        const details = parseTransactionDetails(tx.detailsJSON);
+        const assetId = toPositiveNumber(details?.assetId);
+        const quantity = toPositiveNumber(details?.quantity);
         if (assetId != null && quantity != null) {
           const key = `${accountId}:${assetId}`;
           buckets.brokerDelta[month] ??= {};
@@ -110,23 +267,20 @@ export class MoneyComputeService {
         }
       }
 
-      if (kind === TransactionKind.INCOME && !tx.isGift) {
-        const catId = tx.categoryId ?? -1;
-        buckets.income[month] ??= {};
-        buckets.income[month][accountId] ??= {};
-        buckets.income[month][accountId][catId] = (buckets.income[month][accountId][catId] ?? 0) + amount;
+      // Only these kinds are summed per transaction; buy/sell results come from the position lots.
+      if (
+        kind !== TransactionKind.EXPENSE &&
+        kind !== TransactionKind.INCOME &&
+        kind !== TransactionKind.INVEST_DIVIDEND
+      ) {
+        continue;
       }
 
-      if (kind === TransactionKind.EXPENSE) {
-        const catId = tx.isGift && giftCategoryId != null ? giftCategoryId : (tx.categoryId ?? -1);
-        buckets.expense[month] ??= {};
-        buckets.expense[month][accountId] ??= {};
-        buckets.expense[month][accountId][catId] = (buckets.expense[month][accountId][catId] ?? 0) + amount;
-      }
-
-      if (kind === TransactionKind.INVEST_DIVIDEND) {
-        buckets.dividends[month] ??= {};
-        buckets.dividends[month][accountId] = (buckets.dividends[month][accountId] ?? 0) + amount;
+      for (const { chart, id } of resolveSeries(tx)) {
+        const byMonth = chart === SeriesChart.EXPENSE ? buckets.expense : buckets.income;
+        const byAccount = (byMonth[month] ??= {});
+        const bySeries = (byAccount[accountId] ??= {});
+        bySeries[id] = (bySeries[id] ?? 0) + amount;
       }
     }
 
@@ -175,7 +329,8 @@ export class MoneyComputeService {
     ]);
     if (!allMonthsSet.size) return { dates: [], totals: [], accountSeries: [] };
 
-    const months = this.expandMonthRange(Array.from(allMonthsSet).sort());
+    const sortedMonths = Array.from(allMonthsSet).sort();
+    const months = generateMonthRange(sortedMonths[0], sortedMonths[sortedMonths.length - 1]);
 
     const cumulativeBalance = new Map<number, number>();
     const cumulativeFxInvest = new Map<number, number>();
@@ -315,32 +470,16 @@ export class MoneyComputeService {
 
   private buildIncomeChartData(): IncomeChartData {
     const buckets = this.monthlyBuckets$$();
-    const positionLotRows = this.positionLotRows$$();
-    const categories = this.moneyService.categories$$();
-    const accounts = this.moneyService.accounts$$();
-    const currencies = this.moneyService.currencies$$();
+    const lots = this.positionLots$$();
+    const accountTickers = this.accountTickers$$();
     const targetTicker = this.moneyService.displayCurrency$$();
 
-    const currencyById = new Map(currencies.map((c) => [c.id, c]));
-    const accountCurrencyTicker = new Map<number, string>();
-    accounts.forEach((a) => {
-      if (!a.id) return;
-      const currency = currencyById.get(a.currencyId);
-      if (currency) accountCurrencyTicker.set(a.id, currency.ticker);
-    });
+    const now = new Date();
+    const currentMonthISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    const allowedCategoryIds = new Set(
-      categories.filter((c) => c.id !== undefined && INCOME_CHART_ALLOWED_CATEGORIES.has(c.name)).map((c) => c.id!),
-    );
-
-    const today = new Date();
-    const currentMonthISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-
-    const allMonthsSet = new Set<string>();
-    Object.keys(buckets.income).forEach((m) => allMonthsSet.add(m));
-    Object.keys(buckets.dividends).forEach((m) => allMonthsSet.add(m));
-    positionLotRows.forEach((r) => r.openMonths.forEach((m) => allMonthsSet.add(m)));
-    if (positionLotRows.some((r) => r.status === 'open')) allMonthsSet.add(currentMonthISO);
+    const allMonthsSet = new Set<string>(Object.keys(buckets.income));
+    lots.forEach((lot) => lot.openMonths.forEach((m) => allMonthsSet.add(m)));
+    if (lots.some((lot) => lot.status === 'open')) allMonthsSet.add(currentMonthISO);
 
     if (!allMonthsSet.size) return { months: [], categorySeries: [] };
 
@@ -348,100 +487,58 @@ export class MoneyComputeService {
     const months = this.generateEomDates(sortedMonths[0], sortedMonths[sortedMonths.length - 1]);
     const monthIndexMap = new Map<string, number>(months.map((m, i) => [m.substring(0, 7), i]));
 
-    const categoryValues = new Map<number, number[]>();
+    // Monthly values per income series id: categories and dividends from the buckets, ЦБ/Крипта from the lots.
+    const seriesValues = new Map<number, number[]>();
+    const valuesOf = (seriesId: number): number[] => {
+      let values = seriesValues.get(seriesId);
+      if (!values) {
+        values = new Array(months.length).fill(0);
+        seriesValues.set(seriesId, values);
+      }
+      return values;
+    };
+    valuesOf(INCOME_VIRTUAL_SERIES.DIVIDENDS);
 
     for (const [monthKey, accountMap] of Object.entries(buckets.income)) {
       const monthIdx = monthIndexMap.get(monthKey);
       if (monthIdx === undefined) continue;
       const rates = this.moneyService.getRatesForDate(months[monthIdx]);
 
-      for (const [accountIdStr, catMap] of Object.entries(accountMap)) {
-        const accountId = Number(accountIdStr);
-        const currencyTicker = accountCurrencyTicker.get(accountId);
+      for (const [accountIdStr, seriesMap] of Object.entries(accountMap)) {
+        const currencyTicker = accountTickers.get(Number(accountIdStr));
 
-        for (const [catIdStr, nativeAmt] of Object.entries(catMap)) {
-          const catId = Number(catIdStr);
-          if (catId === -1 || !allowedCategoryIds.has(catId)) continue;
-
+        for (const [seriesIdStr, nativeAmt] of Object.entries(seriesMap)) {
           const converted =
             currencyTicker && rates ? convertAmount(nativeAmt, currencyTicker, targetTicker, rates) : nativeAmt;
-
-          if (!categoryValues.has(catId)) categoryValues.set(catId, new Array(months.length).fill(0));
-          categoryValues.get(catId)![monthIdx] += converted;
+          valuesOf(Number(seriesIdStr))[monthIdx] += converted;
         }
       }
     }
 
-    const dividendValues = new Array(months.length).fill(0);
-    for (const [monthKey, accountMap] of Object.entries(buckets.dividends)) {
-      const monthIdx = monthIndexMap.get(monthKey);
-      if (monthIdx === undefined) continue;
-      const rates = this.moneyService.getRatesForDate(months[monthIdx]);
-
-      for (const [accountIdStr, nativeAmt] of Object.entries(accountMap)) {
-        const accountId = Number(accountIdStr);
-        const currencyTicker = accountCurrencyTicker.get(accountId);
-        const converted =
-          currencyTicker && rates ? convertAmount(nativeAmt, currencyTicker, targetTicker, rates) : nativeAmt;
-        dividendValues[monthIdx] += converted;
+    for (const lot of lots) {
+      if (lot.pnl === null) continue;
+      const values = valuesOf(lot.seriesId);
+      const perMonth = lot.pnl / lot.openMonths.length;
+      for (const monthKey of lot.openMonths) {
+        const idx = monthIndexMap.get(monthKey);
+        if (idx !== undefined) values[idx] += perMonth;
       }
     }
 
-    const closedValues = new Array(months.length).fill(0);
-    const cbOpenValues = new Array(months.length).fill(0);
-    const cryptoClosedValues = new Array(months.length).fill(0);
-    const cryptoOpenValues = new Array(months.length).fill(0);
-
-    positionLotRows
-      .filter((r) => r.pnl !== null)
-      .forEach((row) => {
-        const isCrypto = row.assetType === AssetType.CRYPTO;
-        const perMonth = row.pnl! / row.openMonths.length;
-        const target =
-          row.status === 'closed'
-            ? isCrypto
-              ? cryptoClosedValues
-              : closedValues
-            : isCrypto
-              ? cryptoOpenValues
-              : cbOpenValues;
-        row.openMonths.forEach((monthKey) => {
-          const idx = monthIndexMap.get(monthKey);
-          if (idx !== undefined) target[idx] += perMonth;
-        });
+    const categoryNames = new Map(this.moneyService.categories$$().map((c) => [c.id, c.name]));
+    const categorySeries: IncomeChartCategorySeries[] = [];
+    for (const [seriesId, values] of seriesValues) {
+      if (seriesId !== INCOME_VIRTUAL_SERIES.DIVIDENDS && !values.some((v) => v !== 0)) continue;
+      categorySeries.push({
+        categoryId: seriesId,
+        categoryName: INCOME_VIRTUAL_SERIES_NAMES[seriesId] ?? categoryNames.get(seriesId) ?? 'Other',
+        values,
       });
-
-    const categorySeries = Array.from(categoryValues.entries()).map(([catId, values]) => ({
-      categoryId: catId,
-      categoryName: categories.find((c) => c.id === catId)?.name ?? 'Other',
-      values,
-    }));
-
-    categorySeries.push({
-      categoryId: INCOME_VIRTUAL_SERIES.DIVIDENDS,
-      categoryName: 'Дивиденды',
-      values: dividendValues,
-    });
-
-    const pushIfNonZero = (categoryId: number, categoryName: string, values: number[]) => {
-      if (values.some((v) => v !== 0)) categorySeries.push({ categoryId, categoryName, values });
-    };
-    pushIfNonZero(INCOME_VIRTUAL_SERIES.CB_CLOSED_PNL, 'ЦБ закрытые', closedValues);
-    pushIfNonZero(INCOME_VIRTUAL_SERIES.CB_OPEN_PNL, 'ЦБ открытые', cbOpenValues);
-    pushIfNonZero(INCOME_VIRTUAL_SERIES.CRYPTO_CLOSED_PNL, 'Крипта закрытые', cryptoClosedValues);
-    pushIfNonZero(INCOME_VIRTUAL_SERIES.CRYPTO_OPEN_PNL, 'Крипта открытые', cryptoOpenValues);
-
-    const seriesOrder = new Map([
-      ['Зарплата', 0],
-      ['Проекты', 1],
-      ['Проценты', 2],
-      ['Дивиденды', 3],
-      ['ЦБ закрытые', 4],
-      ['ЦБ открытые', 5],
-      ['Крипта закрытые', 6],
-      ['Крипта открытые', 7],
-    ]);
-    categorySeries.sort((a, b) => (seriesOrder.get(a.categoryName) ?? 99) - (seriesOrder.get(b.categoryName) ?? 99));
+    }
+    categorySeries.sort(
+      (a, b) =>
+        seriesOrderIndex(INCOME_SERIES_ORDER, a.categoryName) - seriesOrderIndex(INCOME_SERIES_ORDER, b.categoryName),
+    );
 
     return { months, categorySeries };
   }
@@ -450,37 +547,15 @@ export class MoneyComputeService {
 
   private buildExpenseChartData(): ExpenseChartData {
     const buckets = this.monthlyBuckets$$();
-    const categories = this.moneyService.categories$$();
-    const accounts = this.moneyService.accounts$$();
-    const currencies = this.moneyService.currencies$$();
+    const accountTickers = this.accountTickers$$();
     const targetTicker = this.moneyService.displayCurrency$$();
 
     if (!Object.keys(buckets.expense).length) return { categories: [], monthRows: [] };
 
-    const currencyById = new Map(currencies.map((c) => [c.id, c]));
-    const accountCurrencyTicker = new Map<number, string>();
-    accounts.forEach((a) => {
-      if (!a.id) return;
-      const currency = currencyById.get(a.currencyId);
-      if (currency) accountCurrencyTicker.set(a.id, currency.ticker);
-    });
-
     const categoryMap = new Map<number, Category>();
-    categories.forEach((c) => {
+    this.moneyService.categories$$().forEach((c) => {
       if (c.id != null) categoryMap.set(c.id, c);
     });
-
-    const EXCLUDED_NAMES = new Set(['Налог', 'Комиссии', 'Технический гэп']);
-    const excludedRootIds = new Set<number>();
-    categories.forEach((c) => {
-      if (c.id != null && !c.parentId && EXCLUDED_NAMES.has(c.name)) excludedRootIds.add(c.id);
-    });
-
-    const getRootCategoryId = (catId: number): number => {
-      const cat = categoryMap.get(catId);
-      if (!cat || !cat.parentId) return catId;
-      return getRootCategoryId(cat.parentId);
-    };
 
     const uniqueDisplayCategoryIds = new Set<number>();
     const monthAmounts = new Map<string, Map<number, number>>();
@@ -489,20 +564,18 @@ export class MoneyComputeService {
     for (const [monthKey, accountMap] of Object.entries(buckets.expense)) {
       const rates = this.moneyService.getRatesForDate(this.toEomISO(monthKey));
 
-      for (const [accountIdStr, catMap] of Object.entries(accountMap)) {
-        const accountId = Number(accountIdStr);
-        const currencyTicker = accountCurrencyTicker.get(accountId);
+      for (const [accountIdStr, seriesMap] of Object.entries(accountMap)) {
+        const currencyTicker = accountTickers.get(Number(accountIdStr));
 
-        for (const [catIdStr, nativeAmt] of Object.entries(catMap)) {
-          const catId = Number(catIdStr);
+        for (const [seriesIdStr, nativeAmt] of Object.entries(seriesMap)) {
+          const catId = Number(seriesIdStr);
           const converted =
             currencyTicker && rates ? convertAmount(nativeAmt, currencyTicker, targetTicker, rates) : nativeAmt;
 
-          if (catId === -1) {
+          if (catId === EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED) {
             monthUncategorized.set(monthKey, (monthUncategorized.get(monthKey) ?? 0) + converted);
             continue;
           }
-          if (excludedRootIds.has(getRootCategoryId(catId))) continue;
 
           uniqueDisplayCategoryIds.add(catId);
           if (!monthAmounts.has(monthKey)) monthAmounts.set(monthKey, new Map());
@@ -535,124 +608,6 @@ export class MoneyComputeService {
     return { categories: expenseCategories, monthRows };
   }
 
-  // ── FIFO position lots ────────────────────────────────────────────────────
-
-  private buildPositionLotRows(
-    trades: InvestAssetTrade[],
-    accounts: Account[],
-    currencies: Currency[],
-    targetTicker: string,
-  ): PositionLotRow[] {
-    if (!trades.length) return [];
-
-    const currencyById = new Map(currencies.map((c) => [c.id, c]));
-    const accountCurrencyTicker = new Map<number, string>();
-    accounts.forEach((a) => {
-      if (!a.id) return;
-      const currency = currencyById.get(a.currencyId);
-      if (currency) accountCurrencyTicker.set(a.id, currency.ticker);
-    });
-
-    const today = new Date();
-    const currentMonthISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-    const currentDateISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-    const groupMap = new Map<string, InvestAssetTrade[]>();
-    trades.forEach((trade) => {
-      if (!trade.assetId) return;
-      const key = `${trade.accountId}:${trade.assetId}`;
-      (groupMap.get(key) ?? groupMap.set(key, []).get(key)!).push(trade);
-    });
-
-    const result: PositionLotRow[] = [];
-    const currentRates = this.moneyService.getRatesForDate(currentDateISO);
-
-    groupMap.forEach((tradesInGroup) => {
-      const firstTrade = tradesInGroup[0];
-      const ticker = firstTrade.assetTicker ?? '?';
-      const currencyTicker = accountCurrencyTicker.get(firstTrade.accountId);
-
-      const buys = tradesInGroup
-        .filter((t) => t.kind === TransactionKind.INVEST_BUY)
-        .sort((a, b) => a.dateISO.localeCompare(b.dateISO) || a.id - b.id);
-      const sells = tradesInGroup
-        .filter((t) => t.kind === TransactionKind.INVEST_SELL)
-        .sort((a, b) => a.dateISO.localeCompare(b.dateISO) || a.id - b.id);
-
-      const lotQueue = buys.map((trade) => {
-        const details = this.parseDetails(trade.detailsJSON);
-        const qty = this.toPositiveNumber(details?.quantity) ?? 0;
-        const rates = this.moneyService.getRatesForDate(trade.dateISO);
-        const amount =
-          currencyTicker && rates ? convertAmount(trade.amount, currencyTicker, targetTicker, rates) : trade.amount;
-        return { trade, qty, amount, remaining: qty };
-      });
-
-      for (const sell of sells) {
-        const sellDetails = this.parseDetails(sell.detailsJSON);
-        const sellQty = this.toPositiveNumber(sellDetails?.quantity) ?? 0;
-        const sellRates = this.moneyService.getRatesForDate(sell.dateISO);
-        const sellAmount =
-          currencyTicker && sellRates
-            ? convertAmount(sell.amount, currencyTicker, targetTicker, sellRates)
-            : sell.amount;
-
-        let remainingToMatch = sellQty;
-        for (const lot of lotQueue) {
-          if (remainingToMatch <= 0) break;
-          if (lot.remaining <= 0) continue;
-
-          const matchedQty = Math.min(lot.remaining, remainingToMatch);
-          const cost = lot.qty > 0 ? lot.amount * (matchedQty / lot.qty) : 0;
-          const proceeds = sellQty > 0 ? sellAmount * (matchedQty / sellQty) : 0;
-
-          result.push({
-            status: 'closed',
-            assetType: firstTrade.assetType ?? null,
-            buyDateISO: lot.trade.dateISO,
-            sellDateISO: sell.dateISO,
-            pnl: proceeds - cost,
-            openMonths: this.generateMonthRange(lot.trade.dateISO.substring(0, 7), sell.dateISO.substring(0, 7)),
-          });
-
-          lot.remaining -= matchedQty;
-          remainingToMatch -= matchedQty;
-        }
-      }
-
-      for (const lot of lotQueue) {
-        if (lot.remaining <= 0) continue;
-        const cost = lot.qty > 0 ? lot.amount * (lot.remaining / lot.qty) : 0;
-
-        let currentValue: number | null = null;
-        if (currentRates && ticker !== '?') {
-          const quoteUsd = currentRates[ticker];
-          if (typeof quoteUsd === 'number' && quoteUsd > 0) {
-            currentValue = convertAmount(lot.remaining * quoteUsd, 'USD', targetTicker, currentRates);
-          }
-        }
-
-        result.push({
-          status: 'open',
-          assetType: firstTrade.assetType ?? null,
-          buyDateISO: lot.trade.dateISO,
-          sellDateISO: null,
-          pnl: currentValue !== null ? currentValue - cost : null,
-          openMonths: this.generateMonthRange(lot.trade.dateISO.substring(0, 7), currentMonthISO),
-        });
-      }
-    });
-
-    result.sort((a, b) => {
-      if (a.status !== b.status) return a.status === 'closed' ? -1 : 1;
-      const dateA = a.sellDateISO ?? a.buyDateISO;
-      const dateB = b.sellDateISO ?? b.buyDateISO;
-      return dateB.localeCompare(dateA);
-    });
-
-    return result;
-  }
-
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private getTxCashDelta(tx: Transaction): number {
@@ -663,7 +618,7 @@ export class MoneyComputeService {
     if (kind === TransactionKind.INVEST_SELL || kind === TransactionKind.INVEST_DIVIDEND) return amount;
     if (kind !== TransactionKind.TRANSFER) return 0;
 
-    const details = this.parseDetails(tx.detailsJSON);
+    const details = parseTransactionDetails(tx.detailsJSON);
     const direction = details?.direction;
     if (direction === 'out') return -amount;
     if (direction === 'in') return amount;
@@ -677,69 +632,72 @@ export class MoneyComputeService {
   }
 
   private generateEomDates(firstMonthISO: string, lastMonthISO: string): string[] {
-    const months: string[] = [];
-    const [startYear, startMonth] = firstMonthISO.split('-').map(Number);
-    const [endYear, endMonth] = lastMonthISO.split('-').map(Number);
-    let y = startYear,
-      m = startMonth;
-    while (y < endYear || (y === endYear && m <= endMonth)) {
-      months.push(this.toEomISO(`${y}-${String(m).padStart(2, '0')}`));
-      m++;
-      if (m > 12) {
-        m = 1;
-        y++;
-      }
-    }
-    return months;
+    return generateMonthRange(firstMonthISO, lastMonthISO).map((month) => this.toEomISO(month));
   }
 
-  private expandMonthRange(sortedMonths: string[]): string[] {
-    if (!sortedMonths.length) return [];
-    const [startYear, startMonth] = sortedMonths[0].split('-').map(Number);
-    const [endYear, endMonth] = sortedMonths[sortedMonths.length - 1].split('-').map(Number);
-    const months: string[] = [];
-    let y = startYear,
-      m = startMonth;
-    while (y < endYear || (y === endYear && m <= endMonth)) {
-      months.push(`${y}-${String(m).padStart(2, '0')}`);
-      m++;
-      if (m > 12) {
-        m = 1;
-        y++;
-      }
-    }
-    return months;
+  private draftFor(categoryType: CategoryType): SeriesColorInput | undefined {
+    const draft = this.colorDraft$$();
+    return draft?.categoryType === categoryType ? draft : undefined;
   }
 
-  private generateMonthRange(fromMonthISO: string, toMonthISO: string): string[] {
-    const months: string[] = [];
-    const [fromYear, fromMonth] = fromMonthISO.split('-').map(Number);
-    const [toYear, toMonth] = toMonthISO.split('-').map(Number);
-    let y = fromYear,
-      m = fromMonth;
-    while (y < toYear || (y === toYear && m <= toMonth)) {
-      months.push(`${y}-${String(m).padStart(2, '0')}`);
-      m++;
-      if (m > 12) {
-        m = 1;
-        y++;
-      }
-    }
-    return months;
+  private buildSeriesColors(
+    categoryType: CategoryType,
+    virtualSeriesIds: number[],
+    draft?: SeriesColorInput,
+  ): Map<number, SeriesColor> {
+    const categorySeries: SeriesColorInput[] = this.moneyService
+      .categories$$()
+      .filter((category) => category.id !== undefined && category.categoryType === categoryType)
+      .map((category) => ({
+        id: category.id!,
+        hue: category.hue ?? null,
+        lightness: category.lightness ?? null,
+        saturation: category.saturation ?? null,
+      }));
+    const virtualSeries: SeriesColorInput[] = virtualSeriesIds.map((id) => ({
+      id,
+      hue: null,
+      lightness: null,
+      saturation: null,
+    }));
+    const stored = [...categorySeries, ...virtualSeries].filter((series) => series.id !== draft?.id);
+    return assignSeriesColors(draft ? [...stored, draft] : stored);
   }
 
-  private parseDetails(detailsJSON: any): any {
-    if (!detailsJSON) return null;
-    if (typeof detailsJSON === 'object') return detailsJSON;
-    try {
-      return JSON.parse(detailsJSON);
-    } catch {
-      return null;
+  private buildExpenseSeriesShares(): SeriesShare[] {
+    const { categories, monthRows } = this.expenseChartData$$();
+    const names = new Map<number, string>(categories.map((category) => [category.id, category.name]));
+    names.set(EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED, EXPENSE_VIRTUAL_SERIES_NAMES[EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED]);
+
+    const totals = new Map<number, number>();
+    const addToTotal = (seriesId: number, amount: number): void => {
+      totals.set(seriesId, (totals.get(seriesId) ?? 0) + amount);
+    };
+    // Rows exist only for months with expenses, so the window is counted in calendar months from the
+    // latest one, not in rows.
+    const monthNumber = (period: string): number => {
+      const [year, month] = period.split('-').map(Number);
+      return year * 12 + month;
+    };
+    const latestMonth = monthRows.length ? monthNumber(monthRows[monthRows.length - 1].period) : 0;
+    for (const row of monthRows.filter((item) => monthNumber(item.period) > latestMonth - SHARE_WINDOW_MONTHS)) {
+      for (const [seriesId, amount] of Object.entries(row.categoryAmounts)) addToTotal(Number(seriesId), amount);
+      addToTotal(EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED, row.uncategorizedAmount);
     }
+    return toSeriesShares(totals, names, EXPENSE_SERIES_ORDER);
   }
 
-  private toPositiveNumber(value: unknown): number | null {
-    const n = Number(value);
-    return Number.isFinite(n) && n > 0 ? n : null;
+  private buildIncomeSeriesShares(): SeriesShare[] {
+    const { categorySeries } = this.incomeChartData$$();
+    const names = new Map<number, string>(categorySeries.map((series) => [series.categoryId, series.categoryName]));
+
+    const totals = new Map<number, number>();
+    for (const series of categorySeries) {
+      totals.set(
+        series.categoryId,
+        series.values.slice(-SHARE_WINDOW_MONTHS).reduce((sum, value) => sum + Math.max(0, value), 0),
+      );
+    }
+    return toSeriesShares(totals, names, INCOME_SERIES_ORDER);
   }
 }

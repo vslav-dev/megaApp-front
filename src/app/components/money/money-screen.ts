@@ -1,11 +1,13 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
+import { VExpand } from '@ui-kit/components/v-expand/v-expand';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
-import { VSlider, VSliderConfig, VSliderRangeValue } from '@ui-kit/components/v-slider/v-slider';
-import { VToggle, VToggleItem } from '@ui-kit/components/v-toggle/v-toggle';
+import { VSlider, VSliderRangeValue } from '@ui-kit/components/v-slider/v-slider';
+import { VToggleItem } from '@ui-kit/components/v-toggle/v-toggle';
 import { MoneyComputeService } from '../../services/money-compute.service';
 import { MoneyService } from '../../services/money.service';
+import { TelemetryService } from '../../services/telemetry.service';
 import { BalanceChartData } from '../../shared/types';
 import { AccountsBalance } from './accounts-balance/accounts-balance';
 import { AccountsList } from './accounts-list/accounts-list';
@@ -18,12 +20,14 @@ import { IncomeChart } from './income-chart/income-chart';
 import { OrganizationsList } from './organizations-list/organizations-list';
 import { TransactionsList } from './transactions-list/transactions-list';
 
-enum MoneyTab {
-  Setup = 'setup',
-  Categories = 'categories',
-  Assets = 'assets',
-  Transactions = 'transactions',
-}
+const MoneyTab = {
+  Setup: 'setup',
+  Categories: 'categories',
+  Assets: 'assets',
+  Transactions: 'transactions',
+} as const;
+
+type MoneyTab = (typeof MoneyTab)[keyof typeof MoneyTab];
 
 @Component({
   selector: 'money-screen',
@@ -41,9 +45,9 @@ enum MoneyTab {
     IncomeChart,
     VButton,
     VCard,
+    VExpand,
     VIcon,
     VSlider,
-    VToggle,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -54,15 +58,30 @@ export class MoneyScreen implements OnInit {
 
   private readonly moneyService = inject(MoneyService);
   private readonly moneyComputeService = inject(MoneyComputeService);
+  private readonly telemetry = inject(TelemetryService);
   private readonly sliderMonthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' });
+  private readonly screenStartedAt = performance.now();
+  private screenReadyRecorded = false;
 
   protected readonly isChartDataReady$$ = computed(() => this.moneyService.isChartDataReady$$());
+
+  private readonly screenReadyEffect$$ = effect(() => {
+    if (!this.isChartDataReady$$() || this.screenReadyRecorded) return;
+    this.screenReadyRecorded = true;
+    void this.telemetry.recordAfterPaint('money.screen_ready', this.screenStartedAt, {
+      tab: this.activeTab$$(),
+      transactions: this.moneyService.transactions$$().length,
+    });
+  });
 
   protected readonly displayCurrency$$ = computed(() => this.moneyService.displayCurrency$$());
   protected readonly displayCurrencySymbol$$ = computed(() => {
     const currency = this.moneyService.currencies$$().find((c) => c.ticker === this.displayCurrency$$());
     return currency?.symbol ?? '₽';
   });
+
+  protected readonly convertToUnifiedCurrency$$ = computed(() => this.moneyService.convertToUnifiedCurrency$$());
+  protected readonly linkTransactionsToCharts$$ = computed(() => this.moneyService.linkTransactionsToCharts$$());
 
   protected readonly currencyToggleItems: VToggleItem[] = [
     { id: 'RUB', label: '₽' },
@@ -101,15 +120,9 @@ export class MoneyScreen implements OnInit {
 
   protected readonly sliderRange$$ = computed((): VSliderRangeValue => [this.rangeStartIdx$$(), this.rangeEndIdx$$()]);
 
-  protected readonly chartRangeSliderConfig$$ = computed(
-    (): VSliderConfig => ({
-      isRange: true,
-      min: 0,
-      max: Math.max(0, this.allChartMonths$$().length - 1),
-      valueList: this.allChartMonths$$().map((_, i) => i),
-      thumbBorderRadius: 2,
-    }),
-  );
+  protected readonly chartRangeSliderMax$$ = computed(() => Math.max(0, this.allChartMonths$$().length - 1));
+
+  protected readonly chartRangeSliderValueList$$ = computed(() => this.allChartMonths$$().map((_, i) => i));
 
   protected readonly sliderStartLabel$$ = computed((): string =>
     this.formatSliderMonth(this.allChartMonths$$()[this.rangeStartIdx$$()]),
@@ -167,18 +180,31 @@ export class MoneyScreen implements OnInit {
   });
 
   protected onChartRangeChange(range: VSliderRangeValue): void {
+    const startedAt = performance.now();
     const months = this.allChartMonths$$();
     const [startIdx, endIdx] = range;
-    const isFullRange = startIdx === 0 && endIdx === months.length - 1;
+    const maxIdx = months.length - 1;
     this.moneyService.setChartRange(
-      isFullRange ? null : (months[startIdx] ?? null),
-      isFullRange ? null : (months[endIdx] ?? null),
+      startIdx <= 0 ? null : (months[startIdx] ?? null),
+      endIdx >= maxIdx ? null : (months[endIdx] ?? null),
     );
+    void this.telemetry.recordAfterPaint('money.range_change', startedAt, { months: endIdx - startIdx + 1 });
   }
 
   protected setDisplayCurrency(id: string): void {
     if (!id || id === this.moneyService.displayCurrency$$()) return;
+    const startedAt = performance.now();
+    const previous = this.moneyService.displayCurrency$$();
     this.moneyService.setDisplayCurrency(id);
+    void this.telemetry.recordAfterPaint('money.currency_change', startedAt, { from: previous, to: id });
+  }
+
+  protected toggleConvertToUnifiedCurrency(): void {
+    this.moneyService.setConvertToUnifiedCurrency(!this.convertToUnifiedCurrency$$());
+  }
+
+  protected toggleLinkTransactionsToCharts(): void {
+    this.moneyService.setLinkTransactionsToCharts(!this.linkTransactionsToCharts$$());
   }
 
   public ngOnInit(): void {
@@ -186,7 +212,10 @@ export class MoneyScreen implements OnInit {
   }
 
   protected setActiveTab(tab: MoneyTab): void {
+    const startedAt = performance.now();
+    const previous = this.activeTab$$();
     this.activeTab$$.set(tab);
+    void this.telemetry.recordAfterPaint('money.tab_change', startedAt, { from: previous, to: tab });
   }
 
   private formatSliderMonth(ym: string | undefined): string {

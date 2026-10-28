@@ -1,15 +1,14 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
-import { NetworkService } from '@app/services/network.service';
-import { MetricsHealthSeverity, ServiceHealth, ServiceLatest, WebSocketMessageType } from '@app/shared/types';
+import { Service, computed, inject, signal } from '@angular/core';
+import { MetricsSettingsService } from '@app/services/metrics-settings.service';
+import { MetricsBinaryFrameType, NetworkService } from '@app/services/network.service';
+import { DEFAULT_SEVERITY_THRESHOLDS, SeverityThresholds } from '@app/shared/metrics-severity';
+import { decodeMetricsWireToLatestSnapshot } from '@app/shared/metrics-wire';
+import { MetricsHealthSeverity, ServiceHealth, ServiceLatest } from '@app/shared/types';
 
 const SEVERITY_RANK: Record<MetricsHealthSeverity, number> = { ok: 0, warn: 1, error: 2 };
-const WARN_AFTER_SECONDS = 90;
-const ERROR_AFTER_SECONDS = 180;
 const NOW_TICK_INTERVAL_MS = 30_000;
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class MetricsHealthService {
   public readonly services$$ = computed<ServiceHealth[]>(() => {
     const nowSeconds = Math.floor(this.now$$() / 1000);
@@ -29,15 +28,27 @@ export class MetricsHealthService {
   });
 
   private readonly networkService = inject(NetworkService);
+  private readonly metricsSettingsService = inject(MetricsSettingsService);
   private readonly latestServices$$ = signal<ServiceLatest[]>([]);
   private readonly now$$ = signal(Date.now());
   private readonly nowTickIntervalId = setInterval(() => this.now$$.set(Date.now()), NOW_TICK_INTERVAL_MS);
 
   constructor() {
-    this.networkService.wsMessages$.subscribe((message) => {
-      if (message.type === WebSocketMessageType.METRICS_LATEST) {
-        this.latestServices$$.set(message.payload.services);
+    this.networkService.metricsBinaryFrames$.subscribe((frame) => {
+      if (frame.frameType === MetricsBinaryFrameType.Latest) {
+        this.latestServices$$.set(decodeMetricsWireToLatestSnapshot(frame.payload).services);
       }
+    });
+  }
+
+  public severityThresholds(service: string): SeverityThresholds {
+    return this.metricsSettingsService.severityThresholdOverrides$$()[service] ?? DEFAULT_SEVERITY_THRESHOLDS;
+  }
+
+  public setSeverityThresholds(service: string, thresholds: SeverityThresholds): void {
+    this.metricsSettingsService.setSeverityThresholdOverrides({
+      ...this.metricsSettingsService.severityThresholdOverrides$$(),
+      [service]: thresholds,
     });
   }
 
@@ -46,11 +57,12 @@ export class MetricsHealthService {
       return 'error';
     }
 
+    const thresholds = this.severityThresholds(service.service);
     const ageSeconds = nowSeconds - service.lastBucket;
-    if (ageSeconds > ERROR_AFTER_SECONDS) {
+    if (ageSeconds > thresholds.errorAfterSeconds) {
       return 'error';
     }
-    if (ageSeconds > WARN_AFTER_SECONDS) {
+    if (ageSeconds > thresholds.warnAfterSeconds) {
       return 'warn';
     }
     return 'ok';

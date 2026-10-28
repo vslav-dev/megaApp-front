@@ -1,0 +1,14 @@
+/* Header service buttons: short label by default, long label on hover — instant swap, no animation. */
+.header-label-long {
+  display: none;
+}
+
+@media (hover: hover) {
+  v-button:hover .header-label-short {
+    display: none;
+  }
+
+  v-button:hover .header-label-long {
+    display: inline;
+  }
+}

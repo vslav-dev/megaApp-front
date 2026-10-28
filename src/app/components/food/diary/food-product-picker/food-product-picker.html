@@ -1,0 +1,145 @@
+<div [class.mb-4]="!hasSearchResults$$()"
+     class="flex justify-center gap-4 px-4 pt-4">
+  <v-input class="catalogue-entry-name-input w-full"
+           (onEnterPressed)="onEnterPressed($event)"
+           [(value)]="query">
+    @if (isLegacySearch$$()) {
+      <v-button class="v-primary mx-2"
+                v-prefix
+                tabindex="-1"
+                [isLabelHidden]="true"
+                [padding]="1"
+                (mousedown)="$event.preventDefault()"
+                (click)="toggleLegacySearch()">
+        <v-icon v-prefix
+                [name]="Icon.SwapHoriz"
+                [size]="6" />
+      </v-button>
+    } @else {
+      <v-button class="mx-2"
+                surface="flat"
+                v-prefix
+                tabindex="-1"
+                [isLabelHidden]="true"
+                [padding]="1"
+                (mousedown)="$event.preventDefault()"
+                (click)="toggleLegacySearch()">
+        <v-icon v-prefix
+                [name]="Icon.SwapHoriz"
+                [size]="6" />
+      </v-button>
+    }
+
+    <!-- One @if level only: content projection into v-prefix needs the button to be the block's root element. -->
+    @if (isArchiveSearchAvailable$$() && isArchiveSearch$$()) {
+      <v-button class="v-primary mr-2"
+                v-prefix
+                tabindex="-1"
+                [isLabelHidden]="true"
+                [padding]="1"
+                (mousedown)="$event.preventDefault()"
+                (click)="toggleArchiveSearch()">
+        <v-icon v-prefix
+                [name]="Icon.Archive"
+                [size]="6" />
+      </v-button>
+    } @else if (isArchiveSearchAvailable$$()) {
+      <v-button class="mr-2"
+                surface="flat"
+                v-prefix
+                tabindex="-1"
+                [isLabelHidden]="true"
+                [padding]="1"
+                (mousedown)="$event.preventDefault()"
+                (click)="toggleArchiveSearch()">
+        <v-icon v-prefix
+                [name]="Icon.Archive"
+                [size]="6" />
+      </v-button>
+    }
+
+    @if (query() !== '') {
+      <v-button surface="link"
+                [isLinkStatic]="true"
+                v-postfix
+                tabindex="-1"
+                [isLabelHidden]="true"
+                [paddingX]="2"
+                [paddingY]="0"
+                [bgOpacity]="0"
+                (mousedown)="$event.preventDefault()"
+                (click)="onClearClick()">
+        <v-icon v-prefix
+                [name]="Icon.Close"
+                [size]="6" />
+      </v-button>
+    }
+  </v-input>
+</div>
+
+@if (isLegacySearch$$()) {
+  <div [class.mb-4]="!hasSearchResults$$()"
+       class="shadow-orange-500/30 flex-nowrap flex items-center gap-2 px-2 py-1 mx-4 mt-4 font-medium text-white origin-top bg-orange-500 rounded-lg shadow-lg">
+    <v-icon [name]="Icon.Warning"
+            [size]="5" />
+    <span class="text-nowrap text-ellipsis">Используется устаревший поиск</span>
+  </div>
+}
+
+<div class="grid-auto-fill grid gap-2 pl-4 pr-4 overflow-y-auto rounded-lg"
+     [class.pt-4]="hasSearchResults$$()"
+     [class.pb-4]="hasSearchResults$$()">
+  @if (hasSearchResults$$()) {
+    <div flipAnimate
+         class="contents">
+      @for (catalogueEntry of searchResults$$(); track catalogueEntry.id) {
+        <v-card [attr.data-flip-key]="'catalogue-' + catalogueEntry.id"
+                class="w-full cursor-pointer"
+                [padding]="1"
+                minHeight="104px"
+                [backgroundImageUrl]="getImageUrl(catalogueEntry)"
+                [backgroundImageOpacity]="0"
+                (click)="selectProduct(catalogueEntry)">
+          <div class="flex flex-col justify-between h-full">
+            <div>
+              <span class="catalogue-entry-name">{{ getDisplayName(catalogueEntry) }}</span>
+              @if (catalogueEntry.archived) {
+                <span class="catalogue-entry-badge ml-1">архив</span>
+              }
+            </div>
+            @if (extractedWeight$$() !== null) {
+              <div class="flex justify-end">
+                <span class="catalogue-entry-weight">{{ extractedWeight$$() }} г.</span>
+              </div>
+            }
+          </div>
+        </v-card>
+      }
+    </div>
+  }
+
+  @if (hasSearchResults$$() && allowCreateNewProduct()) {
+    <v-card [animate.enter]="AnimationClass.FADE_SCALE_IN"
+            class="w-full h-full cursor-pointer"
+            [padding]="2"
+            (click)="requestCreateNewProduct()">
+      <div class="add-catalogue-entry flex items-center justify-center w-full h-full">
+        <v-icon [name]="Icon.Add"
+                [size]="7" />
+      </div>
+    </v-card>
+  }
+</div>
+
+@if (hasSearchResults$$() && deviceInfoService.isMobileScreen$$()) {
+  <div class="sticky bottom-0 flex justify-start px-4 pb-4">
+    <v-button class="v-danger"
+              [isLabelHidden]="true"
+              [padding]="1"
+              (click)="requestClose()">
+      <v-icon v-prefix
+              [name]="Icon.Close"
+              [size]="9" />
+    </v-button>
+  </div>
+}

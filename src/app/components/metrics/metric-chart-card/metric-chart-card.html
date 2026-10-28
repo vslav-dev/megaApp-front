@@ -1,25 +1,83 @@
 <v-card class="block"
-        [style.width.px]="widthPxInput()"
-        [config]="{
-          padding: 3,
-          borderRadius: 2,
-        }">
-  <div class="flex items-center justify-between gap-2 text-sm">
-    <span class="flex items-center min-w-0 gap-1">
-      <span class="opacity-70 truncate"
-            [attr.title]="technicalNameInput() || null">{{ labelInput() }}</span>
-      @if (descriptionInput()) {
-        <v-tooltip class="shrink-0"
-                   [text]="descriptionInput()">
-          <v-icon class="opacity-70"
-                  [name]="Icon.Info"
+        [class.cursor-pointer]="isInteractiveInput()"
+        [isSelected]="isSelectedInput()"
+        [borderRadius]="2"
+        [padding]="2"
+        [style.padding-bottom]="'5px'"
+        (click)="onCardClick()">
+  <!-- h-3.5 pins this row to the value's own rendered height (text-sm + leading-none = 14px)
+       regardless of what its children do. Firefox computes a baseline-aligned flex line's
+       cross-size from font ascent/descent metrics, not just child box heights — the
+       font-mono hover timestamp next to v-rolling-number's text was nudging that computed
+       height by a fraction of a pixel on hover, a mismatch Chrome doesn't reproduce. With an
+       explicit height the row can no longer grow to fit that math; a child that wants more
+       just overflows instead, which none of these single-line, leading-none children do. -->
+  <div class="flex items-start justify-between gap-2 text-xs h-3.5">
+    @if (isEditModeInput() && !hideDashboardControlsInput()) {
+      <div class="flex items-center flex-1 min-w-0 gap-2"
+           (click)="$event.stopPropagation()">
+        <v-checkbox [value]="isDashboardEnabledInput()"
+                    (onChanged)="onDashboardEnabledChange($event)"
+                    [isDisabled]="isSelectionDisabledInput()"
+                    [size]="4"
+                    [gap]="1"
+                    [checkIconSize]="3" />
+        <v-button surface="flat"
+                  [isLabelHidden]="true"
+                  [padding]="1"
+                  [isDisabled]="isSelectionDisabledInput()"
+                  class="shrink-0"
+                  (onClick)="toggleChartMode()">
+          <v-icon v-prefix
+                  [name]="chartModeInput() === 'bar' ? Icon.BarChart : Icon.Timeline"
                   [size]="4" />
-        </v-tooltip>
-      }
-    </span>
-    <span class="shrink-0 text-base font-semibold">{{ displayValueInput() || valueInput() }}</span>
+        </v-button>
+        <span class="flex-1 min-w-0 truncate">{{ labelInput() }}</span>
+        @if (isDashboardEnabledInput()) {
+          <v-input class="shrink-0 w-12"
+                   [value]="dashboardOrderInput().toString()"
+                   (valueChange)="onDashboardOrderChange($event)"
+                   type="number"
+                   inputmode="numeric"
+                   [isDisabled]="isSelectionDisabledInput()"
+                   [inputSize]="2"
+                   paddingY="2px"
+                   textAlign="right" />
+        }
+      </div>
+    } @else {
+      <v-tooltip class="flex-1 min-w-0">
+        <span class="opacity-70 min-w-0 leading-none truncate">{{ labelInput() }}</span>
+        <div v-panel
+             class="flex flex-col gap-0.5">
+          <div>{{ technicalNameInput() }}</div>
+          <div>{{ descriptionInput() }}</div>
+        </div>
+      </v-tooltip>
+      <div class="shrink-0 flex items-baseline gap-2">
+        @if (headerDisplayTime$$(); as time) {
+          <span class="opacity-70 font-mono leading-none">{{ time }}</span>
+        }
+        @if (headerOhlcDisplay$$(); as ohlc) {
+          <v-tooltip [noWrap]="true">
+            <v-rolling-number #headerValueElem
+                              class="text-sm font-semibold leading-none text-right"
+                              [style.min-width.px]="headerValueReservedWidthPx$$()"
+                              [textInput]="headerDisplayValue$$()"
+                              [speedInput]="100" />
+            <span v-panel>{{ ohlc }}</span>
+          </v-tooltip>
+        } @else {
+          <v-rolling-number #headerValueElem
+                            class="text-sm font-semibold leading-none text-right"
+                            [style.min-width.px]="headerValueReservedWidthPx$$()"
+                            [textInput]="headerDisplayValue$$()"
+                            [speedInput]="2000" />
+        }
+      </div>
+    }
   </div>
-  <div class="mt-1"
+  <div class="mt-0"
        [style.height.px]="heightPxInput()">
     <canvas #chartCanvas></canvas>
   </div>

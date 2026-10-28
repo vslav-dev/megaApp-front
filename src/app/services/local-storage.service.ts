@@ -1,19 +1,22 @@
 import { Injectable } from '@angular/core';
-import { buildCacheKey } from '@app/shared/cache';
+import { buildCacheKey, hasCacheUser } from '@app/shared/cache';
 
 @Injectable({
   providedIn: 'root',
 })
 export class LocalStorageService {
   public getUserScoped<T>(baseKey: string): T | null {
+    if (!hasCacheUser()) return null;
     return this.get<T>(buildCacheKey(baseKey));
   }
 
   public setUserScoped<T>(baseKey: string, data: T): void {
+    if (!hasCacheUser()) return;
     this.set(buildCacheKey(baseKey), data);
   }
 
   public removeUserScoped(baseKey: string): void {
+    if (!hasCacheUser()) return;
     this.remove(buildCacheKey(baseKey));
   }
 

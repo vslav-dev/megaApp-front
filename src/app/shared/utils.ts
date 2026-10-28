@@ -1,4 +1,4 @@
-import { enToRuTransliterationRules, USER_PREFERRED_MIDNIGHT_OFFSET_HOURS } from '@app/shared/const';
+import { USER_PREFERRED_MIDNIGHT_OFFSET_HOURS } from '@app/shared/const';
 
 export function calculateTodayIsoWithUserTimeShift(): string {
   const todayDate = calcDateWithUserTimeShift(new Date());
@@ -21,10 +21,21 @@ export function epochToIsoNoTimeNoTZ(tsMs: number): string {
 //   return date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2);
 // }
 
+
 export function calcDateWithUserTimeShift(date: Date): Date {
   const adjustedDate = new Date(date.getTime());
   adjustedDate.setHours(adjustedDate.getHours() - USER_PREFERRED_MIDNIGHT_OFFSET_HOURS);
   return adjustedDate;
+}
+
+// All-UTC date arithmetic — deliberately avoids new Date(dateISO) for parsing (that reads a
+// date-only string as UTC midnight, which shifts by a day once read back through local getters for
+// any user behind UTC) by building/reading the Date exclusively through its UTC accessors.
+export function isoDaysBefore(dateISO: string, daysBefore: number): string {
+  const [year, month, day] = dateISO.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() - daysBefore);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
 
 export function formatDateTicks(dateIso: string): string {
@@ -81,6 +92,39 @@ export async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function isDeepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  const aEntries = Object.entries(a as Record<string, unknown>);
+  const bRecord = b as Record<string, unknown>;
+  if (aEntries.length !== Object.keys(bRecord).length) return false;
+  return aEntries.every(([key, value]) => isDeepEqual(value, bRecord[key]));
+}
+
+// Purely a safety bound against pathological inputs (e.g. an absurdly small target width on a very
+// wide container) — no realistic column-fit layout ever approaches this many columns.
+const FIT_COLUMNS_MAX_SEARCH = 64;
+
+// Finds the column count whose per-column width (container width minus gaps, divided by columns)
+// lands closest to targetWidthPx. Fitted width shrinks monotonically as columns grow, so the first
+// column count that stops improving on the previous one is the answer.
+export function fitColumnsToWidth(containerWidthPx: number, targetWidthPx: number, gapPx: number): number {
+  if (targetWidthPx <= 0 || containerWidthPx <= 0) return 1;
+
+  const fittedWidth = (columns: number) => (containerWidthPx - gapPx * (columns - 1)) / columns;
+  let bestColumns = 1;
+  let bestDelta = Math.abs(fittedWidth(1) - targetWidthPx);
+  for (let columns = 2; columns <= FIT_COLUMNS_MAX_SEARCH; columns++) {
+    const width = fittedWidth(columns);
+    if (width <= 0) break;
+    const delta = Math.abs(width - targetWidthPx);
+    if (delta >= bestDelta) break;
+    bestColumns = columns;
+    bestDelta = delta;
+  }
+  return bestColumns;
+}
+
 export function toKebabCase(str: string): string {
   return str
     .replace(/([a-z])([A-Z])/g, '$1-$2') // Adds hyphen between camelCase parts (e.g. 'camelCase' -> 'camel-Case')
@@ -120,11 +164,4 @@ export function getRuDeclension(number: number, one: string, few: string, many: 
 
   // Fallback in case of NaN|Infinity
   return many;
-}
-
-export function transliterateEnToRu(text: string): string {
-  return text
-    .split('')
-    .map((char) => enToRuTransliterationRules[char.toLowerCase()] || char)
-    .join('');
 }

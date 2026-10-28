@@ -1,67 +1,52 @@
 <div class="mx-auto max-w-[400px] p-2">
-<v-card [config]="{
-          padding: 4,
-        }">
+  <v-card [padding]="4">
 
-  @if (authService.bootstrapError$$()) {
-    <div class="flex items-center justify-between gap-2 mb-4 text-red-700">
-      <span>Не удалось связаться с сервером.</span>
-      <v-button class="v-primary"
-                [config]="{
-                  type: 'button',
-                }"
-                (click)="retryBootstrap()">
-        Повторить
-      </v-button>
-    </div>
-  }
-
-  <form [formGroup]="authForm"
-        class="flex flex-col gap-2 mt-6"
-        (ngSubmit)="submit()">
-    @if (!isLoginMode$$() && justRegistered$$()) {
-      <div class="w-full font-bold text-green-800">
-        Регистрация прошла успешно! Теперь вы можете войти со своими логином и паролем:
+    @if (authService.bootstrapError$$()) {
+      <div class="flex items-center justify-between gap-2 mb-4 text-red-700">
+        <span>Не удалось связаться с сервером.</span>
+        <v-button class="v-primary"
+                  (click)="retryBootstrap()">
+          Повторить
+        </v-button>
       </div>
     }
 
-    <v-input formControlName="username"
-             class="w-full"
-             [config]="{
-               type: 'text',
-               label: 'Логин',
-               errorMessage: usernameErrorMessage$$(),
-             }">
-    </v-input>
+    <form [formGroup]="authForm"
+          class="flex flex-col gap-2 mt-6"
+          (ngSubmit)="submit()">
+      @if (!isLoginMode$$() && justRegistered$$()) {
+        <div class="w-full font-bold text-green-800">
+          Регистрация прошла успешно! Теперь вы можете войти со своими логином и паролем:
+        </div>
+      }
 
-    <v-input formControlName="password"
-             class="w-full"
-             [config]="{
-               type: 'password',
-               label: 'Пароль',
-               errorMessage: passwordErrorMessage$$(),
-             }">
-    </v-input>
+      <v-input formControlName="username"
+               class="w-full"
+               label="Логин"
+               [errorMessage]="usernameErrorMessage$$()">
+      </v-input>
 
-    <v-button class="v-primary w-full text-lg"
-              [config]="{
-                type: 'submit',
-                isDisabled: authForm.invalid || submitted$$(),
-              }">
-      {{ isLoginMode$$() ? "Войти" : "Зарегистрироваться" }}
-    </v-button>
-  </form>
+      <v-input formControlName="password"
+               class="w-full"
+               type="password"
+               label="Пароль"
+               [errorMessage]="passwordErrorMessage$$()">
+      </v-input>
 
-  <div class="flex justify-end gap-2 mt-6 mb-6 text-right">
-    <div class="mt-2">{{ isLoginMode$$() ? "Нет аккаунта?" : "Уже есть аккаунт?" }}</div>
-    <v-button class="v-primary"
-              [config]="{
-                type: 'button',
-              }"
-              (click)="toggleMode()">
-      {{ isLoginMode$$() ? "Зарегистрироваться" : "Войти" }}
-    </v-button>
-  </div>
+      <v-button class="v-primary w-full text-lg"
+                type="submit"
+                [isDisabled]="authForm.invalid || submitted$$()">
+        {{ isLoginMode$$() ? "Войти" : "Зарегистрироваться" }}
+      </v-button>
+    </form>
 
-</v-card>
+    <div class="flex justify-end gap-2 mt-6 mb-6 text-right">
+      <div class="mt-2">{{ isLoginMode$$() ? "Нет аккаунта?" : "Уже есть аккаунт?" }}</div>
+      <v-button class="v-primary"
+                (click)="toggleMode()">
+        {{ isLoginMode$$() ? "Зарегистрироваться" : "Войти" }}
+      </v-button>
+    </div>
+
+  </v-card>
 </div>

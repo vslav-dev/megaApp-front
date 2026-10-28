@@ -17,83 +17,91 @@
     </div> -->
 
     @if (error$$()) {
-      <div class="dark:bg-red-900 dark:text-red-200 p-3 text-sm text-red-800 bg-red-100 rounded-lg">
+      <div
+           class="v-theme-transition p-3 text-sm rounded-lg text-[var(--v-color-danger)] bg-[color-mix(in_oklch,var(--v-color-danger)_14%,var(--v-color-surface)_86%)]">
         {{ error$$() }}
+      </div>
+    }
+
+    @if (mode$$() === this.formMode.Edit) {
+      <div class="flex items-center gap-3">
+        <div class="flex items-center justify-center shrink-0 size-20 overflow-hidden rounded-xl text-xs text-center bg-[color-mix(in_oklch,currentColor_10%,transparent)]">
+          @if (imageUrl$$(); as imageUrl) {
+            <img class="size-full object-cover"
+                 alt=""
+                 [src]="imageUrl" />
+          } @else {
+            <span class="opacity-60">Нет картинки</span>
+          }
+        </div>
+
+        @if (canRegenerateImage$$()) {
+          <v-button [isDisabled]="isImageGenerating$$() || isSaving$$() || isDeleting$$()"
+                    (click)="onRegenerateClick()">
+            {{ regenerateButtonLabel$$() }}
+          </v-button>
+        }
       </div>
     }
 
     <div class="flex flex-col gap-2">
       <v-input formControlName="name"
-               [config]="{
-                 label: 'Название продукта',
-                 placeholder: 'Введите название продукта',
-                 type: 'text'
-               }" />
+               label="Название продукта"
+               placeholder="Введите название продукта" />
 
       <div class="flex gap-3 *:flex-1">
         <v-input formControlName="kcals"
                  class=""
-                 [config]="{
-                   label: 'Калории (на 100г)',
-                   placeholder: '0',
-                   type: 'text',
-                   inputmode: 'numeric',
-                   textAlign: 'right',
-                 }" />
+                 inputmode="numeric"
+                 label="Калории (на 100г)"
+                 placeholder="0"
+                 textAlign="right" />
 
         <v-input formControlName="fiber"
-                 [config]="{
-                   label: 'Клетчатка',
-                   placeholder: '0',
-                   type: 'text',
-                   inputmode: 'decimal',
-                   textAlign: 'right',
-                 }" />
+                 inputmode="decimal"
+                 label="Клетчатка"
+                 placeholder="0"
+                 textAlign="right" />
       </div>
 
       <div class="flex gap-3 *:flex-1">
         <v-input formControlName="protein"
-                 [config]="{
-                   label: 'Белки',
-                   placeholder: '0',
-                   type: 'text',
-                   inputmode: 'decimal',
-                   textAlign: 'right',
-                 }" />
+                 inputmode="decimal"
+                 label="Белки"
+                 placeholder="0"
+                 textAlign="right" />
         <v-input formControlName="fat"
-                 [config]="{
-                   label: 'Жиры',
-                   placeholder: '0',
-                   type: 'text',
-                   inputmode: 'decimal',
-                   textAlign: 'right',
-                 }" />
+                 inputmode="decimal"
+                 label="Жиры"
+                 placeholder="0"
+                 textAlign="right" />
 
         <v-input formControlName="carbs"
-                 [config]="{
-                   label: 'Углеводы',
-                   placeholder: '0',
-                   type: 'text',
-                   inputmode: 'decimal',
-                   textAlign: 'right',
-                 }" />
+                 inputmode="decimal"
+                 label="Углеводы"
+                 placeholder="0"
+                 textAlign="right" />
       </div>
 
       <v-input formControlName="description"
-               [config]="{
-                 label: 'Описание',
-                 placeholder: 'Введите описание продукта для улучшения результатов поиска',
-                 isTextarea: true,
-                 rows: 3
-               }" />
+               label="Описание"
+               placeholder="Введите описание продукта для улучшения результатов поиска"
+               [isTextarea]="true"
+               [rows]="3" />
+
+      @if (canEditArchive$$()) {
+        <v-checkbox class="mt-2"
+                    [(value)]="isArchived$$">
+          Архивный
+        </v-checkbox>
+      }
     </div>
 
     <div class="flex justify-between gap-4 mt-0">
-      <v-button class="v-link v-link-static"
-                [config]="{
-                  isLabelHidden: true,
-                  padding: 0,
-                }"
+      <v-button surface="link"
+                [isLinkStatic]="true"
+                [isLabelHidden]="true"
+                [padding]="0"
                 (click)="goBack()">
         <v-icon v-prefix
                 [name]="Icon.ChevronLeft"
@@ -103,10 +111,7 @@
       <div class="flex gap-3 ml-auto">
         @if (mode$$() === this.formMode.Edit && productToEdit$$()?.canDelete) {
           <v-button class="v-danger"
-                    [config]="{
-                      type: 'button',
-                      isDisabled: isSaving$$() || isDeleting$$(),
-                    }"
+                    [isDisabled]="isSaving$$() || isDeleting$$()"
                     (click)="openDeleteConfirmation()">
             {{ isDeleting$$() ? 'Удаление...' : 'Удалить' }}
           </v-button>
@@ -114,10 +119,7 @@
 
         <v-button class="v-primary"
                   type="submit"
-                  [config]="{
-                    type: 'submit',
-                    isDisabled: !isFormValid() || isSaving$$() || isDeleting$$(),
-                  }">
+                  [isDisabled]="!isFormValid() || isSaving$$() || isDeleting$$()">
           {{ isSaving$$() ? 'Сохранение...' : (mode$$() === this.formMode.Edit ? 'Сохранить изменения' : 'Добавить продукт') }}
         </v-button>
       </div>
@@ -133,3 +135,12 @@
                (confirmOutput)="onDeleteConfirmed()"
                (cancelOutput)="closeDeleteConfirmation()"
                (closeOutput)="closeDeleteConfirmation()"></default-modal>
+
+<default-modal [isModalOpen]="isRegenerateConfirmOpen$$()"
+               [modalTitle]="'Перегенерировать картинку?'"
+               [modalMessage]="'Текущая картинка будет заменена новой, когда та будет готова.'"
+               [confirmButtonLabel]="'Перегенерировать'"
+               [cancelButtonLabel]="'Отмена'"
+               (confirmOutput)="onRegenerateConfirmed()"
+               (cancelOutput)="closeRegenerateConfirmation()"
+               (closeOutput)="closeRegenerateConfirmation()"></default-modal>

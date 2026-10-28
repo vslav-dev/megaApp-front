@@ -9,10 +9,8 @@
 
       <div class="flex justify-center w-full gap-2">
         <v-button class="v-danger mr-auto"
-                  [config]="{
-                    isLabelHidden: true,
-                    padding: 2
-                  }"
+                  [isLabelHidden]="true"
+                  [padding]="2"
                   (click)="cancel()">
           <v-icon v-prefix
                   [name]="Icon.Close"
@@ -20,10 +18,8 @@
         </v-button>
 
         <v-button class="v-primary"
-                  [config]="{
-                    isLabelHidden: true,
-                    padding: 2
-                  }"
+                  [isLabelHidden]="true"
+                  [padding]="2"
                   (click)="startCamera()">
           <v-icon v-prefix
                   [name]="Icon.Refresh"
@@ -40,10 +36,8 @@
 
       <div class="absolute bottom-0 flex justify-center w-full gap-4 p-4">
         <v-button class="v-danger mr-auto"
-                  [config]="{
-                    isLabelHidden: true,
-                    padding: 2
-                  }"
+                  [isLabelHidden]="true"
+                  [padding]="2"
                   (click)="cancel()">
           <v-icon v-prefix
                   [name]="Icon.Close"
@@ -51,10 +45,8 @@
         </v-button>
 
         <v-button class="v-primary"
-                  [config]="{
-                    isLabelHidden: true,
-                    padding: 2
-                  }"
+                  [isLabelHidden]="true"
+                  [padding]="2"
                   (click)="retakePhoto()">
           <v-icon v-prefix
                   [name]="Icon.Refresh"
@@ -62,11 +54,9 @@
         </v-button>
 
         <v-button class="v-primary"
-                  [config]="{
-                    isLabelHidden: true,
-                    padding: 2,
-                    isDisabled: isConfirmPhotoTemporarilyDisabled$$()
-                  }"
+                  [isDisabled]="isConfirmPhotoTemporarilyDisabled$$()"
+                  [isLabelHidden]="true"
+                  [padding]="2"
                   (onClick)="confirmPhoto()">
           <v-icon v-prefix
                   [name]="Icon.Check"
@@ -99,10 +89,8 @@
 
       <div class="absolute bottom-0 flex items-center w-full p-4">
         <v-button class="v-danger mr-auto"
-                  [config]="{
-                    isLabelHidden: true,
-                    padding: 2,
-                  }"
+                  [isLabelHidden]="true"
+                  [padding]="2"
                   (click)="cancel()">
           <v-icon v-prefix
                   [name]="Icon.Close"
@@ -110,11 +98,9 @@
         </v-button>
 
         <v-button class="v-primary"
-                  [config]="{
-                    isLabelHidden: true,
-                    padding: 2,
-                    isDisabled: isLoading$$(),
-                  }"
+                  [isDisabled]="isLoading$$()"
+                  [isLabelHidden]="true"
+                  [padding]="2"
                   (click)="takePhoto()">
           <v-icon v-prefix
                   [name]="Icon.PhotoCamera"

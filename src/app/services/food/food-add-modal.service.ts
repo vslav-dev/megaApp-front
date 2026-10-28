@@ -1,26 +1,31 @@
-import { Injectable, signal, WritableSignal } from '@angular/core';
-import { CatalogueEntry } from '@app/shared/types';
+import { inject, Service, signal, WritableSignal } from '@angular/core';
+import { CatalogueEntry, SearchScope } from '@app/shared/types';
+import { FoodCatalogueService } from './food-catalogue.service';
 
-export enum ModalState {
-  CLOSED = 'CLOSED',
-  SEARCH = 'SEARCH',
-  ADD_DIARY_ENTRY = 'ADD_DIARY_ENTRY',
-  CREATE_NEW_PRODUCT = 'CREATE_NEW_PRODUCT',
-  EDIT_PRODUCT = 'EDIT_PRODUCT',
-  CAMERA_PREVIEW = 'CAMERA_PREVIEW',
-}
+export const ModalState = {
+  CLOSED: 'CLOSED',
+  SEARCH: 'SEARCH',
+  ADD_DIARY_ENTRY: 'ADD_DIARY_ENTRY',
+  CREATE_NEW_PRODUCT: 'CREATE_NEW_PRODUCT',
+  EDIT_PRODUCT: 'EDIT_PRODUCT',
+  CAMERA_PREVIEW: 'CAMERA_PREVIEW',
+} as const;
 
-enum ModalEvent {
-  OPEN,
-  CLOSE,
-  SELECT_PRODUCT,
-  ADD_PRODUCT,
-  EDIT_PRODUCT,
-  DELETE_PRODUCT,
-  GO_BACK,
-  SUBMIT_SUCCESS,
-  TAKE_PHOTO,
-}
+export type ModalState = (typeof ModalState)[keyof typeof ModalState];
+
+const ModalEvent = {
+  OPEN: 'OPEN',
+  CLOSE: 'CLOSE',
+  SELECT_PRODUCT: 'SELECT_PRODUCT',
+  ADD_PRODUCT: 'ADD_PRODUCT',
+  EDIT_PRODUCT: 'EDIT_PRODUCT',
+  DELETE_PRODUCT: 'DELETE_PRODUCT',
+  GO_BACK: 'GO_BACK',
+  SUBMIT_SUCCESS: 'SUBMIT_SUCCESS',
+  TAKE_PHOTO: 'TAKE_PHOTO',
+} as const;
+
+type ModalEvent = (typeof ModalEvent)[keyof typeof ModalEvent];
 
 interface ModalContext {
   from: ModalState;
@@ -34,15 +39,20 @@ type StateTransitionMap = {
   };
 };
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class FoodAddModalService {
+  private readonly foodCatalogueService = inject(FoodCatalogueService);
+
   public readonly currentState$$: WritableSignal<ModalState> = signal(ModalState.CLOSED);
 
   public readonly searchQuery$$: WritableSignal<string> = signal('');
 
   public readonly selectedProduct$$: WritableSignal<CatalogueEntry | null> = signal(null);
+
+  // Set by callers that want to reuse this same search modal for something other than the default
+  // "select a product → add a diary entry" flow (e.g. product-history's "track this product" picker).
+  // When set, FoodSearch routes the picked product here instead of transitioning to ADD_DIARY_ENTRY.
+  public readonly productSelectionCallback$$: WritableSignal<((product: CatalogueEntry) => void) | null> = signal(null);
 
   private readonly stateTransitions: StateTransitionMap = {
     [ModalState.CLOSED]: {
@@ -105,6 +115,11 @@ export class FoodAddModalService {
       case ModalState.SEARCH:
         if (from === ModalState.CLOSED) {
           this.searchQuery$$.set('');
+          // The search scope lasts for one modal session. Picking a product to track in the history may
+          // pick an archived one too, while a diary entry can only be added with a product in use.
+          this.foodCatalogueService.setSearchScope(
+            this.productSelectionCallback$$() ? SearchScope.All : SearchScope.Active,
+          );
         }
         if (
           from === ModalState.ADD_DIARY_ENTRY ||
@@ -124,11 +139,21 @@ export class FoodAddModalService {
       case ModalState.CLOSED:
         this.searchQuery$$.set('');
         this.selectedProduct$$.set(null);
+        this.productSelectionCallback$$.set(null);
         break;
     }
   }
 
   public openModal(): void {
+    this.productSelectionCallback$$.set(null);
+    this.transition(ModalEvent.OPEN);
+  }
+
+  // Opens the same search modal but redirects the picked product to onSelect instead of the
+  // default add-diary-entry flow. Closed the same way as any other modal state (X button, backdrop,
+  // Escape) — the callback is cleared on close regardless of how it was reached.
+  public openForProductSelection(onSelect: (product: CatalogueEntry) => void): void {
+    this.productSelectionCallback$$.set(onSelect);
     this.transition(ModalEvent.OPEN);
   }
 

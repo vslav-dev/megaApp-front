@@ -8,7 +8,9 @@
   padding-left: 2.5rem;
   background: linear-gradient(to left, var(--v-color-surface) 60%, transparent);
   opacity: 0;
-  transition: opacity 150ms;
+  transition:
+    opacity 150ms,
+    background var(--v-theme-transition-duration, 0s);
 
   .group:hover & {
     opacity: 1;

@@ -1,15 +1,11 @@
 <div>
 
-  <v-card [config]="{
-            padding: 4,
-            borderRadius: 2,
-          }">
+  <v-card [borderRadius]="2"
+          [padding]="4">
     <div class="flex items-center justify-between mb-4">
       <div class="text-lg font-semibold">Categories</div>
-      <v-button class="v-flat"
-                [config]="{
-                  paddingY: 1,
-                }"
+      <v-button surface="flat"
+                [paddingY]="1"
                 (onClick)="showCreateForm()">
         <v-icon v-prefix
                 [name]="Icon.Add"
@@ -25,8 +21,8 @@
     }
 
     @for (categoryType of getCategoryTypes(); track categoryType) {
-      <div class="mb-6">
-        <div class="pb-2 mb-3 text-lg font-semibold border-b border-[color:var(--v-outline-color)]">
+      <div class="mb-3">
+        <div class="pb-1 mb-1 text-lg font-semibold border-b border-[color:var(--v-outline-color)]">
           {{ getCategoryTypeDisplayName(categoryType) }}
         </div>
 
@@ -36,21 +32,24 @@
           </div>
         } @else {
           @for (parentCategory of getRootCategories(categoryType); track parentCategory.id) {
-            <div class="mb-4">
-              <div class="last:border-b-0 py-3 border-b border-[color:var(--v-outline-color)]">
-                <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="last:border-b-0 py-1 border-b border-[color:var(--v-outline-color)]">
+                <div class="flex items-center justify-between gap-4">
                   <div class="flex-1">
-                    <div class="mb-1">
+                    <div class="flex items-center gap-2">
+                      <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                            [style.background]="getCategoryColor(parentCategory)"></span>
                       <span class="font-medium">{{ parentCategory.name }}</span>
+                      @if (parentCategory.hiddenOnCharts) {
+                        <span class="text-xs opacity-60">hidden on charts</span>
+                      }
                     </div>
                   </div>
 
                   <div class="flex gap-2">
-                    <v-button class="v-flat"
-                              [config]="{
-                                isLabelHidden: true,
-                                padding: iconButton.padding,
-                              }"
+                    <v-button surface="flat"
+                              [isLabelHidden]="true"
+                              [padding]="iconButton.padding"
                               (onClick)="editCategory(parentCategory)">
                       <v-icon v-prefix
                               [name]="Icon.Edit"
@@ -58,11 +57,9 @@
                     </v-button>
 
                     <v-button class="v-danger"
-                              [config]="{
-                                isLabelHidden: true,
-                                padding: iconButton.padding,
-                                isDisabled: !canDeleteCategory(parentCategory.id!),
-                              }"
+                              [isDisabled]="!canDeleteCategory(parentCategory.id!)"
+                              [isLabelHidden]="true"
+                              [padding]="iconButton.padding"
                               (onClick)="deleteCategory(parentCategory.id!)">
                       <v-icon v-prefix
                               [name]="Icon.Delete"
@@ -75,18 +72,21 @@
               @if (getChildCategories(parentCategory.id!).length > 0) {
                 <div class="ml-6">
                   @for (childCategory of getChildCategories(parentCategory.id!); track childCategory.id) {
-                    <div class="last:border-b-0 py-2 border-b border-[color:var(--v-outline-color)]">
-                      <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
+                    <div class="last:border-b-0 py-1 border-b border-[color:var(--v-outline-color)]">
+                      <div class="flex items-center justify-between gap-4">
+                        <div class="flex flex-1 items-center gap-2">
+                          <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                                [style.background]="getCategoryColor(childCategory)"></span>
                           <span>{{ childCategory.name }}</span>
+                          @if (childCategory.hiddenOnCharts) {
+                            <span class="text-xs opacity-60">hidden on charts</span>
+                          }
                         </div>
 
                         <div class="flex gap-2">
-                          <v-button class="v-flat"
-                                    [config]="{
-                                      isLabelHidden: true,
-                                      padding: iconButton.padding,
-                                    }"
+                          <v-button surface="flat"
+                                    [isLabelHidden]="true"
+                                    [padding]="iconButton.padding"
                                     (onClick)="editCategory(childCategory)">
                             <v-icon v-prefix
                                     [name]="Icon.Edit"
@@ -94,11 +94,9 @@
                           </v-button>
 
                           <v-button class="v-danger"
-                                    [config]="{
-                                      isLabelHidden: true,
-                                      padding: iconButton.padding,
-                                      isDisabled: !canDeleteCategory(childCategory.id!),
-                                    }"
+                                    [isDisabled]="!canDeleteCategory(childCategory.id!)"
+                                    [isLabelHidden]="true"
+                                    [padding]="iconButton.padding"
                                     (onClick)="deleteCategory(childCategory.id!)">
                             <v-icon v-prefix
                                     [name]="Icon.Delete"
@@ -120,11 +118,14 @@
 </div>
 
 <form-modal [isModalOpen]="showForm$$()"
+            [isBackdropDimmed]="isBackdropDimmed$$()"
             (closeOutput)="onCancelled()">
   <category-form [categoryInput]="editingCategory$$()"
                  [categoriesInput]="categories$$()"
+                 [isOpenInput]="showForm$$()"
                  (savedOutput)="onSaved()"
-                 (cancelledOutput)="onCancelled()">
+                 (cancelledOutput)="onCancelled()"
+                 (sliderDragOutput)="isSliderHeld$$.set($event)">
   </category-form>
 </form-modal>
 

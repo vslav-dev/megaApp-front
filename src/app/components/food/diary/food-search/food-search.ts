@@ -1,131 +1,52 @@
-import { NgClass } from '@angular/common';
-import { Component, computed, effect, inject, signal } from '@angular/core';
-import { DeviceInfoService } from '@app/services/device-info.service';
+import { ChangeDetectionStrategy, Component, effect, inject, viewChild } from '@angular/core';
+import {
+  FoodProductPicker,
+  ProductPickerSelection,
+} from '@app/components/food/diary/food-product-picker/food-product-picker';
 import { FoodAddModalService, ModalState } from '@app/services/food/food-add-modal.service';
-import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
-import { VoiceRecordingService } from '@app/services/voice-recording.service';
-import { ANIMATION_CLASSES } from '@app/shared/animations';
-import { FlipAnimateDirective } from '@app/shared/directives/flip-animate.directive';
 import { CatalogueEntry, DiaryEntry, HistoryEntryAction } from '@app/shared/types';
-import { VButton } from '@ui-kit/components/v-button/v-button';
-import { VCard } from '@ui-kit/components/v-card/v-card';
-import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
-import { VInput } from '@ui-kit/components/v-input/v-input';
 
+// Thin diary add-flow wrapper around the reusable FoodProductPicker: owns everything specific to
+// "picking a product while adding a diary entry" (the shared modal state machine, the
+// weight-in-query shortcut that creates the entry directly) — the picker itself knows nothing
+// about diary entries or FoodAddModalService.
 @Component({
   selector: 'food-search',
   templateUrl: './food-search.html',
-  styleUrl: './food-search.scss',
-  imports: [VInput, VButton, VIcon, VCard, FlipAnimateDirective, NgClass],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [FoodProductPicker],
 })
 export class FoodSearch {
-  protected readonly Icon = IconName;
-  protected readonly AnimationClass = ANIMATION_CLASSES;
-
-  protected readonly isLegacySearch$$ = computed(() => this.foodCatalogueService.isLegacySearch$$());
-
-  protected readonly searchResults$$ = computed(() => {
-    if (this.isLegacySearch$$()) {
-      return this.foodCatalogueService.legacySearchResults$$();
-    } else {
-      return this.foodCatalogueService.searchResults$$();
-    }
-  });
-
-  protected readonly extractedWeight$$ = signal<number | null>(null);
-
-  private readonly clearSearchOnModalCloseEffect$$ = effect(() => {
-    const currentState = this.foodAddModalService.currentState$$();
-
-    if (currentState === ModalState.CLOSED) {
-      this.foodAddModalService.searchQuery$$.set('');
-      this.foodCatalogueService.clearSearch();
-    }
-
-    if (currentState === ModalState.SEARCH) {
-      setTimeout(() => this.focusInput(), 200);
-    }
-  });
-
-  private readonly searchEffect$$ = effect(() => {
-    const searchQuery = this.foodAddModalService.searchQuery$$();
-    const isLegacy = this.isLegacySearch$$();
-
-    if (searchQuery && searchQuery.trim()) {
-      const { query, weight } = this.parseSearchQuery(searchQuery);
-      this.extractedWeight$$.set(weight);
-
-      if (isLegacy) {
-        this.foodCatalogueService.legacySearchProducts(query);
-      } else {
-        this.foodCatalogueService.searchProducts(query);
-      }
-    } else {
-      this.extractedWeight$$.set(null);
-      this.foodCatalogueService.clearSearch();
-    }
-  });
-
-  protected get isRecording(): boolean {
-    return this.voiceRecordingService.isRecording$$();
-  }
-
-  protected readonly deviceInfoService = inject(DeviceInfoService);
   protected readonly foodAddModalService = inject(FoodAddModalService);
-  private readonly voiceRecordingService = inject(VoiceRecordingService);
-  private readonly foodCatalogueService = inject(FoodCatalogueService);
   private readonly foodDiaryService = inject(FoodDiaryService);
 
-  private focusInput(): void {
-    const inputEl = document.querySelector('v-input.catalogue-entry-name-input input') as HTMLInputElement;
-    if (inputEl) inputEl.focus();
-  }
+  private readonly pickerElem = viewChild(FoodProductPicker);
 
-  protected toggleLegacySearch(): void {
-    this.foodCatalogueService.isLegacySearch$$.update((val) => !val);
-  }
-
-  protected async toggleVoiceRecording(): Promise<void> {
-    if (this.isRecording) {
-      this.voiceRecordingService.stopRecording();
-    } else {
-      try {
-        await this.voiceRecordingService.startRecording();
-      } catch (error) {
-        console.error('Failed to start voice recording:', error);
-        alert('Failed to access microphone. Please check permissions.');
-      }
+  private readonly focusOnOpenEffect$$ = effect(() => {
+    if (this.foodAddModalService.currentState$$() === ModalState.SEARCH) {
+      setTimeout(() => this.pickerElem()?.focusInput(), 200);
     }
-  }
+  });
 
-  protected takePhoto(): void {
-    this.foodAddModalService.takePhoto();
-  }
+  private readonly clearSearchOnModalCloseEffect$$ = effect(() => {
+    if (this.foodAddModalService.currentState$$() === ModalState.CLOSED) {
+      this.foodAddModalService.searchQuery$$.set('');
+    }
+  });
 
-  protected onSearchClearClick(): void {
-    this.foodAddModalService.searchQuery$$.set('');
-  }
+  protected async onProductSelected(selection: ProductPickerSelection): Promise<void> {
+    const { product, weight } = selection;
 
-  protected onSearchEnterPressed(event: KeyboardEvent): void {
-    if (this.foodAddModalService.currentState$$() !== ModalState.SEARCH) return;
+    const selectionCallback = this.foodAddModalService.productSelectionCallback$$();
+    if (selectionCallback) {
+      selectionCallback(product);
+      this.foodAddModalService.closeModal();
+      return;
+    }
 
-    if (event.isComposing) return;
-
-    const results = this.searchResults$$();
-    const first = results?.[0];
-    if (!first) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    this.selectProduct(first);
-  }
-
-  protected async selectProduct(product: CatalogueEntry): Promise<void> {
-    const weight = this.extractedWeight$$();
-
-    if (weight !== null && weight > 0) {
+    // An archived product can't get a diary entry: it opens the add form (with the button disabled).
+    if (weight !== null && weight > 0 && !product.archived) {
       await this.createDiaryEntryWithWeight(product, weight);
     } else {
       this.foodAddModalService.selectProduct(product);
@@ -138,46 +59,6 @@ export class FoodSearch {
 
   protected closeModal(): void {
     this.foodAddModalService.closeModal();
-  }
-
-  protected getDisplayName(catalogueEntry: CatalogueEntry): string {
-    const isLegacy = this.isLegacySearch$$();
-    if (isLegacy) {
-      return catalogueEntry.legacyName || catalogueEntry.name;
-    }
-    return catalogueEntry.name;
-  }
-
-  protected getImageUrl(catalogueEntry: CatalogueEntry): string | null {
-    if (!catalogueEntry.imageVersion) {
-      return null;
-    }
-    return `/api/images/food/${catalogueEntry.id}-thumb-v${catalogueEntry.imageVersion}.webp`;
-  }
-
-  private parseSearchQuery(searchQuery: string): { query: string; weight: number | null } {
-    const trimmedQuery = searchQuery.trim();
-    const words = trimmedQuery.split(/\s+/); // Whitespaces
-
-    const lastWord = words[words.length - 1];
-    const weightMatch = lastWord?.match(/^(\d+)$/); // Digits only
-
-    if (weightMatch && words.length > 1) {
-      const weight = parseInt(weightMatch[1], 10);
-
-      if (weight > 0) {
-        const queryWithoutWeight = words.slice(0, -1).join(' ').trim();
-        return {
-          query: queryWithoutWeight,
-          weight: weight,
-        };
-      }
-    }
-
-    return {
-      query: trimmedQuery,
-      weight: null,
-    };
   }
 
   private async createDiaryEntryWithWeight(product: CatalogueEntry, weight: number): Promise<void> {

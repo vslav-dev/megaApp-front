@@ -1,20 +1,6 @@
-<v-card [config]="{
-          padding: 4,
-          borderRadius: 2,
-        }">
-  <div class="flex items-center justify-between mb-1">
-    <div class="text-lg font-semibold">Balances</div>
-    <v-button class="v-flat"
-              [config]="{
-                isLabelHidden: true,
-                padding: 2,
-              }"
-              (onClick)="toggleKeepNativeCurrency()">
-      <v-icon v-prefix
-              [name]="keepNativeCurrency$$() ? Icon.Keep : Icon.KeepOff"
-              [size]="4"></v-icon>
-    </v-button>
-  </div>
+<v-card [borderRadius]="2"
+        [padding]="4">
+  <div class="mb-1 text-lg font-semibold">Balances</div>
 
   @for (account of activeAccounts$$(); track account.id) {
     <div class="last:border-b-0 py-1 last:pb-0 border-b border-[rgba(0,0,0,0.1)]">

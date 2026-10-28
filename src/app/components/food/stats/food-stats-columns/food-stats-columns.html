@@ -1,0 +1,25 @@
+@for (column of columns$$(); track $index) {
+  <div class="flex flex-col min-w-0 gap-3"
+       style="grid-row: 1"
+       [style.grid-column]="gridColumnsInput()[$index]">
+    @for (block of column; track block) {
+      @switch (block) {
+        @case (Block.Streak) {
+          <food-stats-streak />
+        }
+        @case (Block.TopProducts) {
+          <food-stats-top-products />
+        }
+        @case (Block.Milestones) {
+          <food-stats-milestones />
+        }
+        @case (Block.Charts) {
+          <food-stats-charts />
+        }
+        @case (Block.ProductHistory) {
+          <food-stats-product-history />
+        }
+      }
+    }
+  </div>
+}

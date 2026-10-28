@@ -1,10 +1,5 @@
 <div class="flex flex-col gap-3">
-  <div class="flex items-center justify-between">
-    <div class="text-lg font-semibold">Income Sources</div>
-    <v-toggle [items]="viewToggleItems"
-              [value]="viewToggleValue()"
-              (valueChange)="onViewToggleChange($event)"></v-toggle>
-  </div>
+  <div class="text-lg font-semibold">Income Sources</div>
 
   <div class='h-[190px]'>
     <canvas #chartCanvas></canvas>
@@ -12,11 +7,10 @@
 
   <div class="flex items-center gap-3 pt-0">
     <div class="min-w-[63px]">
-      <v-button class="v-flat shrink-0"
-                [config]="{
-                  padding: 1,
-                  width: '100%',
-                }"
+      <v-button class="shrink-0"
+                surface="flat"
+                width="100%"
+                [padding]="1"
                 (onClick)="toggleAll()">
         {{ allNoneLabel$$() }}
       </v-button>
@@ -24,11 +18,11 @@
     <div class="gap-x-4 gap-y-1 flex flex-wrap">
       @for (series of dataInput().categorySeries; track series.categoryId) {
         <v-checkbox [value]="isCategoryEnabled(series.categoryId)"
-                    [config]="{
-                      size: 4,
-                      checkIconSize: 3,
-                      gap: 1,
-                    }"
+                    [size]="4"
+                    [gap]="1"
+                    [checkIconSize]="3"
+                    (mouseenter)="onCategoryMouseEnter(series.categoryName)"
+                    (mouseleave)="onCategoryMouseLeave()"
                     (onChanged)="toggleCategory(series.categoryId, $event)">
           <span class="inline-flex items-center gap-1 text-xs">
             <span class="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"

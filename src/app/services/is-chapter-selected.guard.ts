@@ -3,19 +3,18 @@ import { CanActivateFn, Router } from '@angular/router';
 
 import { SettingsService } from '@app/services/settings.service';
 
-export const isChapterSelected: CanActivateFn = (route, state) => {
-  const url = state.url;
-
+export const isChapterSelected: CanActivateFn = async (_route, state) => {
   const router = inject(Router);
   const settingsService = inject(SettingsService);
+  await settingsService.ensureReady();
 
   const settings = settingsService.settings$$();
 
-  if (url.startsWith('/food') && !settings.selectedChapterFood) {
+  if (state.url.startsWith('/food') && !settings.selectedChapterFood) {
     return router.createUrlTree(['/settings']);
   }
 
-  if (url.startsWith('/money') && !settings.selectedChapterMoney) {
+  if (state.url.startsWith('/money') && !settings.selectedChapterMoney) {
     return router.createUrlTree(['/settings']);
   }
 

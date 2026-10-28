@@ -1,12 +1,11 @@
-import { NgStyle } from '@angular/common';
 import {
-  AfterViewInit,
+  afterRenderEffect,
+  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
   ElementRef,
   inject,
-  NgZone,
   signal,
   viewChild,
   viewChildren,
@@ -14,60 +13,58 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { BMI } from '@app/components/food/diary/bmi/bmi';
 import { BodyWeight } from '@app/components/food/diary/body-weight/body-weight';
-import { CameraPreview } from '@app/components/food/diary/camera-preview/camera-preview';
-import { DiaryEntryAddForm } from '@app/components/food/diary/diary-entry-add-form/diary-entry-add-form';
 import { DiaryEntryEditForm } from '@app/components/food/diary/diary-entry-edit-form/diary-entry-edit-form';
 import { DiaryNavButtons } from '@app/components/food/diary/diary-nav/diary-nav-buttons';
-import { FoodSearch } from '@app/components/food/diary/food-search/food-search';
+import { FOOD_DIARY_ACCORDION_GROUP_ID } from '@app/components/food/diary/food-diary-accordion';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodAddModalService, ModalState } from '@app/services/food/food-add-modal.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { KeyboardService } from '@app/services/keyboard.service';
+import { DiaryEntryWithFullData } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
-import { VCard } from '@ui-kit/components/v-card/v-card';
 import { VAccordion } from '@ui-kit/components/v-expand/v-accordion';
 import { VExpand } from '@ui-kit/components/v-expand/v-expand';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { VModal } from '@ui-kit/components/v-modal/v-modal';
+import { VRollingNumber } from '@ui-kit/components/v-rolling-number/v-rolling-number';
 import { AccordionGroupService } from '@ui-kit/services/accordion-group.service';
-import { CatalogueEntryEditForm } from './catalogue-entry-edit-form/catalogue-entry-edit-form';
 import { NutritionSummary } from './nutrition-summary/nutrition-summary';
 
 @Component({
   selector: 'food-diary',
   templateUrl: './food-diary.html',
   styleUrl: './food-diary.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    NgStyle,
     DiaryNavButtons,
     DiaryEntryEditForm,
-    DiaryEntryAddForm,
     BMI,
-    CameraPreview,
-    FoodSearch,
-    CatalogueEntryEditForm,
     BodyWeight,
     NutritionSummary,
     VButton,
     VModal,
     VAccordion,
     VExpand,
-    VCard,
     VIcon,
+    VRollingNumber,
   ],
 })
-export class FoodDiary implements AfterViewInit {
+export class FoodDiary {
   protected readonly bodyWeightComponent = viewChild.required<BodyWeight>('bodyWeight');
   protected readonly diaryEntryHeaders = viewChildren<ElementRef>('diaryEntryHeader');
 
-  protected readonly weightsDivs = viewChildren<ElementRef>('foodWeight');
-  protected readonly kcalsDivs = viewChildren<ElementRef>('foodKcals');
-  protected readonly percentsDivs = viewChildren<ElementRef>('foodPercent');
+  private readonly weightMeasureElems = viewChildren<ElementRef>('foodWeightMeasureElem');
+  private readonly percentMeasureElems = viewChildren<ElementRef>('foodPercentMeasureElem');
 
-  private readonly shouldRecalcColumns$$ = signal(0);
-
-  protected readonly ModalViewMode = ModalState;
+  // null = no width constraint yet, each row sits at its own natural (auto) width.
+  // Never reset on day change — new rows are born pinned to the last committed width
+  // instead of jumping to auto, then animate (via CSS transition) to the freshly
+  // measured target once the new day's content has painted.
+  protected readonly columnWidths$$ = signal<{ weight: number | null; percent: number | null }>({
+    weight: null,
+    percent: null,
+  });
 
   protected readonly selectedDayDiaryEntries$$ = computed(() => {
     const selectedDay = this.foodDiaryService.selectedDayIso$$();
@@ -90,30 +87,74 @@ export class FoodDiary implements AfterViewInit {
     return Math.round(this.foodDiaryService.selectedDayTotals$$().kcalsPercent * 10) / 10;
   });
 
+  // Bar scale sits at 100% until consumption overflows it, then jumps to the next
+  // 25%-multiple ceiling (125, 150, ...) so the fill never clips past the bar's edge.
+  protected readonly dayProgressScale$$ = computed(() => {
+    const percent = this.selectedDaysKcalsPercent$$();
+    if (percent <= 100) return 100;
+    return Math.ceil(percent / FoodDiary.DAY_PROGRESS_STEP) * FoodDiary.DAY_PROGRESS_STEP;
+  });
+
+  protected readonly dayProgressFillPercent$$ = computed(() => {
+    return (this.selectedDaysKcalsPercent$$() / this.dayProgressScale$$()) * 100;
+  });
+
+  // One dashed marker per 25%-multiple the current scale has absorbed (100, then 125, ...),
+  // positioned as a fraction of the current scale so they slide left as the scale grows.
+  protected readonly dayProgressTicks$$ = computed(() => {
+    const scale = this.dayProgressScale$$();
+    const ticks: { value: number; position: number }[] = [];
+
+    for (let threshold = 100; threshold < scale; threshold += FoodDiary.DAY_PROGRESS_STEP) {
+      ticks.push({ value: threshold, position: (threshold / scale) * 100 });
+    }
+
+    return ticks;
+  });
+
   protected readonly hasSelectedDayDiaryEntries$$ = computed(() => this.selectedDayDiaryEntries$$().length > 0);
   protected readonly canRestoreSelectedDay$$ = computed(
     () => this.foodDiaryService.selectedDayDeletedSnapshot$$() !== null,
   );
 
-  protected readonly caloriesDisplayText$$ = computed(() => {
+  // null hides the whole label (no target set yet) — string, not number, so it can feed
+  // v-rolling-number directly without the template re-deriving a display format.
+  protected readonly selectedDaysConsumedPercentText$$ = computed<string | null>(() => {
     const percent = this.selectedDaysFormattedConsumedPercent$$();
-    if (Number.isNaN(percent)) return '';
-
-    return `Съедено ${percent}% от дневной нормы`;
+    return Number.isNaN(percent) ? null : String(percent);
   });
 
-  protected readonly addDiaryEntryButtonVariant$$ = computed(() => {
-    if (this.deviceInfoService.isDesktopScreen$$()) return 'primary';
-    return this.openedDiaryEntryId$$() !== null ? 'raised' : 'primary';
-  });
+  // Drives hiding "Добавить запись" (and the mobile add-FAB in diary-nav-buttons) while any
+  // accordion on this screen is expanded — its "Сохранить"/panel controls sit right next to
+  // that button and users kept mis-tapping one for the other.
+  protected readonly isAnyAccordionOpen$$ = computed(() =>
+    this.accordionGroupService.isAnyOpen(FOOD_DIARY_ACCORDION_GROUP_ID),
+  );
 
-  protected isDeleteDayConfirmOpen = false;
+  protected readonly isDeleteDayConfirmOpen$$ = signal(false);
   protected readonly Icon = IconName;
 
-  private readonly columnWidthsSyncEffect$$ = effect(() => {
-    this.selectedDayDiaryEntries$$();
-    this.shouldRecalcColumns$$();
-    setTimeout(() => this.syncColumnWidths(), 0);
+  private static readonly DAY_PROGRESS_STEP = 25;
+
+  // Measures natural content width from the unconstrained inner spans (unaffected by
+  // whatever width is currently applied to their parent), so recalculation never needs
+  // to reset columns back to auto first — that reset was the source of the visible jump.
+  private readonly columnWidthsSyncEffect$$ = afterRenderEffect({
+    read: () => {
+      this.selectedDayDiaryEntries$$();
+
+      const weightWidths = this.weightMeasureElems().map((elem) => elem.nativeElement.getBoundingClientRect().width);
+      const percentWidths = this.percentMeasureElems().map((elem) => elem.nativeElement.getBoundingClientRect().width);
+      if (weightWidths.length === 0) return;
+
+      const nextWeight = Math.ceil(Math.max(...weightWidths));
+      const nextPercent = Math.ceil(Math.max(...percentWidths));
+
+      this.columnWidths$$.update((current) => {
+        if (current.weight === nextWeight && current.percent === nextPercent) return current;
+        return { weight: nextWeight, percent: nextPercent };
+      });
+    },
   });
 
   private readonly closeFoodEntriesOnDayChangeEffect$$ = effect(() => {
@@ -134,7 +175,6 @@ export class FoodDiary implements AfterViewInit {
   protected readonly deviceInfoService = inject(DeviceInfoService);
   protected readonly foodCatalogueService = inject(FoodCatalogueService);
   private readonly accordionGroupService = inject(AccordionGroupService);
-  private readonly ngZone = inject(NgZone);
   private readonly keyboardService = inject(KeyboardService);
 
   private readonly shortcutSubscription = this.keyboardService
@@ -147,25 +187,23 @@ export class FoodDiary implements AfterViewInit {
       this.openAddFoodModal();
     });
 
-  public ngAfterViewInit(): void {
-    this.triggerColumnRecalc();
+  // An archived product's fill is hatched: the filled part is made of diagonal stripes with
+  // transparent gaps, so whatever is behind the row (light or dark theme background) shows through.
+  // The entry that is being edited right now shows its draft share, any other one its saved share.
+  protected getFillPercent(food: DiaryEntryWithFullData): number {
+    const draft = this.foodDiaryService.draftEntryPercent$$();
+    return draft?.diaryId === food.id ? draft.percent : food.foodKcalPercentageOfDaysNorm;
   }
 
-  private triggerColumnRecalc(): void {
-    this.shouldRecalcColumns$$.update((val) => val + 1);
-  }
-
-  protected setBackgroundStyle(percent: number, ltr = false): { [key: string]: string } {
+  protected setBackgroundStyle(percent: number, isArchived: boolean): { [key: string]: string } {
     const percentCapped = percent <= 100 ? percent : 100;
-    const dir = ltr ? 'to right' : 'to left';
+    if (isArchived) {
+      const hatching = 'repeating-linear-gradient(120deg, var(--gradient-color) 0 8px, transparent 8px 14px)';
+      return { background: `${hatching} right / ${percentCapped}% 100% no-repeat` };
+    }
     return {
-      background: `linear-gradient(${dir}, var(--gradient-color) ${percentCapped}%, var(--gradient-bg) ${percentCapped}%)`,
+      background: `linear-gradient(to left, var(--gradient-color) ${percentCapped}%, var(--gradient-bg) ${percentCapped}%)`,
     };
-  }
-
-  protected closeModal() {
-    this.foodAddModalService.closeModal();
-    this.foodCatalogueService.clearSearch();
   }
 
   protected openAddFoodModal() {
@@ -177,67 +215,20 @@ export class FoodDiary implements AfterViewInit {
     if (!this.hasSelectedDayDiaryEntries$$()) return;
 
     this.closeAllAccordions();
-    this.isDeleteDayConfirmOpen = true;
+    this.isDeleteDayConfirmOpen$$.set(true);
   }
 
   protected closeDeleteDayConfirmationModal(): void {
-    this.isDeleteDayConfirmOpen = false;
+    this.isDeleteDayConfirmOpen$$.set(false);
   }
 
   protected async onDeleteDayConfirmed(): Promise<void> {
-    this.isDeleteDayConfirmOpen = false;
+    this.isDeleteDayConfirmOpen$$.set(false);
     await this.foodDiaryService.deleteSelectedDayEntries();
   }
 
   protected async onRestoreDayClicked(): Promise<void> {
     await this.foodDiaryService.restoreSelectedDayEntries();
-  }
-
-  private syncColumnWidths(): void {
-    this.ngZone.run(() => {
-      const weightsDivs = this.weightsDivs();
-      const kcalsDivs = this.kcalsDivs();
-      const percentsDivs = this.percentsDivs();
-
-      if (weightsDivs.length === 0) return;
-
-      this.resetWidth(weightsDivs);
-      this.resetWidth(kcalsDivs);
-      this.resetWidth(percentsDivs);
-
-      setTimeout(() => {
-        const maxWeightWidth = this.getMaxWidth(weightsDivs);
-        const maxKcalsWidth = this.getMaxWidth(kcalsDivs);
-        const maxPercentWidth = this.getMaxWidth(percentsDivs);
-
-        if (maxWeightWidth > 0) {
-          this.setWidth(weightsDivs, maxWeightWidth);
-        }
-        if (maxKcalsWidth > 0) {
-          this.setWidth(kcalsDivs, maxKcalsWidth);
-        }
-        if (maxPercentWidth > 0) {
-          this.setWidth(percentsDivs, maxPercentWidth);
-        }
-      }, 0);
-    });
-  }
-
-  private getMaxWidth(elems: readonly ElementRef[]): number {
-    const widths = elems.map((elem) => elem.nativeElement.offsetWidth);
-    return Math.max(...widths);
-  }
-
-  private resetWidth(elems: readonly ElementRef[]): void {
-    elems.forEach((elem) => {
-      elem.nativeElement.style.width = 'auto';
-    });
-  }
-
-  private setWidth(elems: readonly ElementRef[], width: number): void {
-    elems.forEach((elem) => {
-      elem.nativeElement.style.width = `${Math.ceil(width)}px`;
-    });
   }
 
   protected isEntryExpanded(diaryEntryId: number): boolean {
@@ -253,7 +244,6 @@ export class FoodDiary implements AfterViewInit {
         this.openedDiaryEntryId$$.set(expandingDiaryEntryId);
       }, 0);
       this.foodDiaryService.focusDiaryEntry(expandingDiaryEntryId);
-      this.triggerColumnRecalc();
 
       if (this.deviceInfoService.isDesktopScreen$$()) return;
 
@@ -282,6 +272,6 @@ export class FoodDiary implements AfterViewInit {
   }
 
   protected closeAllAccordions(): void {
-    this.accordionGroupService.closeAll('food-diary-section');
+    this.accordionGroupService.closeAll(FOOD_DIARY_ACCORDION_GROUP_ID);
   }
 }

@@ -1,9 +1,9 @@
 <div class="">
-  <v-button class="v-link v-link-static main-menu-button-darkTheme w-9"
-            [config]="{
-              isLabelHidden: true,
-              padding: 2,
-            }"
+  <v-button class="main-menu-button-darkTheme w-9"
+            surface="link"
+            [isLinkStatic]="true"
+            [isLabelHidden]="true"
+            [padding]="2"
             (click)="switchTheme()">
     <v-icon v-prefix
             [name]="iconName$$()"

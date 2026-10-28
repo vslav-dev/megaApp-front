@@ -1,0 +1,39 @@
+.history-grid {
+  display: grid;
+  grid-template-columns: 1fr max-content max-content max-content;
+  column-gap: 0.75rem;
+  row-gap: 0.375rem;
+  align-items: center;
+
+  // Every column keeps its natural width except the product one, which takes the rest and is the only one
+  // allowed to shrink below its text (minmax(0, …) lifts the grid's min-content floor so the name can ellipsize).
+  &.with-product-col {
+    grid-template-columns: max-content minmax(0, 1fr) max-content max-content max-content;
+  }
+}
+
+.history-header {
+  font-weight: 500;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--v-color-border-subtle);
+}
+
+.history-header-empty {
+  border-bottom: none;
+}
+
+.history-cell {
+  white-space: nowrap;
+}
+
+.history-container {
+  min-height: 2rem;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--v-color-surface) 70%, transparent);
+  border-radius: inherit;
+  z-index: 1;
+}

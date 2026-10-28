@@ -1,0 +1,92 @@
+<v-card class="v-theme-transition"
+        [borderRadius]="2"
+        [padding]="2">
+  <div class="flex items-center justify-between gap-2 mb-2">
+    <div class="text-lg font-semibold">Графики</div>
+    <food-stats-help-icon>
+      <div class="flex flex-col gap-2">
+        <div>Два графика за выбранный период.</div>
+        <div class="flex flex-col gap-1">
+          <div><span class="font-semibold">Вес</span> — точки: вес по дням, линия: усреднённый тренд. Цветной фон —
+            категории BMI для вашего роста (зелёный — норма); отключается переключателем «BMI на графике» в дневнике.
+          </div>
+          <div><span class="font-semibold">Калории</span> — столбики: сколько съедено за день, линия: ваша дневная
+            норма. Продукты, выбранные в блоке «История продукта», выделены цветом в основании столбика.</div>
+        </div>
+        <div class="text-[color:var(--v-color-text-muted)]">Период показа можно менять ползунком или кнопками внизу.
+        </div>
+      </div>
+    </food-stats-help-icon>
+  </div>
+
+  <div class="flex flex-col gap-2">
+
+    <div class="chart-container h-[180px]">
+      <canvas #weightChartCanvas
+              id="WeightChart">
+        {{ weightChart$$() }}
+      </canvas>
+    </div>
+
+    <div class="chart-container pl-[22px] h-[180px]">
+      <canvas #kcalsChartCanvas
+              id="KcalsChart">
+        {{ kcalsChart$$() }}
+      </canvas>
+    </div>
+
+    @if (hasSelection$$()) {
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[color:var(--v-color-text-muted)]">
+        <span class="flex items-center gap-1.5">
+          <span class="inline-block w-3 h-3 rounded-sm"
+                [style.background]="selectedColor$$()"></span>
+          Выбранные продукты
+        </span>
+        <span class="flex items-center gap-1.5">
+          <span class="inline-block w-3 h-3 rounded-sm"
+                [style.background]="restColor$$()"></span>
+          Остальное
+        </span>
+      </div>
+    }
+
+    <div class="flex w-full">Выбрано: {{ selectedRangeLabel$$() }}</div>
+
+    <div class="flex w-full">
+      <div class="flex w-1/2">
+        <div class="w-1/4 text-left">От:</div>
+        <div class="w-3/4 text-left">{{ sliderStartLabel$$() }}</div>
+      </div>
+
+      <div class="flex w-1/2">
+        <div class="w-1/4 text-right">До:</div>
+        <div class="w-3/4 text-right">{{ sliderEndLabel$$() }}</div>
+      </div>
+    </div>
+
+    <v-slider class="mb-1"
+              [valueList]="sliderValueList$$()"
+              [isRange]="true"
+              [isTouchMode]="deviceInfoService.isMobileScreen$$()"
+              [min]="0"
+              [max]="maxSliderValue$$()"
+              [thumbBorderRadius]="2"
+              [range]="selectedRange$$()"
+              (rangeChange)="onRangeChange($event)" />
+
+    <div class="flex gap-3">
+      <v-button class="grow"
+                surface="flat"
+                (onClick)="animateClipDateRange(-1)"> Выбрать всё </v-button>
+
+      <v-button class="grow"
+                surface="flat"
+                (onClick)="animateClipDateRange(360)"> 1 год </v-button>
+
+      <v-button class="grow"
+                surface="flat"
+                (onClick)="animateClipDateRange(90)"> 3 месяца </v-button>
+    </div>
+
+  </div>
+</v-card>

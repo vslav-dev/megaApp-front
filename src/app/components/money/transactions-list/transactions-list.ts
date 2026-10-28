@@ -1,11 +1,34 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { KeyboardService } from '@app/services/keyboard.service';
+import { MoneyComputeService } from '@app/services/money-compute.service';
 import { MoneyService } from '@app/services/money.service';
+import { TelemetryService } from '@app/services/telemetry.service';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
-import { convertAmount } from '@app/shared/money-utils';
-import { AccountKind, Asset, Organization, SymbolPosition, Transaction, TransactionKind } from '@app/shared/types';
+import { sumDayTotals } from '@app/shared/day-totals';
+import { SeriesChart, filterByEnabledSeries } from '@app/shared/money-series';
+import { areArraysShallowEqual, convertAmount } from '@app/shared/money-utils';
+import { groupNumberText } from '@app/shared/number-format';
+import {
+  AccountKind,
+  Asset,
+  Currency,
+  Organization,
+  SymbolPosition,
+  Transaction,
+  TransactionKind,
+} from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
@@ -15,6 +38,13 @@ interface TransactionGroup {
   date: string;
   dateDisplay: string;
   transactions: Transaction[];
+}
+
+type AmountSign = '+' | '-' | '';
+
+interface DayTotalsDisplay {
+  income: string | null;
+  expense: string | null;
 }
 
 interface GroupMeasurement {
@@ -34,7 +64,9 @@ export class TransactionsList {
   protected readonly Icon = IconName;
 
   private readonly moneyService = inject(MoneyService);
+  private readonly moneyComputeService = inject(MoneyComputeService);
   private readonly keyboardService = inject(KeyboardService);
+  private readonly telemetry = inject(TelemetryService);
 
   private readonly shortcutSubscription = this.keyboardService
     .shortcut$({
@@ -46,27 +78,58 @@ export class TransactionsList {
       this.showNewTransactionForm();
     });
 
-  /**
-   * Thousands separator. Options (narrowest to widest):
-   * '\u2006' six-per-em   ~1/6em
-   * '\u2009' thin space   ~1/5em
-   * '\u202F' narrow-nbsp  ~1/4em
-   * '\u2005' four-per-em  ~1/4em  ← current
-   * '\u2004' three-per-em ~1/3em
-   * '\u2002' en-space     ~1/2em
-   */
-  private readonly THOUSANDS_SEP = '\u2005';
-
   private readonly currencies$$ = computed(() => this.moneyService.currencies$$());
   private readonly categories$$ = computed(() => this.moneyService.categories$$());
   private readonly accounts$$ = computed(() => this.moneyService.accounts$$());
   private readonly organizations$$ = computed(() => this.moneyService.organizations$$());
   private readonly assets$$ = computed(() => this.moneyService.assets$$());
   private readonly displayCurrency$$ = computed(() => this.moneyService.displayCurrency$$());
+  private readonly displayCurrencyInfo$$ = computed(() =>
+    this.currencies$$().find((currency) => currency.ticker === this.displayCurrency$$()),
+  );
+  private readonly currencyByAccountId$$ = computed(() => {
+    const currencyById = new Map(this.currencies$$().map((currency) => [currency.id, currency]));
+    const currencyByAccountId = new Map<number, Currency>();
+    for (const account of this.accounts$$()) {
+      const currency = currencyById.get(account.currencyId);
+      if (account.id !== undefined && currency) currencyByAccountId.set(account.id, currency);
+    }
+    return currencyByAccountId;
+  });
   protected readonly isRatesReady$$ = computed(() => this.moneyService.isChartDataReady$$());
-  protected readonly keepNativeCurrency$$ = this.moneyService.keepTransactionCurrency$$;
+  protected readonly convertToUnifiedCurrency$$ = this.moneyService.convertToUnifiedCurrency$$;
 
-  protected readonly groupedTransactions$$ = computed(() => this.groupTransactionsByDate());
+  protected readonly isLinkedToCharts$$ = computed(() => this.moneyService.linkTransactionsToCharts$$());
+
+  // With the "follow charts" mode on, only transactions feeding a checked chart series are listed —
+  // the same series resolver the charts are built with. Off: the very same array, no copy.
+  private readonly visibleTransactions$$ = computed(() => {
+    const transactions = this.moneyService.transactions$$();
+    if (!this.isLinkedToCharts$$()) return transactions;
+    return filterByEnabledSeries(transactions, this.moneyComputeService.seriesResolver$$(), {
+      [SeriesChart.EXPENSE]: this.moneyService.enabledExpenseSeriesIds$$(),
+      [SeriesChart.INCOME]: this.moneyService.enabledIncomeSeriesIds$$(),
+    });
+  });
+
+  // A shorter list can leave the scroll window past its end; start from the top after any filter change.
+  private readonly scrollToTopOnFilterChange = effect(() => {
+    if (!this.isLinkedToCharts$$()) return;
+    this.moneyService.enabledExpenseSeriesIds$$();
+    this.moneyService.enabledIncomeSeriesIds$$();
+    untracked(() => this.scrollContainerElem()?.nativeElement.scrollTo({ top: 0 }));
+  });
+
+  protected readonly groupedTransactions$$ = computed(() =>
+    this.telemetry.measure(
+      'money.transaction_list_model',
+      () => this.groupTransactionsByDate(),
+      (groups) => ({
+        groups: groups.length,
+        transactions: groups.reduce((total, group) => total + group.transactions.length, 0),
+      }),
+    ),
+  );
   protected readonly isDeleteConfirmOpen$$ = signal(false);
 
   private readonly pendingDeleteId$$ = signal<number | null>(null);
@@ -82,7 +145,7 @@ export class TransactionsList {
   private readonly GROUP_BOTTOM_MARGIN = 16;
   private readonly BUFFER_PX = 1200;
 
-  protected readonly containerHeight = 613;
+  protected readonly containerHeight = 893;
 
   private readonly scrollTop$$ = signal(0);
 
@@ -107,13 +170,34 @@ export class TransactionsList {
     return last.startY + last.height;
   });
 
-  protected readonly visibleMeasurements$$ = computed(() => {
-    const measurements = this.groupMeasurements$$();
-    const scrollTop = this.scrollTop$$();
-    const visibleBottom = scrollTop + this.containerHeight;
-    return measurements.filter(
-      (m) => m.startY + m.height > scrollTop - this.BUFFER_PX && m.startY < visibleBottom + this.BUFFER_PX,
-    );
+  // Scrolling inside the same set of groups yields an equal window, so nothing derived from it reruns.
+  protected readonly visibleMeasurements$$ = computed(
+    () => {
+      const measurements = this.groupMeasurements$$();
+      const scrollTop = this.scrollTop$$();
+      const visibleBottom = scrollTop + this.containerHeight;
+      return measurements.filter(
+        (m) => m.startY + m.height > scrollTop - this.BUFFER_PX && m.startY < visibleBottom + this.BUFFER_PX,
+      );
+    },
+    { equal: areArraysShallowEqual },
+  );
+
+  // Sums for the rendered days only, of exactly the transactions listed for each (so the follow-charts
+  // filter applies), always in the display currency: rows may show native amounts, but a day spans
+  // several accounts. Rates are the last known ones on or before the day (see getRatesForDate).
+  protected readonly dayTotalsByDate$$ = computed(() => {
+    const totalsByDate = new Map<string, DayTotalsDisplay>();
+    for (const { group } of this.visibleMeasurements$$()) {
+      const totals = sumDayTotals(group.transactions, (transaction) =>
+        this.toDisplayAmount(transaction.accountId, transaction.amount, transaction.dateISO),
+      );
+      totalsByDate.set(group.date, {
+        income: totals.income === null ? null : this.formatDisplayAmount(totals.income, '+'),
+        expense: totals.expense === null ? null : this.formatDisplayAmount(totals.expense, '-'),
+      });
+    }
+    return totalsByDate;
   });
 
   protected readonly paddingTop$$ = computed(() => {
@@ -139,14 +223,9 @@ export class TransactionsList {
     this.showForm$$.set(true);
   }
 
-  protected showTransactionForm(dateISO?: string, transaction?: Transaction): void {
-    if (dateISO) {
-      this.formDateISO$$.set(dateISO);
-      this.editingTransaction$$.set(null);
-    } else if (transaction) {
-      this.editingTransaction$$.set(transaction);
-      this.formDateISO$$.set(null);
-    }
+  protected showEditTransactionForm(transaction: Transaction): void {
+    this.editingTransaction$$.set(transaction);
+    this.formDateISO$$.set(null);
     this.showForm$$.set(true);
   }
 
@@ -187,7 +266,7 @@ export class TransactionsList {
 
   protected getAccountKindIcon(accountId: number): IconName {
     const account = this.accounts$$().find((a) => a.id === accountId);
-    if (!account) return IconName.AccontBalanceWallet;
+    if (!account) return IconName.AccountBalanceWallet;
 
     switch (account.kind) {
       case AccountKind.CASH:
@@ -195,7 +274,7 @@ export class TransactionsList {
       case AccountKind.CARD:
         return IconName.CreditCard;
       case AccountKind.CHECKING:
-        return IconName.AccontBalance;
+        return IconName.AccountBalance;
       case AccountKind.DEPOSIT:
         return IconName.Savings;
       case AccountKind.BROKERAGE:
@@ -203,7 +282,7 @@ export class TransactionsList {
       case AccountKind.CRYPTO:
         return IconName.CurrencyBitcoin;
       default:
-        return IconName.AccontBalanceWallet;
+        return IconName.AccountBalanceWallet;
     }
   }
 
@@ -225,7 +304,7 @@ export class TransactionsList {
 
   protected getTransferAccountKindIcon(transaction: Transaction): IconName {
     const twin = this.getTwinTransaction(transaction);
-    if (!twin) return IconName.AccontBalanceWallet;
+    if (!twin) return IconName.AccountBalanceWallet;
     return this.getAccountKindIcon(twin.accountId);
   }
 
@@ -268,74 +347,44 @@ export class TransactionsList {
   }
 
   protected formatAmount(transaction: Transaction): string {
-    const account = this.accounts$$().find((a) => a.id === transaction.accountId);
-    if (!account) return transaction.amount.toString();
-
-    const currency = this.currencies$$().find((c) => c.id === account.currencyId);
+    const currency = this.currencyByAccountId$$().get(transaction.accountId);
     if (!currency) return transaction.amount.toString();
 
-    const displayTicker = this.displayCurrency$$();
-
-    if (this.keepNativeCurrency$$() || currency.ticker === displayTicker) {
-      return this.formatWithCurrency(transaction.amount, currency, transaction.kind);
+    const sign = this.getAmountSign(transaction.kind);
+    if (!this.convertToUnifiedCurrency$$() || currency.ticker === this.displayCurrency$$()) {
+      return this.formatWithCurrency(transaction.amount, currency, sign);
     }
 
-    const rates = this.moneyService.getRatesForDate(transaction.dateISO);
-    const converted = convertAmount(transaction.amount, currency.ticker, displayTicker, rates ?? {});
-    const displayCurrency = this.currencies$$().find((c) => c.ticker === displayTicker);
-    if (!displayCurrency) return this.formatNumber(converted);
-
-    return this.formatWithCurrency(converted, displayCurrency, transaction.kind);
+    const converted = this.toDisplayAmount(transaction.accountId, transaction.amount, transaction.dateISO);
+    return this.formatDisplayAmount(converted, sign);
   }
 
-  protected toggleKeepNativeCurrency(): void {
-    this.moneyService.setKeepTransactionCurrency(!this.keepNativeCurrency$$());
+  protected toggleConvertToUnifiedCurrency(): void {
+    this.moneyService.setConvertToUnifiedCurrency(!this.convertToUnifiedCurrency$$());
   }
 
   protected formatTransferAmounts(transaction: Transaction): string {
     const twin = this.getTwinTransaction(transaction);
     if (!twin) return this.formatAmount(transaction);
 
-    if (this.keepNativeCurrency$$()) {
+    if (!this.convertToUnifiedCurrency$$()) {
       return `${this.formatPlainAmount(transaction.accountId, transaction.amount)} → ${this.formatPlainAmount(twin.accountId, twin.amount)}`;
     }
 
-    const displayTicker = this.displayCurrency$$();
-    const rates = this.moneyService.getRatesForDate(transaction.dateISO);
-
-    const fromAccount = this.accounts$$().find((a) => a.id === transaction.accountId);
-    const toAccount = this.accounts$$().find((a) => a.id === twin.accountId);
-    const fromCurrency = fromAccount ? this.currencies$$().find((c) => c.id === fromAccount.currencyId) : null;
-    const toCurrency = toAccount ? this.currencies$$().find((c) => c.id === toAccount.currencyId) : null;
-
-    const fromConverted = fromCurrency
-      ? convertAmount(transaction.amount, fromCurrency.ticker, displayTicker, rates ?? {})
-      : transaction.amount;
-    const toConverted = toCurrency
-      ? convertAmount(twin.amount, toCurrency.ticker, displayTicker, rates ?? {})
-      : twin.amount;
-
-    const avg = (fromConverted + toConverted) / 2;
-    const displayCurrency = this.currencies$$().find((c) => c.ticker === displayTicker);
-    if (!displayCurrency) return `≈ ${this.formatNumber(avg)}`;
-
-    const whitespace = displayCurrency.whitespace ? ' ' : '';
-    const amount = this.formatNumber(avg);
-    if (displayCurrency.symbolPosEnum === SymbolPosition.BEFORE) {
-      return `≈ ${displayCurrency.symbol}${whitespace}${amount}`;
-    }
-    return `≈ ${amount}${whitespace}${displayCurrency.symbol}`;
+    const fromConverted = this.toDisplayAmount(transaction.accountId, transaction.amount, transaction.dateISO);
+    const toConverted = this.toDisplayAmount(twin.accountId, twin.amount, transaction.dateISO);
+    return `≈ ${this.formatDisplayAmount((fromConverted + toConverted) / 2, '')}`;
   }
 
   protected transactionKindIsIncome(transaction: Transaction): boolean {
     return transaction.kind === TransactionKind.INCOME;
   }
 
-  protected getAmountClass(transaction: Transaction): string {
+  protected getAmountColor(transaction: Transaction): string | null {
     if (transaction.kind === TransactionKind.INCOME || transaction.kind === TransactionKind.INVEST_DIVIDEND)
-      return 'text-green-600';
-    if (transaction.kind === TransactionKind.EXPENSE) return 'text-red-600';
-    return '';
+      return 'var(--v-color-success)';
+    if (transaction.kind === TransactionKind.EXPENSE) return 'var(--v-color-text-danger)';
+    return null;
   }
 
   private isInvestKind(kind: TransactionKind): boolean {
@@ -382,13 +431,30 @@ export class TransactionsList {
     }).format(quantity);
   }
 
+  private getAmountSign(kind: TransactionKind): AmountSign {
+    return kind === TransactionKind.INCOME ? '+' : kind === TransactionKind.EXPENSE ? '-' : '';
+  }
+
+  // The amount in the display currency, at the rates last known on or before the date. An account
+  // without a currency has nothing to convert from, so its amount stays as is.
+  private toDisplayAmount(accountId: number, amount: number, dateISO: string): number {
+    const currency = this.currencyByAccountId$$().get(accountId);
+    if (!currency) return amount;
+    const rates = this.moneyService.getRatesForDate(dateISO) ?? {};
+    return convertAmount(amount, currency.ticker, this.displayCurrency$$(), rates);
+  }
+
+  private formatDisplayAmount(amount: number, sign: AmountSign): string {
+    const currency = this.displayCurrencyInfo$$();
+    return currency ? this.formatWithCurrency(amount, currency, sign) : this.formatNumber(amount);
+  }
+
   private formatWithCurrency(
     amount: number,
     currency: { symbol: string; whitespace?: boolean | null; symbolPosEnum: SymbolPosition },
-    kind: TransactionKind,
+    sign: AmountSign,
   ): string {
     const whitespace = currency.whitespace ? ' ' : '';
-    const sign = kind === TransactionKind.INCOME ? '+' : kind === TransactionKind.EXPENSE ? '-' : '';
     const formatted = this.formatNumber(amount);
     if (currency.symbolPosEnum === SymbolPosition.BEFORE) {
       return `${currency.symbol}${whitespace}${sign}${formatted}`;
@@ -397,25 +463,13 @@ export class TransactionsList {
   }
 
   private formatPlainAmount(accountId: number, amount: number): string {
-    const account = this.accounts$$().find((a) => a.id === accountId);
-    if (!account) return amount.toFixed(2);
-
-    const currency = this.currencies$$().find((c) => c.id === account.currencyId);
+    const currency = this.currencyByAccountId$$().get(accountId);
     if (!currency) return amount.toFixed(2);
-
-    const whitespace = currency.whitespace ? ' ' : '';
-    const amountDisplay = this.formatNumber(amount);
-
-    if (currency.symbolPosEnum === SymbolPosition.BEFORE) {
-      return `${currency.symbol}${whitespace}${amountDisplay}`;
-    }
-    return `${amountDisplay}${whitespace}${currency.symbol}`;
+    return this.formatWithCurrency(amount, currency, '');
   }
 
   private formatNumber(amount: number): string {
-    const [int, dec] = amount.toFixed(2).split('.');
-    const intFormatted = int.replace(/\B(?=(\d{3})+(?!\d))/g, this.THOUSANDS_SEP);
-    return `${intFormatted}.${dec}`;
+    return groupNumberText(amount.toFixed(2));
   }
 
   private getTwinTransaction(transaction: Transaction): Transaction | null {
@@ -448,11 +502,11 @@ export class TransactionsList {
     this.isDeleteConfirmOpen$$.set(false);
     this.pendingDeleteId$$.set(null);
     if (!id) return;
-    this.moneyService.deleteTransaction(id).subscribe((success) => {});
+    this.moneyService.deleteTransaction(id);
   }
 
   private groupTransactionsByDate(): TransactionGroup[] {
-    const transactions = this.moneyService.transactions$$();
+    const transactions = this.visibleTransactions$$();
     const transactionsByDateMap = new Map<string, TransactionGroup>();
 
     transactions.forEach((transaction) => {

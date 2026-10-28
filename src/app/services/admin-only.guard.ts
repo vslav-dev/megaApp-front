@@ -8,6 +8,8 @@ export const adminOnlyGuard: CanActivateFn = async () => {
 
   await authService.ensureBootstrapped();
 
+  console.log('🚨 TEMP DEBUG — DELETE ME: adminOnlyGuard check, isAdmin:', authService.isAdmin$$());
+
   if (authService.isAdmin$$()) {
     return true;
   }

@@ -1,30 +1,45 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
+import { FoodSettingsService } from '@app/services/food/food-settings.service';
+import { FormModal } from '@app/shared/components/form-modal/form-modal';
 import { BodyWeightInterface } from '@app/shared/types';
+import { VButton } from '@ui-kit/components/v-button/v-button';
+import { VCheckbox } from '@ui-kit/components/v-checkbox/v-checkbox';
+import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { VInput, VInputAutoSubmitResult } from '@ui-kit/components/v-input/v-input';
 
 interface BodyWeightForm {
   bodyWeight: FormControl<string | null>;
 }
 
-enum FormLabels {
-  WEIGHT = 'Вес',
-  WEIGHT_UNIT = 'кг',
+interface HeightForm {
+  height: FormControl<string>;
 }
 
-enum FormErrors {
-  WEIGHT = 'ХХ.Х или ХХ',
-}
+const FormLabels = {
+  WEIGHT: 'Вес',
+  WEIGHT_UNIT: 'кг',
+  HEIGHT: 'Рост',
+  HEIGHT_UNIT: 'см',
+} as const;
+
+const FormErrors = {
+  WEIGHT: 'ХХ.Х или ХХ',
+  HEIGHT: 'XXX',
+} as const;
 
 @Component({
   selector: 'body-weight',
   templateUrl: './body-weight.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, VInput],
+  imports: [ReactiveFormsModule, VInput, VButton, VCheckbox, VIcon, FormModal],
 })
 export class BodyWeight {
-  protected readonly bodyWeightInput = viewChild.required(VInput);
+  protected readonly Icon = IconName;
+
+  protected readonly bodyWeightInput = viewChild.required<VInput>('bodyWeightInputElem');
+  protected readonly heightInputElem = viewChild<VInput>('heightInputElem');
 
   protected readonly FormLabels = FormLabels;
   protected readonly FormErrors = FormErrors;
@@ -35,12 +50,30 @@ export class BodyWeight {
     }),
   });
 
+  protected readonly heightForm = new FormGroup<HeightForm>({
+    height: new FormControl('', {
+      validators: [Validators.required, Validators.pattern(/^\d{3}$/)],
+      nonNullable: true,
+    }),
+  });
+
   protected readonly autoSubmitResult$$ = signal<VInputAutoSubmitResult | null>(null);
+  protected readonly heightAutoSubmitResult$$ = signal<VInputAutoSubmitResult | null>(null);
+  protected readonly isHeightModalOpen$$ = signal(false);
 
   private readonly foodDiaryService = inject(FoodDiaryService);
+  private readonly foodSettingsService = inject(FoodSettingsService);
+
+  // The bands are computed from height, so without it there is nothing to switch.
+  protected readonly hasHeight$$ = computed(() => !!this.foodDiaryService.height$$());
+  protected readonly isBmiBandsEnabled$$ = this.foodSettingsService.statsWeightBmiBands$$;
 
   protected get isFormValid(): boolean {
     return this.form.valid || this.form.disabled || this.form.pristine;
+  }
+
+  protected get isHeightValid(): boolean {
+    return this.heightForm.controls.height.valid || this.heightForm.controls.height.pristine;
   }
 
   public onAutoSubmit(): void {
@@ -100,5 +133,30 @@ export class BodyWeight {
         this.bodyWeightInput().focus();
       }, 100); // Waiting for expansion panel to open
     }
+  }
+
+  protected openHeightModal(): void {
+    const height = this.foodDiaryService.height$$();
+    this.heightForm.patchValue({ height: height ? String(height) : '' }, { emitEvent: false });
+    this.isHeightModalOpen$$.set(true);
+  }
+
+  protected onBmiBandsChange(isEnabled: boolean): void {
+    this.foodSettingsService.setStatsWeightBmiBands(isEnabled);
+  }
+
+  protected closeHeightModal(): void {
+    this.isHeightModalOpen$$.set(false);
+  }
+
+  protected focusHeightInput(): void {
+    this.heightInputElem()?.focus();
+  }
+
+  protected onHeightAutoSubmit(): void {
+    if (!this.heightForm.controls.height.valid) return;
+    this.foodDiaryService.setHeight(Number(this.heightForm.controls.height.value));
+    this.heightAutoSubmitResult$$.set(VInputAutoSubmitResult.Success);
+    setTimeout(() => this.heightAutoSubmitResult$$.set(null), 1);
   }
 }

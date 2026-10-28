@@ -139,7 +139,8 @@ Frontend-часть единого плана [`METRICS._implementation-plan.md`
 - для gauges — последнее значение окна;
 - для minute counters — значение за последнее окно, не сумму за весь локальный кэш.
 
-Исторические charts остаются line-based, но уже по `(service, metricName)`.
+Исторические charts по умолчанию line-based, но для event/counter метрик фронт может явно задавать `bar` на уровне service-aware registry.
+Для minute charts при узкой карточке фронт может включать display-only minute→5m collapse с агрегацией по типу метрики, не меняя сам выбранный режим `minute`.
 
 ### Что надо поменять в текущем фронте
 
@@ -163,4 +164,5 @@ Frontend-часть единого плана [`METRICS._implementation-plan.md`
 - ✅ Для `spread-capture-bot-v3` добавить три группы: `Runtime`, `Actions`, `Reasons`.
 - ✅ Для minute counters на карточках показывать последнее окно, не накопительную сумму за весь cache window.
 - ✅ При merge входящих данных дедуплицировать по `(service, metricName, minuteBucket)`.
+- ✅ Добавить отключаемую синхролинию наведения для всех графиков текущей страницы, с хранением флага в localStorage.
 - ⭕ Для этапа 4B добавить stale-state и корректную замену bucket при backfill.

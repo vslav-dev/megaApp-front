@@ -1,84 +1,527 @@
-<div class="flex flex-col p-4">
-  <div class="flex flex-wrap gap-2 mb-4">
-    @for (service of serviceOptions$$(); track service.service) {
-      <v-button [class]="isServiceExpanded(service.service) ? 'v-primary v-raised' : 'v-primary v-flat'"
-                [config]="{
-                  color: serviceColor(service.service),
-                }"
-                (onClick)="toggleServiceExpanded(service.service)">
-        {{ service.label }}
-        <v-icon v-postfix
-                [name]="isServiceExpanded(service.service) ? Icon.CheckBox : Icon.CheckBoxOutlineBlank"
-                [size]="5" />
+<div class="flex flex-col">
+  <div #stickyHeaderElem
+       class="flex flex-wrap items-start gap-2 px-4 pt-2 pb-2 [transition:box-shadow_300ms_ease-out,background-color_var(--v-theme-transition-duration,0s)]"
+       [class]="stickyBarClasses$$()"
+       [style.background-color]="deviceInfoService.isDesktopScreen$$() ? 'var(--v-color-bg)' : null">
+    <div class="flex flex-wrap flex-initial min-w-0 gap-2">
+      @let isDashboardExpanded = isServiceExpanded(dashboardPanelKey);
+      <v-button [class.v-primary]="isDashboardExpanded"
+                [surface]="isDashboardExpanded ? 'raised' : 'flat'"
+                (onClick)="toggleServiceExpanded(dashboardPanelKey)">
+        Dashboard
       </v-button>
-    } @empty {
-      <div class="opacity-60 text-sm">Нет сервисов</div>
-    }
 
-    <v-button [class]="isServiceExpanded(settingsPanelKey) ? 'v-raised' : 'v-flat'"
-              [config]="{
-                isLabelHidden: true,
-                padding: 2,
-              }"
-              (onClick)="toggleServiceExpanded(settingsPanelKey)">
-      <v-icon v-prefix
-              [name]="Icon.Settings"
-              [size]="6" />
-    </v-button>
+      @if (!deviceInfoService.isMobileScreen$$()) {
+        @for (entry of headerEntries$$(); track entry.service) {
+          @let isEntryExpanded = isServiceExpanded(entry.service);
+          @if (entry.isComposite) {
+            <v-button [class.v-primary]="isEntryExpanded"
+                      [surface]="isEntryExpanded ? 'raised' : 'flat'"
+                      (onClick)="toggleServiceExpanded(entry.service)">
+              @if (hasHoverExpandableServiceLabel(entry.service)) {<span
+                      class="header-label-short">{{ resolvedServiceShortLabel(entry.service) }}</span><span
+                      class="header-label-long">{{ resolvedServiceLabel(entry.service) }}</span>} @else {
+                {{ resolvedServiceLabel(entry.service) }}
+              }
+            </v-button>
+          } @else {
+            <v-button class="v-primary"
+                      [surface]="isEntryExpanded ? 'raised' : 'flat'"
+                      [color]="sectionButtonColor(entry.service)"
+                      (onClick)="toggleServiceExpanded(entry.service)">
+              @if (hasHoverExpandableServiceLabel(entry.service)) {<span
+                      class="header-label-short">{{ resolvedServiceShortLabel(entry.service) }}</span><span
+                      class="header-label-long">{{ resolvedServiceLabel(entry.service) }}</span>} @else {
+                {{ resolvedServiceLabel(entry.service) }}
+              }
+            </v-button>
+          }
+        } @empty {
+          <div class="opacity-60 text-sm">Нет сервисов</div>
+        }
+      }
+    </div>
+
+    <div class="flex flex-wrap items-center flex-initial min-w-0 gap-2 ml-auto">
+      @if (hasUnsavedSettings$$()) {
+        <v-button class="v-primary"
+                  surface="raised"
+                  [isDisabled]="isSavingSettings$$()"
+                  [paddingX]="3"
+                  color="#22c55e"
+                  (onClick)="saveSettings()">
+          <v-icon v-prefix
+                  [name]="Icon.Check"
+                  [size]="5" />
+          Сохранить
+        </v-button>
+      }
+
+      @if (metricCardExpansionService.hasExpanded$$()) {
+        <v-button surface="flat"
+                  title="Свернуть все развёрнутые карточки"
+                  [isLabelHidden]="true"
+                  [padding]="2"
+                  (onClick)="metricCardExpansionService.collapseAll()">
+          <v-icon v-prefix
+                  [name]="Icon.CollapseContent"
+                  [size]="6" />
+        </v-button>
+      }
+
+      <v-button [surface]="isServiceExpanded(settingsPanelKey) ? 'raised' : 'flat'"
+                title="Настройки дашборда: размер карточек, коридор аномалий, список метрик"
+                [isLabelHidden]="true"
+                [padding]="2"
+                (onClick)="toggleServiceExpanded(settingsPanelKey)">
+        <v-icon v-prefix
+                [name]="Icon.Settings"
+                [size]="6" />
+      </v-button>
+
+      <v-button [class.v-primary]="isCardEditMode$$()"
+                [surface]="isCardEditMode$$() ? 'raised' : 'flat'"
+                title="Режим редактирования: выбрать метрики и задать их порядок на карточках"
+                [isLabelHidden]="true"
+                [padding]="2"
+                (onClick)="toggleCardEditMode()">
+        <v-icon v-prefix
+                [name]="Icon.Edit"
+                [size]="6" />
+      </v-button>
+
+      <toolbar-group [isActive]="anomalyCorridorEnabled$$()">
+        @if (anomalyCorridorEnabled$$()) {
+          <v-input class="w-[69px]"
+                   [value]="anomalyCorridorPercent$$().toString()"
+                   (valueChange)="onAnomalyCorridorPercentChange($event)"
+                   type="number"
+                   inputmode="numeric"
+                   title="Коридор аномалий, % значений"
+                   [isDisabled]="isSavingSettings$$()"
+                   textAlign="right">
+            <span v-postfix
+                  class="opacity-60 mr-2 text-sm">%</span>
+          </v-input>
+        }
+
+        <v-button [class.v-primary]="anomalyCorridorEnabled$$()"
+                  [surface]="anomalyCorridorEnabled$$() ? 'raised' : 'flat'"
+                  title="Коридор аномалий: обрезает ось Y графика по проценту значений, скрывая редкие выбросы"
+                  [isLabelHidden]="true"
+                  [padding]="2"
+                  (onClick)="toggleAnomalyCorridorEnabled()">
+          <v-icon v-prefix
+                  [name]="Icon.DataThresholding"
+                  [size]="6" />
+        </v-button>
+      </toolbar-group>
+
+      <v-button surface="flat"
+                title="Переключить размер карточек: широкие / узкие"
+                [isLabelHidden]="true"
+                [padding]="2"
+                (onClick)="cycleCardLayoutMode()">
+        <v-icon v-prefix
+                class="rotate-90"
+                [name]="cardLayoutMode$$() === CardLayoutMode.Wide ? Icon.UnfoldLess : Icon.UnfoldMore"
+                [size]="6" />
+      </v-button>
+
+      <v-button [class.v-primary]="forceZeroBaselineEnabled$$()"
+                [surface]="forceZeroBaselineEnabled$$() ? 'raised' : 'flat'"
+                title="Начинать ось Y графика с нуля"
+                [isLabelHidden]="true"
+                [padding]="2"
+                (onClick)="toggleForceZeroBaseline()">
+        <v-icon class="rotate-180"
+                v-prefix
+                [name]="Icon.ChevronLineUp"
+                [size]="6" />
+      </v-button>
+
+      <v-button surface="flat"
+                title="Переключить подсказку на графике: по ближайшей точке / по вертикальной линии"
+                [isLabelHidden]="true"
+                [padding]="2"
+                (onClick)="cycleTooltipMode()">
+        <v-icon v-prefix
+                [class]="activeTooltipMode$$() === TooltipMode.Nearest ? '' : 'rotate-[135deg]'"
+                [name]="activeTooltipMode$$() === TooltipMode.Vertical ? Icon.StepInto : Icon.HorizontalAlignCenter"
+                [size]="6" />
+      </v-button>
+
+      <v-toggle [items]="granularityToggleItems"
+                title="Гранулярность данных на графиках"
+                [value]="granularityToggleValue()"
+                [isDisabled]="isSavingSettings$$()"
+                (valueChange)="onGranularityToggleChange($event)" />
+    </div>
   </div>
 
-  <v-expand class="mb-4"
-            [isExpanded]="isServiceExpanded(settingsPanelKey)">
-    <div v-body
-         class="flex flex-wrap gap-3 p-4">
-      <v-input [value]="cardWidthPx$$().toString()"
-               (valueChange)="onCardWidthChange($event)"
-               [config]="{
-                 type: 'number',
-                 inputmode: 'numeric',
-                 label: 'Ширина карточки, px',
-                 textAlign: 'right',
-               }" />
-      <v-input [value]="cardHeightPx$$().toString()"
-               (valueChange)="onCardHeightChange($event)"
-               [config]="{
-                 type: 'number',
-                 inputmode: 'numeric',
-                 label: 'Высота графика, px',
-                 textAlign: 'right',
-               }" />
-    </div>
-  </v-expand>
-
-  @for (service of serviceOptions$$(); track service.service) {
+  <div class="flex flex-col px-4 pt-2 pb-2">
     <v-expand class="mb-4"
-              [isExpanded]="isServiceExpanded(service.service)">
+              [isExpanded]="isServiceExpanded(settingsPanelKey)">
       <div v-body
-           class="flex flex-col gap-4 p-4">
-        @for (group of metricGroupsByService$$().get(service.service) ?? []; track group.id) {
-          <div>
-            <div class="opacity-70 mb-2 text-sm font-semibold">{{ group.label }}</div>
-            <div class="flex flex-wrap gap-3">
-              @for (card of group.cards; track card.key) {
-                <metric-chart-card [labelInput]="card.label"
-                                   [technicalNameInput]="card.technicalName"
-                                   [valueInput]="card.value"
-                                   [displayValueInput]="card.displayValue"
-                                   [colorInput]="card.color"
-                                   [seriesInput]="card.series"
-                                   [chartModeInput]="card.chartMode"
-                                   [windowStartInput]="card.windowStartBucket"
-                                   [windowEndInput]="card.windowEndBucket"
-                                   [descriptionInput]="card.description"
-                                   [widthPxInput]="cardWidthPx$$()"
-                                   [heightPxInput]="cardHeightPx$$()" />
-              }
+           class="flex flex-col gap-8 p-4">
+        <div class="flex flex-col gap-3">
+          <div class="opacity-70 font-semibold">Размер карточек</div>
+          <div class="flex flex-wrap items-end gap-3 pl-2">
+            <v-input class="w-32"
+                     [value]="targetWidthPx$$().toString()"
+                     (valueChange)="onCardWidthChange($event)"
+                     type="number"
+                     inputmode="numeric"
+                     label="Целевая ширина, px"
+                     [isDisabled]="isSavingSettings$$()"
+                     textAlign="right" />
+            <v-input class="w-32"
+                     [value]="heightPx$$().toString()"
+                     (valueChange)="onCardHeightChange($event)"
+                     type="number"
+                     inputmode="numeric"
+                     label="Высота, px"
+                     [isDisabled]="isSavingSettings$$()"
+                     textAlign="right" />
+            <v-input class="w-32"
+                     [value]="expandedHeightPx$$().toString()"
+                     (valueChange)="onCardExpandedHeightChange($event)"
+                     type="number"
+                     inputmode="numeric"
+                     label="Высота развёрнутой, px"
+                     [isDisabled]="isSavingSettings$$()"
+                     textAlign="right" />
+          </div>
+          <div class="flex flex-wrap items-end gap-3 pl-2">
+            <v-input class="w-32"
+                     [value]="yTickCountCard$$().toString()"
+                     (valueChange)="onYTickCountCardChange($event)"
+                     type="number"
+                     inputmode="numeric"
+                     label="Насечек на карточке"
+                     textAlign="right" />
+            <v-input class="w-32"
+                     [value]="yTickCountFullWidth$$().toString()"
+                     (valueChange)="onYTickCountFullWidthChange($event)"
+                     type="number"
+                     inputmode="numeric"
+                     label="Насечек на большом графике"
+                     textAlign="right" />
+            <v-input class="w-32"
+                     [value]="yTickSnapTolerancePercent$$().toString()"
+                     (valueChange)="onYTickSnapTolerancePercentChange($event)"
+                     type="number"
+                     inputmode="numeric"
+                     label="Допуск округления насечек, % (0–50)"
+                     textAlign="right" />
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <div class="opacity-70 font-semibold">
+            Коридор аномалий (вкл/выкл — кнопка с иконкой порога данных на верхней панели)
+          </div>
+          <div class="flex flex-wrap items-end gap-3 pl-2">
+            <div class="flex flex-col gap-1">
+              <v-tooltip>
+                <span class="opacity-70 text-sm">Коридор, % значений</span>
+                <span v-panel>
+                  Ось Y графика обрезается по коридору, в который попадает указанный процент значений
+                  (по стольку же лишних с каждого края). Сами данные и точки на графике не трогаются —
+                  меняется только видимый диапазон оси, поэтому редкие выбросы уезжают за край графика
+                  вместо того, чтобы растягивать его под себя.
+                </span>
+              </v-tooltip>
+              <v-input class="w-32"
+                       [value]="anomalyCorridorPercent$$().toString()"
+                       (valueChange)="onAnomalyCorridorPercentChange($event)"
+                       type="number"
+                       inputmode="numeric"
+                       [isDisabled]="isSavingSettings$$()"
+                       textAlign="right" />
             </div>
           </div>
-        } @empty {
-          <div class="opacity-60 text-sm">Нет метрик</div>
-        }
+        </div>
+
+        <div class="flex flex-wrap items-end gap-3">
+          <label class="flex items-center gap-2 text-sm">
+            <v-checkbox [value]="syncCrosshairEnabled$$()"
+                        (onChanged)="onSyncCrosshairEnabledChange($event)"
+                        mode="switch"
+                        [isDisabled]="isSavingSettings$$()" />
+            <span>Синхролиния наведения</span>
+          </label>
+
+          <v-button class="v-primary"
+                    [isDisabled]="metricsService.isRefreshing$$()"
+                    [paddingX]="3"
+                    (onClick)="clearMetricsCache()">
+            <v-icon v-prefix
+                    [name]="Icon.Delete"
+                    [size]="5" />
+            Очистить кэш метрик
+          </v-button>
+
+          <v-button class="v-primary"
+                    [isDisabled]="metricsService.isRefreshing$$()"
+                    [paddingX]="3"
+                    (onClick)="forceRefreshMetrics()">
+            Принудительно обновить метрики
+          </v-button>
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <div class="opacity-70 font-semibold">Метрики дэшборда</div>
+
+          <div class="flex flex-col gap-1">
+            <div class="text-l flex items-center gap-3 font-medium">
+              <span class="flex-1 min-w-0 font-semibold truncate">{{ resolvedServiceLabel(compositeServiceKey) }}</span>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <v-checkbox [value]="isDashboardServiceEnabled(compositeServiceKey)"
+                            (onChanged)="toggleDashboardService(compositeServiceKey, $event)"
+                            [isDisabled]="isSavingSettings$$()"
+                            [size]="4"
+                            [gap]="1"
+                            [checkIconSize]="3" />
+                <span>Show in dashboard</span>
+              </label>
+              @if (isDashboardServiceEnabled(compositeServiceKey)) {
+                <v-input class="shrink-0 w-12"
+                         [value]="dashboardServiceOrder(compositeServiceKey).toString()"
+                         (valueChange)="setDashboardServiceOrder(compositeServiceKey, $event)"
+                         type="number"
+                         inputmode="numeric"
+                         [isDisabled]="isSavingSettings$$()"
+                         [inputSize]="2"
+                         textAlign="right" />
+              }
+              <label class="flex items-center gap-2 cursor-pointer">
+                <v-checkbox [value]="isServiceVisibleInHeader(compositeServiceKey)"
+                            (onChanged)="toggleServiceVisibleInHeader(compositeServiceKey, $event)"
+                            [isDisabled]="isSavingSettings$$()"
+                            [size]="4"
+                            [gap]="1"
+                            [checkIconSize]="3" />
+                <span>Show in header</span>
+              </label>
+              <v-input class="shrink-0 w-24"
+                       [value]="serviceCustomLabelShort(compositeServiceKey)"
+                       (valueChange)="setServiceCustomLabelShort(compositeServiceKey, $event)"
+                       [isDisabled]="isSavingSettings$$()"
+                       [inputSize]="3" />
+              <v-input class="shrink-0 w-40"
+                       [value]="serviceCustomLabelLong(compositeServiceKey)"
+                       (valueChange)="setServiceCustomLabelLong(compositeServiceKey, $event)"
+                       placeholder="Custom name"
+                       [isDisabled]="isSavingSettings$$()"
+                       [inputSize]="3" />
+            </div>
+          </div>
+
+          @for (service of serviceOptions$$(); track service.service) {
+            <div class="flex flex-col gap-1">
+              <div class="text-l flex items-center gap-3 font-medium">
+                <span class="flex-1 min-w-0 font-mono font-semibold truncate">{{ service.service }}</span>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <v-checkbox [value]="isDashboardServiceEnabled(service.service)"
+                              (onChanged)="toggleDashboardService(service.service, $event)"
+                              [isDisabled]="isSavingSettings$$()"
+                              [size]="4"
+                              [gap]="1"
+                              [checkIconSize]="3" />
+                  <span>Show in dashboard</span>
+                </label>
+                @if (isDashboardServiceEnabled(service.service)) {
+                  <v-input class="shrink-0 w-12"
+                           [value]="dashboardServiceOrder(service.service).toString()"
+                           (valueChange)="setDashboardServiceOrder(service.service, $event)"
+                           type="number"
+                           inputmode="numeric"
+                           [isDisabled]="isSavingSettings$$()"
+                           [inputSize]="2"
+                           textAlign="right" />
+                }
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <v-checkbox [value]="isServiceVisibleInHeader(service.service)"
+                              (onChanged)="toggleServiceVisibleInHeader(service.service, $event)"
+                              [isDisabled]="isSavingSettings$$()"
+                              [size]="4"
+                              [gap]="1"
+                              [checkIconSize]="3" />
+                  <span>Show in header</span>
+                </label>
+                <v-input class="shrink-0 w-24"
+                         [value]="serviceCustomLabelShort(service.service)"
+                         (valueChange)="setServiceCustomLabelShort(service.service, $event)"
+                         [isDisabled]="isSavingSettings$$()"
+                         [inputSize]="3" />
+                <v-input class="shrink-0 w-40"
+                         [value]="serviceCustomLabelLong(service.service)"
+                         (valueChange)="setServiceCustomLabelLong(service.service, $event)"
+                         placeholder="Custom name"
+                         [isDisabled]="isSavingSettings$$()"
+                         [inputSize]="3" />
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <div class="opacity-70 font-semibold">Пороги Severity, сек без новых данных</div>
+          <div class="flex flex-wrap gap-8 pl-2">
+            @for (service of serviceOptions$$(); track service.service) {
+              <div class="flex flex-col gap-1">
+                <div class="font-mono text-sm truncate">{{ service.service }}</div>
+                <div class="flex items-center gap-2">
+                  <v-input class="w-20"
+                           [value]="warnAfterSeconds(service.service).toString()"
+                           (valueChange)="setWarnAfterSeconds(service.service, $event)"
+                           type="number"
+                           inputmode="numeric"
+                           label="Warn"
+                           [isDisabled]="isSavingSettings$$()"
+                           [inputSize]="4"
+                           textAlign="right" />
+                  <v-input class="w-20"
+                           [value]="errorAfterSeconds(service.service).toString()"
+                           (valueChange)="setErrorAfterSeconds(service.service, $event)"
+                           type="number"
+                           inputmode="numeric"
+                           label="Error"
+                           [isDisabled]="isSavingSettings$$()"
+                           [inputSize]="4"
+                           textAlign="right" />
+                </div>
+              </div>
+            }
+          </div>
+        </div>
       </div>
     </v-expand>
-  }
+
+    @if (isServiceExpanded(dashboardPanelKey)) {
+      @for (row of dashboardRows$$(); track row.id) {
+        <v-card class="mb-4"
+                [borderRadius]="2"
+                [padding]="0">
+          <div class="flex flex-col gap-4 py-3 pl-2 pr-3">
+            <div class="flex gap-2">
+              <div class="shrink-0 relative w-4">
+                <!-- Invisible full-height measurer: decides fullText vs shortText against the
+                     row's real height. Kept separate from the visible label below because a
+                     sticky element's own box can't be stretched to that height for measuring —
+                     see the fitTextOnOverflow directive's `text` output. -->
+                <div class="absolute inset-y-0 left-0 invisible overflow-hidden [writing-mode:vertical-rl] [text-align:end] rotate-180 whitespace-nowrap font-semibold opacity-70 leading-none"
+                     fitTextOnOverflow
+                     #rowLabelFit="fitTextOnOverflow"
+                     fitTextOnOverflowAxis="height"
+                     [fullText]="row.label"
+                     [shortText]="row.shortLabel"></div>
+                <!-- Sticky label lives inside its own inset-y-0 box — same decoupling trick as
+                     the measurer above. Without it, the label's own (in-flow) content height
+                     would feed back into the flex-stretch that sizes this column: once the full
+                     label rendered once, its height would keep the column stretched tall even
+                     after the row shrank back down, so it could never re-collapse to shortLabel. -->
+                <div class="absolute inset-y-0 left-0">
+                  <div class="sticky [writing-mode:vertical-rl] rotate-180 whitespace-nowrap font-semibold opacity-70 leading-none"
+                       [style.top.px]="stickyLabelTopPx$$()">{{ rowLabelFit.text() }}</div>
+                </div>
+              </div>
+              <metric-card-grid class="grow min-w-0"
+                                [cardsInput]="row.cards"
+                                [targetWidthPxInput]="targetWidthPx$$()"
+                                [heightPxInput]="heightPx$$()"
+                                [expandedHeightPxInput]="expandedHeightPx$$()"
+                                [layoutModeInput]="cardLayoutMode$$()"
+                                [syncCrosshairEnabledInput]="syncCrosshairEnabled$$()"
+                                [forceZeroBaselineInput]="forceZeroBaselineEnabled$$()"
+                                [anomalyCorridorEnabledInput]="anomalyCorridorEnabled$$()"
+                                [anomalyCorridorPercentInput]="anomalyCorridorPercent$$()"
+                                [yTickCountCardInput]="yTickCountCard$$()"
+                                [yTickCountFullWidthInput]="yTickCountFullWidth$$()"
+                                [yTickSnapTolerancePercentInput]="yTickSnapTolerancePercent$$()"
+                                [tooltipModeInput]="activeTooltipMode$$()"
+                                [isEditModeInput]="isCardEditMode$$()"
+                                [isSelectionDisabledInput]="isSavingSettings$$()"
+                                (cardDashboardEnabledChangeOutput)="toggleDashboardMetric(row.id, $event.technicalName, $event.enabled)"
+                                (cardDashboardOrderChangeOutput)="setDashboardMetricOrder(row.id, $event.technicalName, $event.order)"
+                                (cardChartModeChangeOutput)="setMetricChartMode(row.id, $event.technicalName, $event.chartMode)" />
+            </div>
+          </div>
+        </v-card>
+      } @empty {
+        <div class="opacity-60 mb-4 text-sm">Нет выбранных метрик. Настройте в Settings.</div>
+      }
+    }
+
+    @for (service of visibleServiceOptions$$(); track service.service) {
+      @if (isServiceExpanded(service.service)) {
+        @for (group of expandedServiceGroups$$(); track group.id) {
+          <v-card class="mb-4"
+                  [borderRadius]="2"
+                  [padding]="0">
+            <div class="grid grid-cols-[auto_minmax(0,1fr)] gap-2 py-3 pl-2 pr-3">
+              <div class="self-start sticky [height:max-content] [writing-mode:vertical-rl] rotate-180 whitespace-nowrap font-semibold opacity-70 leading-none"
+                   [style.top.px]="stickyLabelTopPx$$()">
+                {{ group.label }}
+              </div>
+              <metric-card-grid [cardsInput]="group.cards"
+                                [targetWidthPxInput]="targetWidthPx$$()"
+                                [heightPxInput]="heightPx$$()"
+                                [expandedHeightPxInput]="expandedHeightPx$$()"
+                                [layoutModeInput]="cardLayoutMode$$()"
+                                [syncCrosshairEnabledInput]="syncCrosshairEnabled$$()"
+                                [forceZeroBaselineInput]="forceZeroBaselineEnabled$$()"
+                                [anomalyCorridorEnabledInput]="anomalyCorridorEnabled$$()"
+                                [anomalyCorridorPercentInput]="anomalyCorridorPercent$$()"
+                                [yTickCountCardInput]="yTickCountCard$$()"
+                                [yTickCountFullWidthInput]="yTickCountFullWidth$$()"
+                                [yTickSnapTolerancePercentInput]="yTickSnapTolerancePercent$$()"
+                                [tooltipModeInput]="activeTooltipMode$$()"
+                                [isEditModeInput]="isCardEditMode$$()"
+                                [isSelectionDisabledInput]="isSavingSettings$$()"
+                                (cardDashboardEnabledChangeOutput)="toggleDashboardMetric(service.service, $event.technicalName, $event.enabled)"
+                                (cardDashboardOrderChangeOutput)="setDashboardMetricOrder(service.service, $event.technicalName, $event.order)"
+                                (cardChartModeChangeOutput)="setMetricChartMode(service.service, $event.technicalName, $event.chartMode)" />
+            </div>
+          </v-card>
+        } @empty {
+          <div class="opacity-60 mb-4 text-sm">Нет метрик</div>
+        }
+      }
+    }
+
+    @if (isServiceExpanded(compositeServiceKey)) {
+      @for (group of compositeGroups$$(); track group.id) {
+        <v-card class="mb-4"
+                [borderRadius]="2"
+                [padding]="0">
+          <div class="grid grid-cols-[auto_minmax(0,1fr)] gap-2 py-3 pl-2 pr-3">
+            <div class="self-start sticky [height:max-content] [writing-mode:vertical-rl] rotate-180 whitespace-nowrap font-semibold opacity-70 leading-none"
+                 [style.top.px]="stickyLabelTopPx$$()">
+              {{ group.label }}
+            </div>
+            <metric-card-grid [cardsInput]="group.cards"
+                              [targetWidthPxInput]="targetWidthPx$$()"
+                              [heightPxInput]="heightPx$$()"
+                              [expandedHeightPxInput]="expandedHeightPx$$()"
+                              [layoutModeInput]="cardLayoutMode$$()"
+                              [syncCrosshairEnabledInput]="syncCrosshairEnabled$$()"
+                              [forceZeroBaselineInput]="forceZeroBaselineEnabled$$()"
+                              [anomalyCorridorEnabledInput]="anomalyCorridorEnabled$$()"
+                              [anomalyCorridorPercentInput]="anomalyCorridorPercent$$()"
+                              [yTickCountCardInput]="yTickCountCard$$()"
+                              [yTickCountFullWidthInput]="yTickCountFullWidth$$()"
+                              [yTickSnapTolerancePercentInput]="yTickSnapTolerancePercent$$()"
+                              [tooltipModeInput]="activeTooltipMode$$()"
+                              [isEditModeInput]="isCardEditMode$$()"
+                              [hideDashboardControlsInput]="true"
+                              [isSelectionDisabledInput]="isSavingSettings$$()" />
+          </div>
+        </v-card>
+      } @empty {
+        <div class="opacity-60 mb-4 text-sm">Нет составных метрик. Настройте в Settings.</div>
+      }
+    }
+  </div>
 </div>

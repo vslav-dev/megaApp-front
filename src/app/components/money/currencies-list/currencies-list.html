@@ -1,15 +1,11 @@
 <div>
 
-  <v-card [config]="{
-            padding: 4,
-            borderRadius: 2,
-          }">
+  <v-card [borderRadius]="2"
+          [padding]="4">
     <div class="flex items-center justify-between mb-4">
       <div class="text-lg font-semibold">Currencies</div>
-      <v-button class="v-flat"
-                [config]="{
-                  paddingY: 1,
-                }"
+      <v-button surface="flat"
+                [paddingY]="1"
                 (onClick)="showCreateForm()">
         <v-icon v-prefix
                 [name]="Icon.Add"
@@ -54,11 +50,9 @@
           </div>
 
           <div class="flex gap-2">
-            <v-button class="v-flat"
-                      [config]="{
-                        isLabelHidden: true,
-                        padding: iconButton.padding,
-                      }"
+            <v-button surface="flat"
+                      [isLabelHidden]="true"
+                      [padding]="iconButton.padding"
                       (onClick)="editCurrency(currency)">
               <v-icon v-prefix
                       [name]="Icon.Edit"
@@ -66,11 +60,9 @@
             </v-button>
 
             <v-button class="v-danger"
-                      [config]="{
-                        isLabelHidden: true,
-                        padding: iconButton.padding,
-                        isDisabled: !canDeleteCurrency(currency.id!),
-                      }"
+                      [isDisabled]="!canDeleteCurrency(currency.id!)"
+                      [isLabelHidden]="true"
+                      [padding]="iconButton.padding"
                       (onClick)="deleteCurrency(currency.id!)">
               <v-icon v-prefix
                       [name]="Icon.Delete"

@@ -1,0 +1,77 @@
+<v-card class="v-theme-transition"
+        [borderRadius]="2"
+        [padding]="2">
+  <div class="flex items-center justify-between gap-2 mb-2">
+    <div class="text-lg font-semibold">Серия</div>
+    <food-stats-help-icon>
+      <div class="flex flex-col gap-2">
+        <div>
+          Сколько дней подряд вы не переедали и вели дневник. Недобор и норма калорий — это нормально, счёт дней не
+          сбивают. Сбивают счёт переедание и день без единой записи о еде. «Рекорд» — лучшая такая серия за всё время.
+        </div>
+        <div class="flex flex-col gap-1">
+          @for (band of legendBands; track band) {
+            <div class="flex items-center gap-2">
+              <span class="shrink-0 w-3 h-3 rounded-full"
+                    [style.background]="cellColor(band)"></span>
+              <span>{{ BandLabel[band] }} — {{ BandRangeLabel[band] }} от нормы</span>
+            </div>
+          }
+          <div class="flex items-center gap-2">
+            <span
+                  class="h-3 w-3 shrink-0 rounded-full border border-dashed border-[color:var(--v-color-text-muted)]"></span>
+            <span>Сегодня — день ещё не закончен</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span
+                  class="h-3 w-3 shrink-0 rounded-full border border-solid border-[color:var(--v-color-text-muted)]"></span>
+            <span>День не заполнен</span>
+          </div>
+        </div>
+      </div>
+    </food-stats-help-icon>
+  </div>
+
+  <div class="flex gap-2">
+    <div class="flex flex-1 items-center justify-center rounded-[8px] bg-[color:var(--v-color-surface-accent)] p-2">
+      <div class="justify-items-center grid grid-cols-7 gap-1">
+        @for (cell of calendarCells$$(); track $index) {
+          @if (!cell) {
+            <div class="h-[18px] w-[18px]"></div>
+          } @else if (cell.isToday) {
+            <div class="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-dashed border-[color:var(--v-color-text-muted)] bg-transparent text-[8px] font-semibold text-[color:var(--v-color-text-muted)]"
+                 [title]="cellTitle(cell)">{{ dayNumber(cell.dateIso) }}</div>
+          } @else if (cell.hasNoData) {
+            <div class="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-solid border-[color:var(--v-color-text-muted)] bg-transparent text-[8px] font-semibold text-[color:var(--v-color-text-muted)]"
+                 [title]="cellTitle(cell)">{{ dayNumber(cell.dateIso) }}</div>
+          } @else {
+            <div class="flex h-[18px] w-[18px] items-center justify-center rounded-full text-[8px] font-semibold"
+                 [style.background]="cellColor(cell.band!)"
+                 [style.color]="cellTextColor(cell.band!)"
+                 [title]="cellTitle(cell)">{{ dayNumber(cell.dateIso) }}</div>
+          }
+        }
+      </div>
+    </div>
+
+    <div class="flex max-w-[190px] flex-1 flex-col gap-2">
+      <div
+           class="flex flex-1 flex-col justify-center rounded-[8px] bg-[color:var(--v-color-surface-accent)] p-2 text-center">
+        <div class="text-xs text-[color:var(--v-color-text-muted)]">Текущая серия</div>
+        <div class="flex items-baseline justify-center gap-1">
+          <span class="text-2xl font-bold">{{ streak$$().current }}</span>
+          <span class="text-xs text-[color:var(--v-color-text-muted)]">{{ daysLabel(streak$$().current) }}</span>
+        </div>
+      </div>
+
+      <div
+           class="flex flex-1 flex-col justify-center rounded-[8px] bg-[color:var(--v-color-surface-accent)] p-2 text-center">
+        <div class="text-xs text-[color:var(--v-color-text-muted)]">Рекорд за всё время</div>
+        <div class="flex items-baseline justify-center gap-1">
+          <span class="text-2xl font-bold">{{ streak$$().record }}</span>
+          <span class="text-xs text-[color:var(--v-color-text-muted)]">{{ daysLabel(streak$$().record) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</v-card>

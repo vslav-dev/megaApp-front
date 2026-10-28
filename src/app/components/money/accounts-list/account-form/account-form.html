@@ -3,11 +3,8 @@
 <div class="flex flex-col gap-4">
   <div class="flex gap-4">
     <v-input class="flex-1"
-             [config]="{
-                 label: 'Title',
-                 placeholder: 'My Bank Account',
-                 type: 'text',
-               }"
+             label="Title"
+             placeholder="My Bank Account"
              [ngModel]="title$$()"
              (ngModelChange)="title$$.set($event)" />
 
@@ -49,14 +46,12 @@
 
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
-              [config]="{
-                  isDisabled: !isFormValid(),
-                }"
+              [isDisabled]="!isFormValid()"
               (onClick)="save()">
       {{ isEditing() ? 'Update' : 'Create' }}
     </v-button>
 
-    <v-button class="v-flat"
+    <v-button surface="flat"
               (onClick)="cancel()">
       Cancel
     </v-button>

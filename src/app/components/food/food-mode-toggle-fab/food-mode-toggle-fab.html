@@ -1,0 +1,15 @@
+@if (isVisible$$()) {
+  <div [class]="deviceInfoService.shouldHideFabButtons$$() ? 'fab-slide-hidden' : 'fab-slide-visible'"
+       class="fixed right-0 z-20 mr-4"
+       [style.bottom]="bottomPx">
+    <v-button surface="raised"
+              [isLabelHidden]="true"
+              [borderRadius]="7"
+              [padding]="3"
+              (onClick)="toggleMode()">
+      <v-icon v-prefix
+              [name]="modeToggleIcon$$()"
+              [size]="8" />
+    </v-button>
+  </div>
+}

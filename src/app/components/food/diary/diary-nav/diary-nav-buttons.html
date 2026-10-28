@@ -1,10 +1,8 @@
-<div class="flex w-full gap-2">
+<div class="flex w-full gap-3">
   @if(deviceInfoService.isDesktopScreen$$()) {
-    <v-button class="v-flat"
-              [config]="{
-                isLabelHidden: true,
-                padding: 1,
-              }"
+    <v-button surface="flat"
+              [isLabelHidden]="true"
+              [padding]="1"
               (onClick)="goToPreviousDay()">
       <v-icon v-prefix
               [name]="Icon.KeyboardArrowLeft"
@@ -12,9 +10,9 @@
     </v-button>
   }
 
-  <div class="grow flex justify-between gap-2 overflow-hidden text-xl"
+  <div class="v-theme-transition grow flex justify-between gap-2 overflow-hidden text-xl"
        [class.mx-2]="deviceInfoService.isMobileScreen$$()"
-       [style.color]="!isTodaySelected$$() ? 'var(--v-color-accent)' : null">
+       [style.color]="!isTodaySelected$$() ? 'var(--v-color-primary)' : null">
     <div class="place-content-center whitespace-nowrap overflow-hidden"
          fitTextOnOverflow
          [fullText]="weekdayFull$$()"
@@ -24,25 +22,22 @@
 
   @if(deviceInfoService.isDesktopScreen$$()) {
     <div class="flex flex-col">
-      <v-button class="v-flat"
-                [config]="{
-                  isLabelHidden: true,
-                  padding: 2,
-                }"
+      <v-button surface="flat"
+                [isLabelHidden]="true"
+                [padding]="2"
                 (onClick)="onDateControlClick()">
         <v-icon v-prefix
                 [name]="primaryActionIcon$$()"
-                [size]="5" />
+                [size]="5"
+                [class.-scale-x-100]="isPastDaySelected$$()" />
       </v-button>
 
       <ng-container [ngTemplateOutlet]="dateInputTemplate" />
     </div>
 
-    <v-button class="v-flat"
-              [config]="{
-                isLabelHidden: true,
-                padding: 1,
-              }"
+    <v-button surface="flat"
+              [isLabelHidden]="true"
+              [padding]="1"
               (onClick)="goToNextDay()">
       <v-icon v-prefix
               [name]="Icon.KeyboardArrowRight"
@@ -52,54 +47,52 @@
 </div>
 
 @if (authService.isAuthenticated$$() && !deviceInfoService.isDesktopScreen$$()) {
-  <div [class]="shouldHideFabButtons$$() ? 'fab-hide-slide-right-hidden' : 'fab-hide-slide-right-visible'"
-       class="fixed bottom-[88px] right-0 z-20 mr-4">
-    <v-button class="v-primary"
-              [config]="{
-                isLabelHidden: true,
-                padding: 3,
-                borderRadius: 7,
-              }"
-              (onClick)="openAddFoodModal()">
-      <v-icon v-prefix
-              [name]="Icon.Add"
-              [size]="8" />
-    </v-button>
-  </div>
+  @if (!isAnyAccordionOpen$$()) {
+    <div [class]="deviceInfoService.shouldHideFabButtons$$() ? 'fab-hide-slide-right-hidden' : 'fab-hide-slide-right-visible'"
+         class="fixed right-0 z-20 mr-4"
+         [style.bottom]="addFabBottomPx">
+      <v-button class="v-primary"
+                surface="raised"
+                [isLabelHidden]="true"
+                [borderRadius]="7"
+                [padding]="3"
+                (onClick)="openAddFoodModal()">
+        <v-icon v-prefix
+                [name]="Icon.Add"
+                [size]="8" />
+      </v-button>
+    </div>
+  }
 
-  <div [class]="shouldHideFabButtons$$() ? 'fab-hide-slide-down-hidden' : 'fab-hide-slide-down-visible'"
-       class="fixed bottom-4 right-[88px] flex gap-5"
+  <div [class]="deviceInfoService.shouldHideFabButtons$$() ? 'fab-hide-slide-down-hidden' : 'fab-hide-slide-down-visible'"
+       class="bottom-4 fixed flex gap-5"
+       [style.right]="dateNavRowRightPx"
        style="z-index: 10">
-    <v-button class="v-flat"
-              [config]="{
-                borderRadius: 7,
-                isLabelHidden: true,
-                padding: 3,
-              }"
+    <v-button surface="raised"
+              [isLabelHidden]="true"
+              [borderRadius]="7"
+              [padding]="3"
               (onClick)="onDateControlClick()">
       <v-icon v-prefix
               [name]="primaryActionIcon$$()"
-              [size]="8" />
+              [size]="8"
+              [class.-scale-x-100]="isPastDaySelected$$()" />
     </v-button>
 
-    <v-button class="v-flat"
-              [config]="{
-                borderRadius: 7,
-                isLabelHidden: true,
-                padding: 2,
-              }"
+    <v-button surface="raised"
+              [isLabelHidden]="true"
+              [borderRadius]="7"
+              [padding]="2"
               (onClick)="goToPreviousDay()">
       <v-icon v-prefix
               [name]="Icon.KeyboardArrowLeft"
               [size]="10" />
     </v-button>
 
-    <v-button class="v-flat"
-              [config]="{
-                borderRadius: 7,
-                isLabelHidden: true,
-                padding: 2,
-              }"
+    <v-button surface="raised"
+              [isLabelHidden]="true"
+              [borderRadius]="7"
+              [padding]="2"
               (onClick)="goToNextDay()">
       <v-icon v-prefix
               [name]="Icon.KeyboardArrowRight"
@@ -116,6 +109,6 @@
          type="date"
          class="hide-input"
          [formControl]="formCalendarSelectedDay"
-         [max]="maxDateIso"
+         [max]="maxDateIso$$()"
          (change)="onDatePicked($event)" />
 </ng-template>

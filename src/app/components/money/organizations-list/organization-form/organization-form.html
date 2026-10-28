@@ -1,16 +1,13 @@
 <div class="mb-4 text-lg font-semibold">{{ isEditing() ? 'Edit Organization' : 'Add New Organization' }}</div>
 
 <div class="flex flex-col gap-4">
-  <v-input [config]="{
-               label: 'Title',
-               placeholder: 'Sberbank',
-               type: 'text',
-             }"
+  <v-input label="Title"
+           placeholder="Sberbank"
            [ngModel]="title$$()"
            (ngModelChange)="title$$.set($event)" />
 
   <div class="flex flex-col gap-2">
-    <div class="text-sm opacity-70">Logo</div>
+    <div class="opacity-70 text-sm">Logo</div>
 
     <div class="flex items-center gap-3">
       @if (getLogoSrc(); as src) {
@@ -18,31 +15,25 @@
              class="w-10 h-10 rounded object-contain border border-[color:var(--v-outline-color)]"
              alt="">
 
-        <v-button class="v-flat"
-                  [config]="{
-                    paddingY: 1,
-                    paddingX: 2,
-                  }"
+        <v-button surface="flat"
+                  [paddingX]="2"
+                  [paddingY]="1"
                   (onClick)="clearLogo()">
           Remove
         </v-button>
 
-        <v-button class="v-flat"
-                  [config]="{
-                    paddingY: 1,
-                    paddingX: 2,
-                  }"
+        <v-button surface="flat"
+                  [paddingX]="2"
+                  [paddingY]="1"
                   (onClick)="triggerFileInput()">
           Replace
         </v-button>
       } @else {
         <div class="w-10 h-10 rounded border border-dashed border-[color:var(--v-outline-color)] opacity-40"></div>
 
-        <v-button class="v-flat"
-                  [config]="{
-                    paddingY: 1,
-                    paddingX: 2,
-                  }"
+        <v-button surface="flat"
+                  [paddingX]="2"
+                  [paddingY]="1"
                   (onClick)="triggerFileInput()">
           Upload image
         </v-button>
@@ -58,14 +49,12 @@
 
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
-              [config]="{
-                  isDisabled: !isFormValid(),
-                }"
+              [isDisabled]="!isFormValid()"
               (onClick)="save()">
       {{ isEditing() ? 'Update' : 'Create' }}
     </v-button>
 
-    <v-button class="v-flat"
+    <v-button surface="flat"
               (onClick)="cancel()">
       Cancel
     </v-button>

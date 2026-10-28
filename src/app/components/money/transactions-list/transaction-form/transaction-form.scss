@@ -1,5 +1,7 @@
 ::ng-deep {
-  .calendar-v-button>button {
+
+  .calendar-v-button>button,
+  .date-nav-v-button>button {
     width: 32px !important;
   }
 

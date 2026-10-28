@@ -2,22 +2,22 @@
   <div class="flex items-center justify-between">
     <div class="text-lg font-semibold">Expense Categories</div>
     <div class="flex items-center gap-2">
-      <v-input #yMaxElem
-               [style.width.px]="yMaxWidth$$()"
-               [config]="{
-                 inputmode: 'numeric',
-                 textAlign: 'right',
-                 isDisabled: yearlyMode$$(),
-               }"
-               [value]="yMaxInput$$()"
-               (valueChange)="onYMaxChange($event)">
-        <span v-prefix
-              class="ml-2 mr-1 text-sm text-gray-400 cursor-pointer"
-              (click)="focusYMaxInput()">max</span>
-        <span v-postfix
-              class="ml-1 mr-2 text-sm text-gray-400 cursor-pointer"
-              (click)="focusYMaxInput()">{{ currencySymbolInput() }}</span>
-      </v-input>
+      @if (!yearlyMode$$()) {
+        <v-input #yMaxElem
+                 [style.width.px]="yMaxWidth$$()"
+                 [style.opacity]="isYMaxAuto$$() ? 0.55 : 1"
+                 inputmode="numeric"
+                 textAlign="right"
+                 [value]="yMaxInput$$()"
+                 (valueChange)="onYMaxChange($event)">
+          <span v-prefix
+                class="ml-2 mr-1 text-sm text-gray-400 cursor-pointer"
+                (click)="focusYMaxInput()">max</span>
+          <span v-postfix
+                class="ml-1 mr-2 text-sm text-gray-400 cursor-pointer"
+                (click)="focusYMaxInput()">{{ currencySymbolInput() }}</span>
+        </v-input>
+      }
       <v-toggle [items]="viewToggleItems"
                 [value]="viewToggleValue()"
                 (valueChange)="onViewToggleChange($event)"></v-toggle>
@@ -30,11 +30,10 @@
 
   <div class="flex items-center gap-3 pt-0">
     <div class="min-w-[63px]">
-      <v-button class="v-flat shrink-0"
-                [config]="{
-                  padding: 1,
-                  width: '100%',
-                }"
+      <v-button class="shrink-0"
+                surface="flat"
+                width="100%"
+                [padding]="1"
                 (onClick)="toggleAll()">
         {{ allNoneLabel$$() }}
       </v-button>
@@ -42,15 +41,15 @@
     <div class="gap-x-4 gap-y-1 flex flex-wrap">
       @for (series of allSeriesList$$(); track series.categoryId) {
         <v-checkbox [value]="isCategoryEnabled(series.categoryId)"
-                    [config]="{
-                      size: 4,
-                      checkIconSize: 3,
-                      gap: 1,
-                    }"
+                    [size]="4"
+                    [gap]="1"
+                    [checkIconSize]="3"
+                    (mouseenter)="onCategoryMouseEnter(series.categoryName)"
+                    (mouseleave)="onCategoryMouseLeave()"
                     (onChanged)="toggleCategory(series.categoryId, $event)">
           <span class="inline-flex items-center gap-1 text-xs">
             <span class="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                  [style.background]="getCategoryColor(series.categoryId, allSeriesList$$())"></span>
+                  [style.background]="getCategoryColor(series.categoryId)"></span>
             {{ series.categoryName }}
           </span>
         </v-checkbox>

@@ -1,31 +1,67 @@
-import { Injectable, WritableSignal, computed, inject, signal } from '@angular/core';
-import { tokenGetter } from '@app/services/auth.service';
-import { IncomingWsMessage, OutgoingWsMessage, WebSocketMessageType } from '@app/shared/types';
+import { Injectable, computed, signal } from '@angular/core';
+import { IncomingWsMessage, OutgoingWsMessage, PongWsMessage, WebSocketMessageType } from '@app/shared/types';
 import { Subject } from 'rxjs';
 import { NotificationService } from './notification.service';
 
-@Injectable({
-  providedIn: 'root',
-})
-export class NetworkService {
-  public readonly isOnline$$: WritableSignal<boolean> = signal(navigator.onLine);
-  public readonly isConnected$$: WritableSignal<boolean> = signal(false);
-  public readonly isNetworkAvailable$$ = computed(() => this.isOnline$$());
+// One byte prefix identifying a binary WS frame's payload — mirrors
+// megaapp-back's wsFrameMetricsUpdate/wsFrameMetricsLatest (realtime.go).
+// Binary frames carry metrics wire-format data (see shared/metrics-wire.ts)
+// and never go through the JSON wsMessages$ channel — a JSON envelope
+// around binary data would force it through base64 and defeat the point of
+// a binary format.
+export const MetricsBinaryFrameType = {
+  Update: 0,
+  Latest: 1,
+} as const;
 
+export type MetricsBinaryFrameType = (typeof MetricsBinaryFrameType)[keyof typeof MetricsBinaryFrameType];
+
+export interface MetricsBinaryFrame {
+  frameType: MetricsBinaryFrameType;
+  payload: ArrayBuffer;
+}
+
+export const RealtimeState = {
+  Stopped: 'stopped',
+  Connecting: 'connecting',
+  Connected: 'connected',
+  Waiting: 'waiting',
+  Offline: 'offline',
+} as const;
+
+export type RealtimeState = (typeof RealtimeState)[keyof typeof RealtimeState];
+
+const FIRST_RECONNECT_DELAY_MS = 1_000;
+const MAX_RECONNECT_DELAY_MS = 30_000;
+const STABLE_CONNECTION_MS = 10_000;
+
+@Injectable({ providedIn: 'root' })
+export class NetworkService {
+  public readonly isOnline$$ = signal(navigator.onLine);
+  public readonly isConnected$$ = signal(false);
+  public readonly realtimeState$$ = signal<RealtimeState>(RealtimeState.Stopped);
+  public readonly isNetworkAvailable$$ = computed(() => this.isOnline$$());
   public readonly wsMessages$ = new Subject<IncomingWsMessage>();
+  public readonly metricsBinaryFrames$ = new Subject<MetricsBinaryFrame>();
+  public readonly connected$ = new Subject<void>();
 
   private socket: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly reconnectDelayMs = 5000;
-  private readonly clientId: string;
-  private shouldReconnect = true;
-  private isConnecting = false;
+  private stableConnectionTimer: ReturnType<typeof setTimeout> | null = null;
+  private shouldReconnect = false;
+  private reconnectAttempt = 0;
+  private sessionProbeInFlight = false;
+  private sessionInvalidationHandler: (() => void) | null = null;
+  private readonly clientId = this.getOrCreateClientId();
 
-  private readonly notifications = inject(NotificationService);
+  public constructor(private readonly notifications: NotificationService) {
+    window.addEventListener('online', () => this.updateOnlineStatus(true));
+    window.addEventListener('offline', () => this.updateOnlineStatus(false));
+    document.addEventListener('visibilitychange', () => this.onVisibilityChange());
+  }
 
-  constructor() {
-    this.clientId = Math.random().toString(36).substring(2, 10);
-    this.initNetworkEvents();
+  public setSessionInvalidationHandler(handler: () => void): void {
+    this.sessionInvalidationHandler = handler;
   }
 
   public getClientId(): string {
@@ -34,21 +70,42 @@ export class NetworkService {
 
   public connect(): void {
     this.shouldReconnect = true;
+    this.openIfAllowed();
+  }
 
-    if (this.isConnecting || this.isSocketActive()) {
+  public disconnect(): void {
+    this.shouldReconnect = false;
+    this.clearReconnectTimer();
+    this.clearStableConnectionTimer();
+    const socket = this.socket;
+    this.socket = null;
+    if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, 'Client disconnect');
+    this.isConnected$$.set(false);
+    this.realtimeState$$.set(RealtimeState.Stopped);
+  }
+
+  public sendMessage(message: OutgoingWsMessage | PongWsMessage): boolean {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN || !this.isConnected$$()) return false;
+    this.socket.send(JSON.stringify({ version: 1, ...message }));
+    return true;
+  }
+
+  private openIfAllowed(): void {
+    if (!this.shouldReconnect || this.isSocketActive()) return;
+    if (!this.isOnline$$()) {
+      this.realtimeState$$.set(RealtimeState.Offline);
       return;
     }
-
-    const token = tokenGetter();
-    if (!token) {
-      console.warn('Cannot connect WebSocket: no auth token');
+    if (document.visibilityState === 'hidden') {
+      this.realtimeState$$.set(RealtimeState.Waiting);
       return;
     }
 
     this.clearReconnectTimer();
-    this.isConnecting = true;
-
-    const socket = new WebSocket(this.buildWebSocketURL(token));
+    this.realtimeState$$.set(RealtimeState.Connecting);
+    const socket = new WebSocket(this.buildWebSocketURL());
+    socket.binaryType = 'arraybuffer';
+    let wasOpened = false;
     this.socket = socket;
 
     socket.onopen = () => {
@@ -56,145 +113,144 @@ export class NetworkService {
         socket.close();
         return;
       }
-
-      this.isConnecting = false;
+      wasOpened = true;
       this.isConnected$$.set(true);
+      this.realtimeState$$.set(RealtimeState.Connected);
+      this.connected$.next();
+      this.clearStableConnectionTimer();
+      this.stableConnectionTimer = setTimeout(() => {
+        if (this.socket === socket && socket.readyState === WebSocket.OPEN) this.reconnectAttempt = 0;
+      }, STABLE_CONNECTION_MS);
     };
 
-    socket.onmessage = (event: MessageEvent<string>) => {
-      if (this.socket !== socket) {
+    socket.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
+      if (this.socket !== socket) return;
+      if (event.data instanceof ArrayBuffer) {
+        this.handleIncomingBinaryFrame(event.data);
         return;
       }
-
       try {
-        const message = JSON.parse(event.data) as IncomingWsMessage;
-        this.handleIncomingMessage(message);
-      } catch (error) {
-        console.error('WebSocket message parse failed:', error);
+        this.handleIncomingMessage(JSON.parse(event.data) as IncomingWsMessage);
+      } catch {
+        // Invalid server message is isolated to this connection.
       }
     };
 
-    socket.onerror = () => {
+    socket.onclose = (event) => {
+      if (this.socket === socket) this.socket = null;
+      this.clearStableConnectionTimer();
       this.isConnected$$.set(false);
-    };
-
-    socket.onclose = () => {
-      if (this.socket === socket) {
-        this.socket = null;
+      if (!this.shouldReconnect) return;
+      if (event.code === 4001 || event.code === 4002) {
+        this.sessionInvalidationHandler?.();
+        return;
       }
-
-      this.isConnecting = false;
-      this.isConnected$$.set(false);
-
-      if (this.shouldReconnect && this.isOnline$$() && tokenGetter()) {
-        this.scheduleReconnect();
+      if (!wasOpened) {
+        void this.probeSessionThenReconnect();
+        return;
       }
+      this.scheduleReconnect();
     };
   }
 
-  public disconnect(): void {
-    this.shouldReconnect = false;
-    this.clearReconnectTimer();
-    this.isConnecting = false;
-
-    const socket = this.socket;
-    this.socket = null;
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      socket.close(1000, 'Client disconnect');
-    } else if (socket && socket.readyState === WebSocket.CONNECTING) {
-      socket.close();
+  private async probeSessionThenReconnect(): Promise<void> {
+    if (this.sessionProbeInFlight) return;
+    this.sessionProbeInFlight = true;
+    try {
+      const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
+      if (response.status === 401) {
+        this.sessionInvalidationHandler?.();
+        return;
+      }
+    } catch {
+      // Network and backend failures use reconnect backoff; they never end the session.
+    } finally {
+      this.sessionProbeInFlight = false;
     }
-
-    this.isConnected$$.set(false);
+    this.scheduleReconnect();
   }
 
-  public sendMessage(message: OutgoingWsMessage | { type: 'PONG' }): void {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN && this.isConnected$$()) {
-      this.socket.send(JSON.stringify(message));
+  private scheduleReconnect(): void {
+    if (!this.shouldReconnect || this.reconnectTimer || !this.isOnline$$() || document.visibilityState === 'hidden')
       return;
-    }
-
-    console.warn('WebSocket not connected, cannot send message:', message);
-  }
-
-  private initNetworkEvents(): void {
-    window.addEventListener('online', () => this.updateOnlineStatus(true));
-    window.addEventListener('offline', () => this.updateOnlineStatus(false));
-
-    this.isOnline$$.set(navigator.onLine);
+    const exponentialDelay = Math.min(MAX_RECONNECT_DELAY_MS, FIRST_RECONNECT_DELAY_MS * 2 ** this.reconnectAttempt++);
+    const delay = Math.round(exponentialDelay * (0.75 + Math.random() * 0.5));
+    this.realtimeState$$.set(RealtimeState.Waiting);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.openIfAllowed();
+    }, delay);
   }
 
   private updateOnlineStatus(isOnline: boolean): void {
     this.isOnline$$.set(isOnline);
-
     if (!isOnline) {
+      this.clearReconnectTimer();
+      this.realtimeState$$.set(RealtimeState.Offline);
       this.notifications.showOfflineMode();
       return;
     }
+    this.openIfAllowed();
+  }
 
-    if (this.shouldReconnect && !this.isSocketActive()) {
-      this.connect();
+  private onVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') {
+      this.clearReconnectTimer();
+      return;
     }
+    this.openIfAllowed();
   }
 
-  private buildWebSocketURL(token: string): string {
-    const encodedToken = encodeURIComponent(token);
-    const encodedClientId = encodeURIComponent(this.clientId);
-    const baseURL = this.getBaseWebSocketURL();
-
-    return `${baseURL}?token=${encodedToken}&clientId=${encodedClientId}`;
-  }
-
-  private getBaseWebSocketURL(): string {
+  private buildWebSocketURL(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const hostname = window.location.hostname;
     const port = this.resolveWebSocketPort(window.location.port);
-
-    return `${protocol}//${hostname}${port ? `:${port}` : ''}/api/ws`;
+    return `${protocol}//${hostname}${port ? `:${port}` : ''}/api/ws?clientId=${encodeURIComponent(this.clientId)}`;
   }
 
   private resolveWebSocketPort(currentPort: string): string {
-    if (currentPort === '4200' || currentPort === '4201') {
-      return '3001';
-    }
+    return currentPort === '4200' || currentPort === '4201' ? '3000' : currentPort;
+  }
 
-    return currentPort;
+  private getOrCreateClientId(): string {
+    const storageKey = 'megaapp_tab_id';
+    const existing = sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const value = crypto.randomUUID();
+    sessionStorage.setItem(storageKey, value);
+    return value;
   }
 
   private isSocketActive(): boolean {
-    if (!this.socket) {
-      return false;
-    }
-
-    return this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING;
-  }
-
-  private scheduleReconnect(): void {
-    if (this.reconnectTimer) {
-      return;
-    }
-
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      this.connect();
-    }, this.reconnectDelayMs);
+    return this.socket?.readyState === WebSocket.OPEN || this.socket?.readyState === WebSocket.CONNECTING;
   }
 
   private clearReconnectTimer(): void {
-    if (!this.reconnectTimer) {
-      return;
-    }
-
+    if (this.reconnectTimer === null) return;
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
   }
 
+  private clearStableConnectionTimer(): void {
+    if (this.stableConnectionTimer === null) return;
+    clearTimeout(this.stableConnectionTimer);
+    this.stableConnectionTimer = null;
+  }
+
+  private handleIncomingBinaryFrame(data: ArrayBuffer): void {
+    if (data.byteLength === 0) return;
+    // First byte is the frame-type prefix (see MetricsBinaryFrameType); the
+    // rest is the wire-encoded payload, decoded downstream by whichever
+    // service consumes that frame type (metrics.service.ts / metrics-health.service.ts).
+    const frameType = new Uint8Array(data, 0, 1)[0] as MetricsBinaryFrameType;
+    this.metricsBinaryFrames$.next({ frameType, payload: data.slice(1) });
+  }
+
   private handleIncomingMessage(data: IncomingWsMessage): void {
     if (data.type === WebSocketMessageType.PING) {
-      this.sendMessage({ type: 'PONG' });
+      this.sendMessage({ type: WebSocketMessageType.PONG });
       return;
     }
-
     this.wsMessages$.next(data);
   }
 }

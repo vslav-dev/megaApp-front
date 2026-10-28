@@ -1,6 +1,7 @@
 nav {
   background: var(--v-color-surface);
   box-shadow: var(--v-shadow-outer-1);
+  transition: background var(--v-theme-transition-duration, 0s);
 }
 
 .side-menu-button {

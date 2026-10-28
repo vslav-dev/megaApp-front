@@ -1,0 +1,45 @@
+<v-card class="v-theme-transition"
+        [borderRadius]="2"
+        [padding]="2">
+  <div class="flex items-center justify-between gap-2 mb-2">
+    <div class="text-lg font-semibold">Топ продуктов за 30 дней</div>
+    <food-stats-help-icon>
+      <div class="flex flex-col gap-2">
+        <div>Продукты, которые чаще всего попадали в ваш рацион за последние 30 дней.</div>
+        <div class="flex flex-col gap-1">
+          <div><span class="font-semibold">По калориям</span> — доля от всех съеденных за этот период калорий.</div>
+          <div><span class="font-semibold">По весу</span> — доля от всего съеденного за этот период веса в граммах.
+          </div>
+        </div>
+      </div>
+    </food-stats-help-icon>
+  </div>
+
+  <div class="flex justify-end mb-2">
+    <v-toggle [fitContent]="true"
+              [items]="metricToggleItems"
+              [value]="metricToggleValue()"
+              (valueChange)="onMetricToggleChange($event)"></v-toggle>
+  </div>
+
+  @if (products$$().length === 0) {
+    <div class="text-sm text-[color:var(--v-color-text-muted)]">Пока недостаточно данных</div>
+  } @else {
+    @for (product of products$$(); track product.catalogueId) {
+      <v-progress class="last:mb-0 mb-2"
+                  [value]="barWidthPercent(product)"
+                  [height]="2">
+        <div v-label
+             class="flex justify-between gap-2 text-sm">
+          <span class="font-medium">
+            {{ product.name }}
+            @if (product.isArchived) {
+              <span class="text-xs font-normal text-[color:var(--v-color-text-muted)]">архив</span>
+            }
+          </span>
+          <span>{{ product.sharePercent }}%</span>
+        </div>
+      </v-progress>
+    }
+  }
+</v-card>

@@ -1,11 +1,11 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { DiaryEntry } from '@app/shared/types';
 
 @Component({
   selector: 'diary-entry-product-info',
   templateUrl: './diary-entry-product-info.html',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DiaryEntryProductInfo {
   public readonly diaryEntry = input.required<DiaryEntry>();

@@ -21,14 +21,18 @@ body {
   height: 8px;
 }
 
+// Same shared window as every other theme-color transition in the app (see vars.css) —
+// 0s outside the toggle window, SettingsService.applyThemeAnimated's duration during it.
 ::-webkit-scrollbar-track {
   border-radius: 2px;
   background-color: var(--slate-200);
+  transition: background-color var(--v-theme-transition-duration, 0s);
 }
 
 ::-webkit-scrollbar-thumb {
   border-radius: 2px;
   background-color: var(--slate-400);
+  transition: background-color var(--v-theme-transition-duration, 0s);
 }
 
 .dark ::-webkit-scrollbar-track {
@@ -43,4 +47,21 @@ body {
   background: color-mix(in srgb, var(--v-color-surface) 80%, transparent);
   border-radius: 4px;
   box-decoration-break: clone;
+  transition: background var(--v-theme-transition-duration, 0s);
+}
+
+// Explicit opt-in for app-level markup that reads --v-color-* directly (Tailwind
+// arbitrary-value classes, [style.background]/[style.color] bindings) instead of going
+// through a ui-kit component that already carries its own transition. Same shared token
+// as everywhere else — fallback 0s outside the sync window SettingsService.applyThemeAnimated
+// opens. Descendant selector so one class on a container covers everything inside it.
+// Wrapped in :where() to force zero specificity — a nested ui-kit component's own :host
+// transition rule has the same specificity after Angular's emulated-encapsulation attribute
+// is added, which would make the winner an unpredictable tie; :where() guarantees this rule
+// only ever fills in elements with no other transition rule, never overrides one that exists.
+:where(.v-theme-transition, .v-theme-transition *) {
+  transition:
+    background var(--v-theme-transition-duration, 0s),
+    color var(--v-theme-transition-duration, 0s),
+    border-color var(--v-theme-transition-duration, 0s);
 }

@@ -1,0 +1,11 @@
+<v-tooltip>
+  <div class="flex items-center justify-center w-5 h-5 mr-1 border border-dashed rounded-full"
+       style="border-color: color-mix(in oklab, var(--v-color-border-subtle) 60%, var(--v-color-text-muted) 40%)">
+    <v-icon [name]="Icon.QuestionMark"
+            [size]="4"
+            color="color-mix(in oklab, var(--v-color-border-subtle) 60%, var(--v-color-text-muted) 40%)" />
+  </div>
+  <div v-panel>
+    <ng-content />
+  </div>
+</v-tooltip>

@@ -1,6 +1,10 @@
 @if (authService.sessionState$$() === AuthSessionState.Unknown) {
   <div class="flex items-center justify-center w-screen h-screen text-lg">
-    Загрузка...
+    @if (authService.bootstrapError$$()) {
+      <button type="button" (click)="authService.retryBootstrap()">Сервис недоступен. Повторить</button>
+    } @else {
+      Загрузка...
+    }
   </div>
 } @else {
   <div class="flex">

@@ -1,6 +1,18 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, ElementRef, inject, Signal, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  Signal,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { FOOD_DIARY_ACCORDION_GROUP_ID } from '@app/components/food/diary/food-diary-accordion';
+import { FOOD_FAB_ROW_RIGHT_INSET_PX, FoodFabLayer, foodFabStackBottomPx } from '@app/components/food/food-fab-layout';
 import { AuthService } from '@app/services/auth.service';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodAddModalService } from '@app/services/food/food-add-modal.service';
@@ -15,6 +27,7 @@ import { AccordionGroupService } from '@ui-kit/services/accordion-group.service'
   selector: 'diary-nav-buttons',
   templateUrl: './diary-nav-buttons.html',
   styleUrl: './diary-nav-buttons.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, ReactiveFormsModule, FitTextOnOverflowDirective, VButton, VIcon],
 })
 export class DiaryNavButtons {
@@ -22,11 +35,9 @@ export class DiaryNavButtons {
 
   protected readonly dateInputElem = viewChild<ElementRef<HTMLInputElement>>('dateInputElem');
 
-  protected initDateTodayWithUserHourShift: Date = calcDateWithUserTimeShift(new Date());
+  protected readonly maxDateIso$$ = signal(dateToIsoNoTimeNoTZ(calcDateWithUserTimeShift(new Date())));
 
-  protected maxDateIso: string = dateToIsoNoTimeNoTZ(this.initDateTodayWithUserHourShift);
-
-  protected readonly formCalendarSelectedDay: FormControl<string> = new FormControl<string>(this.maxDateIso, {
+  protected readonly formCalendarSelectedDay: FormControl<string> = new FormControl<string>(this.maxDateIso$$(), {
     nonNullable: true,
   });
 
@@ -46,21 +57,41 @@ export class DiaryNavButtons {
     return this.foodDiaryService.selectedDayIso$$() === calculateTodayIsoWithUserTimeShift();
   });
 
+  // Undo arrow points left (back to today from the future); mirrored when today lies ahead.
+  protected readonly isPastDaySelected$$: Signal<boolean> = computed(() => {
+    return this.foodDiaryService.selectedDayIso$$() < calculateTodayIsoWithUserTimeShift();
+  });
+
   protected readonly primaryActionIcon$$: Signal<IconName> = computed(() => {
     return this.isTodaySelected$$() ? IconName.CalendarMonth : IconName.Undo;
   });
 
+  // Mirrors food-diary.ts's isAnyAccordionOpen$$ — hides the add-FAB while an accordion on
+  // the food screen is expanded, since its "Сохранить"/panel controls sit right underneath
+  // this FAB and users kept mis-tapping one for the other.
+  protected readonly isAnyAccordionOpen$$: Signal<boolean> = computed(() =>
+    this.accordionGroupService.isAnyOpen(FOOD_DIARY_ACCORDION_GROUP_ID),
+  );
+
   protected readonly Icon = IconName;
-  private selectedDateMsWithUserHourShift: number = this.initDateTodayWithUserHourShift.getTime();
 
   protected readonly authService = inject(AuthService);
   protected readonly deviceInfoService = inject(DeviceInfoService);
   private readonly foodDiaryService = inject(FoodDiaryService);
   private readonly foodAddModalService = inject(FoodAddModalService);
 
-  protected readonly shouldHideFabButtons$$ = computed(
-    () => !this.deviceInfoService.isDesktopScreen$$() && this.deviceInfoService.isKeyboardOpen$$(),
-  );
+  // selectedDayIso$$ is the single source of truth (can change from outside this component, e.g.
+  // a milestone "jump to date" button) — keep the native date input's control in sync with it
+  // instead of tracking a parallel copy of the selected date here.
+  private readonly syncCalendarInputEffect$$ = effect(() => {
+    const selectedDayIso = this.foodDiaryService.selectedDayIso$$();
+    if (this.formCalendarSelectedDay.value !== selectedDayIso) {
+      this.formCalendarSelectedDay.setValue(selectedDayIso);
+    }
+  });
+
+  protected readonly addFabBottomPx: string = foodFabStackBottomPx(FoodFabLayer.AddFood);
+  protected readonly dateNavRowRightPx: string = `${FOOD_FAB_ROW_RIGHT_INSET_PX}px`;
 
   protected formatWeekday(dateIso: string, weekdayStyle: 'long' | 'short'): string {
     const date = new Date(dateIso);
@@ -71,7 +102,10 @@ export class DiaryNavButtons {
   protected formatDayMonth(dateIso: string): string {
     const date = new Date(dateIso);
     const result = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-    return result;
+
+    const year = dateIso.slice(0, 4);
+    const currentYear = calculateTodayIsoWithUserTimeShift().slice(0, 4);
+    return year === currentYear ? result : `${result} ${year}`;
   }
 
   protected onDatePicked(event: Event): void {
@@ -79,8 +113,6 @@ export class DiaryNavButtons {
     const dateIso = input?.value;
     if (!dateIso) return;
 
-    const date = this.isoToDate(dateIso);
-    this.selectedDateMsWithUserHourShift = date.getTime();
     this.foodDiaryService.selectedDayIso$$.set(dateIso);
   }
 
@@ -105,26 +137,20 @@ export class DiaryNavButtons {
   protected goToToday(): void {
     const todayDate = this.refreshTodayReference();
     const todayIso = dateToIsoNoTimeNoTZ(todayDate);
-    this.formCalendarSelectedDay.setValue(todayIso);
-
-    this.selectedDateMsWithUserHourShift = todayDate.getTime();
     this.foodDiaryService.selectedDayIso$$.set(todayIso);
   }
 
   private refreshTodayReference(): Date {
     const todayDate = calcDateWithUserTimeShift(new Date());
-    this.initDateTodayWithUserHourShift = todayDate;
-    this.maxDateIso = dateToIsoNoTimeNoTZ(todayDate);
+    this.maxDateIso$$.set(dateToIsoNoTimeNoTZ(todayDate));
     return todayDate;
   }
 
   private switchCurrentDay(dayShift: number): void {
-    const oldDate = new Date(this.selectedDateMsWithUserHourShift);
+    const oldDate = this.isoToDate(this.foodDiaryService.selectedDayIso$$());
     const newDate = new Date(oldDate);
     newDate.setDate(newDate.getDate() + dayShift);
-    this.selectedDateMsWithUserHourShift = newDate.getTime();
     const newDateIso = dateToIsoNoTimeNoTZ(newDate);
-    this.formCalendarSelectedDay.setValue(newDateIso);
     this.foodDiaryService.selectedDayIso$$.set(newDateIso);
   }
 
@@ -147,7 +173,7 @@ export class DiaryNavButtons {
   }
 
   protected openAddFoodModal(): void {
-    this.accordionGroupService.closeAll('food-diary-section');
+    this.accordionGroupService.closeAll(FOOD_DIARY_ACCORDION_GROUP_ID);
     this.foodAddModalService.openModal();
   }
 }

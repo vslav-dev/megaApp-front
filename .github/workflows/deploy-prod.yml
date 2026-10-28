@@ -11,15 +11,48 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
 jobs:
   deploy:
-    uses: ./.github/workflows/build-and-deploy.yml
-    with:
-      branch: 'release'
-      build-config: 'prod'
-      server-path: '/var/www/megaapp'
-      commit_sha: ${{ inputs.commit_sha }}
-    secrets:
-      HOST: ${{ secrets.HOST }}
-      USER: ${{ secrets.USER }}
-      SSH_KEY: ${{ secrets.SSH_KEY }}
+    name: Build and Deploy Angular App
+    runs-on: ubuntu-latest
+    environment: VPS_31
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ inputs.commit_sha || 'release' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Angular app
+        run: npm run build -- --configuration=prod
+
+      - name: Clean old dist on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: rm -rf /var/www/megaapp/*
+
+      - name: Upload dist to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: dist/browser/*
+          target: /var/www/megaapp/

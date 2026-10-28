@@ -1,17 +1,11 @@
-import { HttpClient } from '@angular/common/http';
-import { effect, inject, Injectable, signal, WritableSignal } from '@angular/core';
+import { effect, inject, Service, signal, WritableSignal } from '@angular/core';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
 import { exhaustRequest } from '@app/shared/decorators/exhaust-request.decorator';
 import { PersonalKcals, ServerResponseWithData } from '@app/shared/types';
 import { firstValueFrom } from 'rxjs';
-import { LocalStorageService } from '../local-storage.service';
-import { NetworkService } from '../network.service';
-import { SyncQueueService } from '../sync-queue.service';
 import { BaseFoodService } from './food-base.service';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class FoodPersonalKcalsService extends BaseFoodService {
   private readonly PERSONAL_KCALS_STORAGE_KEY = 'food_personal_kcals';
 
@@ -29,13 +23,8 @@ export class FoodPersonalKcalsService extends BaseFoodService {
     }
   });
 
-  constructor(
-    http: HttpClient,
-    localStorageService: LocalStorageService,
-    networkService: NetworkService,
-    syncQueueService: SyncQueueService,
-  ) {
-    super(http, localStorageService, networkService, syncQueueService);
+  constructor() {
+    super();
     this.loadPersonalKcalsFromLocalStorage();
   }
 

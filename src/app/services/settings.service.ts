@@ -1,49 +1,42 @@
-import { HttpClient } from '@angular/common/http';
-import { inject, Injectable, signal, WritableSignal } from '@angular/core';
+import { effect, inject, Service, Signal, WritableSignal } from '@angular/core';
+import { ANIMATION_DURATION_MS, ANIMATION_DURATION_MS_STRING } from '@app/shared/animations';
 import { DEFAULT_SETTINGS } from '@app/shared/const';
 import { UserSettings } from '@app/shared/types';
-import { firstValueFrom } from 'rxjs';
-import { LocalStorageService } from './local-storage.service';
 import { NetworkService } from './network.service';
-import { NotificationService } from './notification.service';
-import { SyncOperationType, SyncQueueService } from './sync-queue.service';
+import { NamespaceSettingsStore } from './settings/namespace-settings-store';
+import { persistedSignal } from './settings/persisted-signal';
 
-export type SettingsStatus = 'idle' | 'loading' | 'ready' | 'error';
-
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class SettingsService {
-  private readonly SETTINGS_STORAGE_KEY = 'settings';
-
-  public readonly settings$$: WritableSignal<UserSettings> = signal(DEFAULT_SETTINGS);
-  public readonly status$$: WritableSignal<SettingsStatus> = signal('idle');
-
-  private readyPromise: Promise<void> | null = null;
-
-  private readonly http = inject(HttpClient);
-  private readonly localStorage = inject(LocalStorageService);
-  private readonly notificationsService = inject(NotificationService);
   private readonly networkService = inject(NetworkService);
-  private readonly syncQueue = inject(SyncQueueService);
+  private readonly store = new NamespaceSettingsStore<UserSettings>('core', DEFAULT_SETTINGS);
+
+  public readonly settings$$: Signal<UserSettings> = this.store.value$$;
+
+  // Local-only, not synced to the server — deliberately reclassified from the core namespace:
+  // a device's dark/light preference and its navbar-collapsed state aren't things that should
+  // follow the user to another device. darkTheme is per-user (their preference, wherever they're
+  // on this browser); navbarCollapsed is per-device (a layout choice tied to screen size).
+  public readonly darkTheme$$: WritableSignal<boolean> = persistedSignal('dark_theme', false);
+  public readonly navbarCollapsed$$: WritableSignal<boolean> = persistedSignal('navbar_collapsed', true, 'device');
+
+  private themeTransitionTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  // Applies whenever darkTheme changes for any reason that isn't a user-triggered toggle on this
+  // device (initial load from storage, a rollback) — those go through applyThemeAnimated directly
+  // instead, at the point of the user's own click.
+  private readonly applyThemeEffect$$ = effect(() => {
+    this.applyTheme(this.darkTheme$$());
+  });
 
   public ensureReady(): Promise<void> {
-    if (this.status$$() === 'ready') {
-      return Promise.resolve();
-    }
-
-    if (!this.readyPromise) {
-      this.readyPromise = this.loadSettings();
-    }
-
-    return this.readyPromise;
+    return this.store.ready();
   }
 
-  public reset(): void {
-    this.settings$$.set(DEFAULT_SETTINGS);
-    this.status$$.set('idle');
-    this.readyPromise = null;
-    this.applyTheme(DEFAULT_SETTINGS.darkTheme);
+  // Local-only write — always "succeeds" synchronously, no network/rollback path needed.
+  public setDarkTheme(value: boolean): void {
+    this.applyThemeAnimated(value);
+    this.darkTheme$$.set(value);
   }
 
   async updateSetting<K extends keyof UserSettings>(key: K, value: UserSettings[K]): Promise<boolean> {
@@ -51,39 +44,8 @@ export class SettingsService {
       return false;
     }
 
-    const currentSettings = this.settings$$();
-    const newSettings = { ...currentSettings, [key]: value };
-
-    this.settings$$.set(newSettings);
-    this.localStorage.setUserScoped(this.SETTINGS_STORAGE_KEY, newSettings);
-
-    if (key === 'darkTheme') {
-      this.applyTheme(value as boolean);
-    }
-
-    this.syncQueue.addOperation({
-      type: SyncOperationType.UPDATE,
-      endpoint: '/api/settings/',
-      data: { [key]: value },
-      rollbackCallback: () => {
-        this.rollbackSetting(key, currentSettings[key]);
-        this.notificationsService.showSyncError('Failed to save settings');
-      },
-    });
-
+    this.store.set(key, value);
     return true;
-  }
-
-  private rollbackSetting<K extends keyof UserSettings>(key: K, previousValue: UserSettings[K]): void {
-    const currentSettings = this.settings$$();
-    const rolledBackSettings = { ...currentSettings, [key]: previousValue };
-
-    this.settings$$.set(rolledBackSettings);
-    this.localStorage.setUserScoped(this.SETTINGS_STORAGE_KEY, rolledBackSettings);
-
-    if (key === 'darkTheme') {
-      this.applyTheme(previousValue as boolean);
-    }
   }
 
   public applyTheme(isDarkTheme: boolean): void {
@@ -92,6 +54,22 @@ export class SettingsService {
     } else {
       document.documentElement.classList.remove('dark');
     }
+  }
+
+  // Used for user-triggered theme switches only: loadSettings/reset apply the initial
+  // theme via the plain applyTheme so the first paint never animates from the wrong theme.
+  public applyThemeAnimated(isDarkTheme: boolean): void {
+    if (this.themeTransitionTimeoutId !== null) {
+      clearTimeout(this.themeTransitionTimeoutId);
+    }
+
+    document.documentElement.style.setProperty('--v-theme-transition-duration', ANIMATION_DURATION_MS_STRING.THEME);
+    this.applyTheme(isDarkTheme);
+
+    this.themeTransitionTimeoutId = setTimeout(() => {
+      document.documentElement.style.removeProperty('--v-theme-transition-duration');
+      this.themeTransitionTimeoutId = null;
+    }, ANIMATION_DURATION_MS.THEME);
   }
 
   async saveSetting(setting: Partial<UserSettings>): Promise<boolean> {
@@ -103,31 +81,5 @@ export class SettingsService {
     }
 
     return false;
-  }
-
-  private async loadSettings(): Promise<void> {
-    this.status$$.set('loading');
-
-    const cachedSettings = this.localStorage.getUserScoped<UserSettings>(this.SETTINGS_STORAGE_KEY);
-    if (cachedSettings) {
-      this.settings$$.set(cachedSettings);
-      this.applyTheme(cachedSettings.darkTheme);
-    }
-
-    try {
-      const serverSettings = await firstValueFrom(this.http.get<UserSettings>('/api/settings/'));
-
-      this.settings$$.set(serverSettings);
-      this.localStorage.setUserScoped(this.SETTINGS_STORAGE_KEY, serverSettings);
-      this.applyTheme(serverSettings.darkTheme);
-      this.status$$.set('ready');
-    } catch (error) {
-      console.error('Failed to fetch settings from server:', error);
-      this.status$$.set(cachedSettings ? 'ready' : 'error');
-
-      if (this.status$$() === 'error') {
-        this.readyPromise = null;
-      }
-    }
   }
 }

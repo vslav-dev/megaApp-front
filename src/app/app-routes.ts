@@ -18,11 +18,6 @@ export const routes: Routes = [
     canActivate: [authGuard, settingsReadyGuard, isChapterSelected],
   },
   {
-    path: 'food/:section',
-    loadComponent: () => import('@app/components/food/food-screen').then((m) => m.FoodScreen),
-    canActivate: [authGuard, settingsReadyGuard, isChapterSelected],
-  },
-  {
     path: 'money',
     loadComponent: () => import('@app/components/money/money-screen').then((m) => m.MoneyScreen),
     canActivate: [authGuard, settingsReadyGuard, isChapterSelected],

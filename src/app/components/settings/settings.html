@@ -1,86 +1,38 @@
 <div class="p-2">
   <div class="mx-auto flex max-w-[400px] flex-col gap-2 md:gap-4">
 
-    <form [formGroup]="settingsForm">
-
-      <v-card class="flex flex-col text-lg"
-              [config]="{
-                padding: 4,
-              }">
-        <div class="mb-0 font-bold text-right"> Основные настройки </div>
-        <div class="mb-4"> Выбор разделов: </div>
-        <div class="flex flex-col gap-4 mb-4 ml-5">
-          <v-checkbox [config]="{
-                        size: 7,
-                        checkIconSize: 7,
-                        isDisabled: settingsForm.controls.selectedChapterFood.disabled,
-                      }"
-                      [value]="settingsForm.controls.selectedChapterFood.value"
-                      (valueChange)="onSelectedChapterCheckboxChange(KeyOfSettings.selectedChapterFood, $event)">
-            Дневник питания
-          </v-checkbox>
-
-          <v-checkbox [config]="{
-                        size: 7,
-                        checkIconSize: 7,
-                        isDisabled: settingsForm.controls.selectedChapterMoney.disabled,
-                      }"
-                      [value]="settingsForm.controls.selectedChapterMoney.value"
-                      (valueChange)="onSelectedChapterCheckboxChange(KeyOfSettings.selectedChapterMoney, $event)">
-            Дневник финансов
-          </v-checkbox>
-        </div>
-
-        <v-checkbox [config]="{
-                      mode: 'switch',
-                      labelPosition: 'left',
-                      isDisabled: settingsForm.controls.darkTheme.disabled,
-                    }"
-                    [value]="settingsForm.controls.darkTheme.value"
-                    (valueChange)="onThemeToggleChange($event)">
-          Тёмная тема:
+    <v-card class="flex flex-col text-lg"
+            [padding]="4">
+      <div class="mb-0 font-bold text-right"> Основные настройки </div>
+      <div class="mb-4"> Выбор разделов: </div>
+      <div class="flex flex-col gap-4 mb-4 ml-5">
+        <v-checkbox [size]="7"
+                    [checkIconSize]="7"
+                    [value]="isFoodChapterSelected$$()"
+                    (valueChange)="onChapterChange(KeyOfSettings.selectedChapterFood, isFoodChapterSelected$$, $event)">
+          Дневник питания
         </v-checkbox>
-      </v-card>
 
-      <v-card class="flex flex-col mt-4 text-lg"
-              [config]="{
-                padding: 4,
-              }">
-        <div class="font-bold text-right"> Настройки дневника питания </div>
+        <v-checkbox [size]="7"
+                    [checkIconSize]="7"
+                    [value]="isMoneyChapterSelected$$()"
+                    (valueChange)="onChapterChange(KeyOfSettings.selectedChapterMoney, isMoneyChapterSelected$$, $event)">
+          Дневник финансов
+        </v-checkbox>
+      </div>
 
-        <div class="w-1/3 mt-4">
-          <v-input formControlName="height"
-                   [config]="{
-                     type: 'text',
-                     inputmode: 'numeric',
-                     label: 'Рост',
-                     fontSize: '20px',
-                     fontWeight: 500,
-                     textAlign: 'right',
-                     errorMessage: isHeightValid ? '' : 'XXX',
-                     isAutoSubmitEnabled: true,
-                     autoSubmitResult: heightAutoSubmitResult$$(),
-                   }"
-                   (onFocused)="onHeightFocus()"
-                   (onBlurred)="onHeightBlur()"
-                   (onAutoSubmit)="onHeightAutoSubmit()">
-            <span v-postfix
-                  class="ml-1 mr-3 cursor-pointer select-none"
-                  (click)="focusHeightInput()"> см </span>
-          </v-input>
-        </div>
-      </v-card>
-    </form>
+      <v-checkbox mode="switch"
+                  labelPosition="left"
+                  [value]="settingsService.darkTheme$$()"
+                  (valueChange)="settingsService.setDarkTheme($event)">
+        Тёмная тема:
+      </v-checkbox>
+    </v-card>
 
-    <v-card [config]="{
-              padding: 4,
-            }">
+    <v-card [padding]="4">
       <div class="flex flex-col gap-2">
         <div class="text-lg font-bold">Аккаунт: {{ settingsService.settings$$().userName }}</div>
         <v-button class="v-primary text-lg"
-                  [config]="{
-                    type: 'button',
-                  }"
                   (click)="authService.logout()">
           Выйти
         </v-button>
@@ -90,4 +42,5 @@
   </div>
 </div>
 
-<div class="h-[50vh]"></div>
+<div class="h-[50vh]"
+     [class.hidden]="deviceInfoService.isDesktopScreen$$()"></div>

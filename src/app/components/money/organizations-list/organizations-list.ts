@@ -71,7 +71,7 @@ export class OrganizationsList {
     this.pendingDeleteId$$.set(null);
     if (!id) return;
     if (!this.canDeleteOrganization(id)) return;
-    this.moneyService.deleteOrganization(id).subscribe((success) => {});
+    void this.moneyService.deleteOrganization(id);
   }
 
   protected canDeleteOrganization(organizationId: number): boolean {

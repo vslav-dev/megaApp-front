@@ -3,66 +3,27 @@ import { Injectable, inject } from '@angular/core';
 import { AuthService } from '@app/services/auth.service';
 import { NetworkService } from '@app/services/network.service';
 import { Observable, throwError } from 'rxjs';
-import { catchError, finalize, map, shareReplay, switchMap } from 'rxjs/operators';
+import { catchError } from 'rxjs/operators';
 
-const AUTH_ENDPOINTS = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh'];
+const SESSION_ENDPOINT = '/api/auth/session';
 
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
-  private refreshInFlight$: Observable<string> | null = null;
-
   private readonly networkService = inject(NetworkService);
   private readonly authService = inject(AuthService);
 
   public intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => request.url.includes(path));
-
-    let preparedRequest = this.addClientId(request);
-
-    const accessToken = localStorage.getItem('access_token');
-    if (accessToken && !isAuthEndpoint) {
-      preparedRequest = this.addToken(preparedRequest, accessToken);
-    }
+    const preparedRequest = request.clone({
+      setHeaders: { 'X-Client-ID': this.networkService.getClientId() },
+    });
 
     return next.handle(preparedRequest).pipe(
-      catchError((error) => {
-        const canAttemptRefresh = !isAuthEndpoint && !!localStorage.getItem('refresh_token');
-
-        if (error instanceof HttpErrorResponse && error.status === 401 && canAttemptRefresh) {
-          return this.handle401Error(preparedRequest, next);
+      catchError((error: unknown) => {
+        if (error instanceof HttpErrorResponse && error.status === 401 && !request.url.includes(SESSION_ENDPOINT)) {
+          this.authService.invalidateSession();
         }
         return throwError(() => error);
       }),
     );
-  }
-
-  private addToken(request: HttpRequest<any>, token: string): HttpRequest<any> {
-    return request.clone({
-      setHeaders: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  }
-
-  private addClientId(request: HttpRequest<any>): HttpRequest<any> {
-    return request.clone({
-      setHeaders: {
-        'X-Client-ID': this.networkService.getClientId(),
-      },
-    });
-  }
-
-  private handle401Error(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    if (!this.refreshInFlight$) {
-      this.refreshInFlight$ = this.authService.refreshToken().pipe(
-        map((response) => response.accessToken),
-        finalize(() => {
-          this.refreshInFlight$ = null;
-        }),
-        shareReplay(1),
-      );
-    }
-
-    return this.refreshInFlight$.pipe(switchMap((token) => next.handle(this.addToken(request, token))));
   }
 }

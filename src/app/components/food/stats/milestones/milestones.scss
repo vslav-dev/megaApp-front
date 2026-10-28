@@ -1,0 +1,15 @@
+.records-grid {
+  display: grid;
+  grid-template-columns: 1fr max-content max-content max-content;
+  column-gap: 0.75rem;
+  align-items: center;
+}
+
+.records-cell {
+  padding: 0.25rem 0;
+  border-bottom: 1px dashed var(--v-color-surface-accent);
+}
+
+.records-grid .records-cell:nth-last-child(-n + 4) {
+  border-bottom: none;
+}

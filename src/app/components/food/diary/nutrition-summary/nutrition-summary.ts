@@ -1,19 +1,27 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { DayTotals, DiaryEntry } from '@app/shared/types';
-import { VProgress, VProgressConfig } from '@ui-kit/components/v-progress/v-progress';
+import { VProgress } from '@ui-kit/components/v-progress/v-progress';
 
-export enum NutrientType {
-  Protein = 'protein',
-  Fat = 'fat',
-  Carbs = 'carbs',
-  Fiber = 'fiber',
+interface NutrientBarState {
+  value: number;
+  barColor: string;
 }
+
+export const NutrientType = {
+  Protein: 'protein',
+  Fat: 'fat',
+  Carbs: 'carbs',
+  Fiber: 'fiber',
+} as const;
+
+export type NutrientType = (typeof NutrientType)[keyof typeof NutrientType];
 
 @Component({
   selector: 'nutrition-summary',
   templateUrl: './nutrition-summary.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VProgress],
 })
 export class NutritionSummary {
@@ -38,17 +46,17 @@ export class NutritionSummary {
     [NutrientType.Fiber]: { consumed: 'consumedFiber', target: 'targetFiber' },
   };
 
-  protected readonly proteinBarConfig$$ = computed(() => this.calculateBarConfig(NutrientType.Protein));
-  protected readonly fatBarConfig$$ = computed(() => this.calculateBarConfig(NutrientType.Fat));
-  protected readonly carbsBarConfig$$ = computed(() => this.calculateBarConfig(NutrientType.Carbs));
-  protected readonly fiberBarConfig$$ = computed(() => this.calculateBarConfig(NutrientType.Fiber));
+  protected readonly proteinBar$$ = computed(() => this.calculateBarState(NutrientType.Protein));
+  protected readonly fatBar$$ = computed(() => this.calculateBarState(NutrientType.Fat));
+  protected readonly carbsBar$$ = computed(() => this.calculateBarState(NutrientType.Carbs));
+  protected readonly fiberBar$$ = computed(() => this.calculateBarState(NutrientType.Fiber));
 
   protected readonly proteinPercentFormatted$$ = computed(() => this.calculatePercentFormatted(NutrientType.Protein));
   protected readonly fatPercentFormatted$$ = computed(() => this.calculatePercentFormatted(NutrientType.Fat));
   protected readonly carbsPercentFormatted$$ = computed(() => this.calculatePercentFormatted(NutrientType.Carbs));
   protected readonly fiberPercentFormatted$$ = computed(() => this.calculatePercentFormatted(NutrientType.Fiber));
 
-  private calculateBarConfig(nutrient: NutrientType): VProgressConfig {
+  private calculateBarState(nutrient: NutrientType): NutrientBarState {
     const totals = this.totals$$();
     const { consumed: consumedKey, target: targetKey } = this.NUTRIENT_KEYS[nutrient];
 
@@ -58,7 +66,6 @@ export class NutritionSummary {
     const percent = target > 0 ? (consumed / target) * 100 : 0;
 
     return {
-      barGap: 1,
       value: percent,
       barColor: this.calculateBarColor(percent),
     };

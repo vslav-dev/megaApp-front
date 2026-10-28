@@ -1,12 +1,11 @@
-<v-modal [config]="{
-           isOpen: isModalOpen(),
-           borderRadius: 3,
-           padding: 4,
-           isCloseButtonVisible: false,
-           deviceType: deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop',
-           mobileWidth: 'min(100vw, 520px)',
-           desktopWidth: '520px',
-         }"
+<v-modal [deviceType]="deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop'"
+         [isOpen]="isModalOpen()"
+         [isCloseButtonVisible]="false"
+         [isBackdropDimmed]="isBackdropDimmed()"
+         mobileWidth="min(100vw, 520px)"
+         desktopWidth="520px"
+         [borderRadius]="3"
+         [padding]="4"
          (onClose)="onClose()">
   <ng-content />
 </v-modal>
