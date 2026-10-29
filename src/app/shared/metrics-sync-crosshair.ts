@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { signal, untracked } from '@angular/core';
 import { Chart, ChartType, Plugin } from 'chart.js';
 
 export interface MetricSyncCrosshairOptions {
@@ -18,7 +18,13 @@ const CROSSHAIR_LINE_COLOR = 'rgba(239, 68, 68, 0.9)';
 const CROSSHAIR_LINE_DASH = [4, 4];
 const CROSSHAIR_LINE_WIDTH = 1;
 
-const registeredCharts = new Set<Chart>();
+// Never narrower than the cards' own viewport gate (VIEWPORT_GATE_ROOT_MARGIN_PX in metric-chart-card.ts):
+// a card that has started updating its chart must already count as visible here, otherwise it could
+// scroll into view with a crosshair left stale by hovers that happened while it was skipped.
+const VISIBILITY_ROOT_MARGIN_PX = 200;
+
+const visibleCharts = new Set<Chart>();
+const visibilityObservers = new Map<Chart, IntersectionObserver>();
 
 // Writable only within this module — cards elsewhere consume the readonly view below.
 const hoverBucketState$$ = signal<number | null>(null);
@@ -26,6 +32,8 @@ export const hoverBucket$$ = hoverBucketState$$.asReadonly();
 
 let redrawScheduled = false;
 
+// The crosshair is painted in afterDraw from hoverBucketState$$ alone — data and scales are untouched
+// by a hover, so a plain draw() is enough (update() would re-parse data and rebuild scales).
 function requestCrosshairRedraw(): void {
   if (redrawScheduled) {
     return;
@@ -34,8 +42,8 @@ function requestCrosshairRedraw(): void {
   redrawScheduled = true;
   requestAnimationFrame(() => {
     redrawScheduled = false;
-    for (const chart of registeredCharts) {
-      chart.update('none');
+    for (const chart of visibleCharts) {
+      chart.draw();
     }
   });
 }
@@ -116,14 +124,28 @@ function handleOutsideTap(event: PointerEvent): void {
 export const metricSyncCrosshairPlugin: Plugin<'line' | 'bar'> = {
   id: 'metricSyncCrosshair',
   afterInit(chart) {
-    if (registeredCharts.size === 0) {
+    if (visibilityObservers.size === 0) {
       document.addEventListener('pointerdown', handleOutsideTap);
     }
-    registeredCharts.add(chart);
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          visibleCharts.add(chart);
+        } else {
+          visibleCharts.delete(chart);
+        }
+      },
+      { rootMargin: `${VISIBILITY_ROOT_MARGIN_PX}px` },
+    );
+    observer.observe(chart.canvas);
+    visibilityObservers.set(chart, observer);
   },
   afterDestroy(chart) {
-    registeredCharts.delete(chart);
-    if (registeredCharts.size === 0) {
+    visibilityObservers.get(chart)?.disconnect();
+    visibilityObservers.delete(chart);
+    visibleCharts.delete(chart);
+    if (visibilityObservers.size === 0) {
       hoverBucketState$$.set(null);
       document.removeEventListener('pointerdown', handleOutsideTap);
     }
@@ -157,7 +179,10 @@ export const metricSyncCrosshairPlugin: Plugin<'line' | 'bar'> = {
   },
   afterDraw(chart, _args, pluginOptions) {
     const options = readMetricSyncCrosshairOptions(pluginOptions);
-    const currentHoverBucket = hoverBucketState$$();
+    // afterDraw also runs synchronously inside the card's chart-update effect (via chart.update()).
+    // Read tracked, it would subscribe that effect to every hover change and rebuild the whole
+    // chart per card per hover step — hover redraws are driven by requestCrosshairRedraw instead.
+    const currentHoverBucket = untracked(hoverBucketState$$);
     if (!options?.enabled || currentHoverBucket === null) {
       return;
     }
