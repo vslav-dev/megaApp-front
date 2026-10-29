@@ -8,11 +8,13 @@ import { AuthInterceptor } from '@app/services/auth.interceptor';
 import { NotificationService } from '@app/services/notification.service';
 import { TelemetryErrorHandler, TelemetryService } from '@app/services/telemetry.service';
 import { purgeStaleCacheVersions } from '@app/shared/cache';
+import { logBuildInfo } from '@app/shared/build-info';
 import { isChunkLoadError } from '@app/shared/chunk-load-error';
 import { idbPurgeStaleKvEntries } from '@app/shared/idb-cache';
 
 purgeStaleCacheVersions();
 void idbPurgeStaleKvEntries();
+void logBuildInfo();
 
 function handleNavigationError(error: NavigationError): void {
   console.error('🧭 Navigation failed:', error.url, error.error);
