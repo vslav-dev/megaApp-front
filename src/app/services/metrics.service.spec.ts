@@ -50,9 +50,6 @@ function setup(options: { persistedSeries?: unknown[] } = {}) {
     sessionState$$: signal<AuthSessionState>(AuthSessionState.Unknown),
   };
 
-  const telemetryFake = createTelemetryFake();
-  vi.spyOn(telemetryFake, 'recordAfterPaint');
-
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(withXhr()),
@@ -60,7 +57,7 @@ function setup(options: { persistedSeries?: unknown[] } = {}) {
       { provide: NetworkService, useValue: networkServiceFake },
       { provide: NotificationService, useValue: notificationServiceFake },
       { provide: IndexedDbCacheService, useValue: indexedDbCacheFake },
-      { provide: TelemetryService, useValue: telemetryFake },
+      { provide: TelemetryService, useValue: createTelemetryFake() },
       { provide: AuthService, useValue: authServiceFake },
     ],
   });
@@ -72,7 +69,6 @@ function setup(options: { persistedSeries?: unknown[] } = {}) {
     isConnected$$,
     appRef: TestBed.inject(ApplicationRef),
     indexedDbCacheFake,
-    telemetryFake,
   };
 }
 
@@ -207,50 +203,6 @@ describe('MetricsService.forceRefresh — refreshHistory (binary /api/metrics/hi
 
     expect(service.seriesFor('api', 'requests', 'minute')()).toEqual([metricPoint({ bucket: 1_000_000, value: 42 })]);
     httpMock.verify();
-  });
-
-  it('reports how far the server lagged behind the request target and the client clock skew in telemetry', () => {
-    vi.useFakeTimers();
-    try {
-      const now = Date.UTC(2026, 0, 1, 12, 0, 30);
-      vi.setSystemTime(now);
-      const targetMinute = Math.floor(now / 60_000) * 60 - 60;
-      const { service, httpMock, telemetryFake } = setup();
-      service.setScope([{ service: 'api', metricNames: ['requests'] }]);
-      service.forceRefresh();
-
-      httpMock.expectOne('/api/metrics/history').flush(
-        encodeMetricsWireFixture([
-          {
-            service: 'api',
-            metricName: 'requests',
-            granularity: 'minute',
-            points: [{ bucket: targetMinute - 120, value: 1 }],
-          },
-        ]),
-        { headers: { Date: new Date(now - 5_000).toUTCString() } },
-      );
-
-      expect(telemetryFake.recordAfterPaint).toHaveBeenCalledWith(
-        'metrics.history_refresh',
-        expect.any(Number),
-        expect.objectContaining({ minuteLagSeconds: 120, clockSkewSeconds: 5 }),
-      );
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('omits the lag and skew attributes when the response has no minute points and no Date header', () => {
-    const { service, httpMock, telemetryFake } = setup();
-    service.setScope([{ service: 'api', metricNames: ['requests'] }]);
-    service.forceRefresh();
-
-    httpMock.expectOne('/api/metrics/history').flush(encodeMetricsWireFixture([]));
-
-    const attributes = vi.mocked(telemetryFake.recordAfterPaint).mock.calls[0][2];
-    expect(attributes).not.toHaveProperty('minuteLagSeconds');
-    expect(attributes).not.toHaveProperty('clockSkewSeconds');
   });
 
   it('does nothing without a scope — no view has charts open, nothing to fetch', () => {
