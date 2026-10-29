@@ -132,7 +132,7 @@ export const metricSyncCrosshairPlugin: Plugin<'line' | 'bar'> = {
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (entry?.isIntersecting) {
           visibleCharts.add(chart);
         } else {
           visibleCharts.delete(chart);

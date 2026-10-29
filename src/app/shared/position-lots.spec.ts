@@ -50,9 +50,9 @@ describe('buildPositionLots', () => {
       [2, 3],
     ]);
     // lot 1: cost 1000, proceeds 1800*10/15 = 1200; lot 2 (5 of 10): cost 600, proceeds 600.
-    expect(closed[0].pnl).toBeCloseTo(200, 5);
-    expect(closed[1].pnl).toBeCloseTo(0, 5);
-    expect(closed[0].openMonths).toEqual(['2026-01', '2026-02', '2026-03']);
+    expect(closed[0]?.pnl).toBeCloseTo(200, 5);
+    expect(closed[1]?.pnl).toBeCloseTo(0, 5);
+    expect(closed[0]?.openMonths).toEqual(['2026-01', '2026-02', '2026-03']);
     expect(closed.every((lot) => lot.seriesId === INCOME_VIRTUAL_SERIES.CB_CLOSED_PNL)).toBe(true);
   });
 
@@ -73,7 +73,7 @@ describe('buildPositionLots', () => {
   it('routes crypto to its own series', () => {
     const result = lots([trade(1, buy, '2026-01-05', 100, 20, 1), trade(2, sell, '2026-02-05', 150, 20, 1)]);
     expect(result).toHaveLength(1);
-    expect(result[0].seriesId).toBe(INCOME_VIRTUAL_SERIES.CRYPTO_CLOSED_PNL);
+    expect(result[0]?.seriesId).toBe(INCOME_VIRTUAL_SERIES.CRYPTO_CLOSED_PNL);
   });
 
   it('orders same-day buys by id and keeps groups of different accounts apart', () => {
@@ -94,7 +94,7 @@ describe('buildPositionLots', () => {
     );
     const closed = result.filter((lot) => lot.status === 'closed');
     expect(closed).toHaveLength(1);
-    expect(closed[0].buyTransactionId).toBe(3);
+    expect(closed[0]?.buyTransactionId).toBe(3);
   });
 
   it('ignores a transaction that has no id yet', () => {

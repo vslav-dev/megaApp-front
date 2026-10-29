@@ -15,7 +15,12 @@ import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodAddModalService } from '@app/services/food/food-add-modal.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { FitTextOnOverflowDirective } from '@app/shared/directives/fit-text-on-overflow.directive';
-import { calcDateWithUserTimeShift, calculateTodayIsoWithUserTimeShift, dateToIsoNoTimeNoTZ } from '@app/shared/utils';
+import {
+  calcDateWithUserTimeShift,
+  calculateTodayIsoWithUserTimeShift,
+  dateToIsoNoTimeNoTZ,
+  parseIsoParts,
+} from '@app/shared/utils';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { AccordionGroupService } from '@ui-kit/services/accordion-group.service';
@@ -82,7 +87,7 @@ export class DiaryNavButtons {
   protected formatWeekday(dateIso: string, weekdayStyle: 'long' | 'short'): string {
     const date = new Date(dateIso);
     const result = date.toLocaleDateString('ru-RU', { weekday: weekdayStyle });
-    return result[0].toUpperCase() + result.slice(1);
+    return result.charAt(0).toUpperCase() + result.slice(1);
   }
 
   protected formatDayMonth(dateIso: string): string {
@@ -154,7 +159,7 @@ export class DiaryNavButtons {
   }
 
   private isoToDate(iso: string): Date {
-    const [year, month, day] = iso.split('-').map(Number);
+    const [year, month, day] = parseIsoParts(iso);
     return new Date(year, month - 1, day);
   }
 

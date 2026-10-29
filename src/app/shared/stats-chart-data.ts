@@ -1,5 +1,5 @@
 import { STATS_CHART_SERIES, StatsChartData, StatsChartSeries } from '@app/shared/types';
-import { dateToIsoNoTimeNoTZ, formatDateTicks } from '@app/shared/utils';
+import { dateToIsoNoTimeNoTZ, formatDateTicks, itemAt } from '@app/shared/utils';
 
 export type AggregationPeriod = 'week' | 'month';
 
@@ -66,7 +66,7 @@ export function aggregateChartData(data: StatsChartData, period: AggregationPeri
 
     for (const series of STATS_CHART_SERIES) {
       const value = data[series][index];
-      if (!Number.isFinite(value)) continue;
+      if (value === undefined || !Number.isFinite(value)) continue;
       current.sums[series] += value;
       current.counts[series] += 1;
     }
@@ -128,7 +128,7 @@ function findFirstIndexGte(arr: number[], value: number): number {
 
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
-    if (arr[mid] >= value) {
+    if (itemAt(arr, mid) >= value) {
       result = mid;
       right = mid - 1;
     } else {
@@ -146,7 +146,7 @@ function findLastIndexLte(arr: number[], value: number): number {
 
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
-    if (arr[mid] <= value) {
+    if (itemAt(arr, mid) <= value) {
       result = mid;
       left = mid + 1;
     } else {

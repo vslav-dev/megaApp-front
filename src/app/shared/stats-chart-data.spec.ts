@@ -6,6 +6,7 @@ import {
   splitKcalsBySelection,
 } from '@app/shared/stats-chart-data';
 import { STATS_CHART_SERIES, StatsChartData, StatsChartSeries } from '@app/shared/types';
+import { itemAt } from '@app/shared/utils';
 
 function isoDay(offset: number): string {
   const date = new Date(Date.UTC(2026, 0, 1 + offset));
@@ -46,7 +47,7 @@ describe('aggregateChartData', () => {
 
     expect(data.dates.length).toBeGreaterThanOrEqual(4);
     data.dates.forEach((_, i) => {
-      const span = (series: StatsChartSeries) => daily[series].slice(periodStartIdx[i], periodEndIdx[i] + 1);
+      const span = (series: StatsChartSeries) => daily[series].slice(itemAt(periodStartIdx, i), itemAt(periodEndIdx, i) + 1);
       expect(data.kcalsFactual[i]).toBe(2000);
       expect(data.kcalsSelected[i]).toBeCloseTo(mean(span('kcalsSelected')), 10);
       expect(data.kcalsTarget[i]).toBe(2200);
@@ -63,7 +64,7 @@ describe('aggregateChartData', () => {
 
     expect(data.dates.length).toBeGreaterThanOrEqual(2);
     data.dates.forEach((_, i) => {
-      const span = (series: StatsChartSeries) => daily[series].slice(periodStartIdx[i], periodEndIdx[i] + 1);
+      const span = (series: StatsChartSeries) => daily[series].slice(itemAt(periodStartIdx, i), itemAt(periodEndIdx, i) + 1);
       expect(span('kcalsFactual').length).toBeGreaterThanOrEqual(28);
       expect(data.kcalsFactual[i]).toBeCloseTo(mean(span('kcalsFactual')), 10);
       expect(data.kcalsSelected[i]).toBeCloseTo(mean(span('kcalsSelected')), 10);
@@ -76,7 +77,7 @@ describe('aggregateChartData', () => {
     const { periodStartIdx, periodEndIdx } = aggregateChartData(daily, 'week');
 
     expect(periodStartIdx.length).toBeGreaterThanOrEqual(2);
-    periodStartIdx.forEach((start, i) => expect(periodEndIdx[i] - start + 1).toBe(7));
+    periodStartIdx.forEach((start, i) => expect(itemAt(periodEndIdx, i) - start + 1).toBe(7));
   });
 
   it('leaves only the incomplete series empty when a day of it has no value', () => {
@@ -85,7 +86,7 @@ describe('aggregateChartData', () => {
 
     const { data, periodStartIdx, periodEndIdx } = aggregateChartData(daily, 'week');
 
-    const gapPeriod = periodStartIdx.findIndex((start, i) => start <= missingDay && missingDay <= periodEndIdx[i]);
+    const gapPeriod = periodStartIdx.findIndex((start, i) => start <= missingDay && missingDay <= itemAt(periodEndIdx, i));
     expect(gapPeriod).toBeGreaterThanOrEqual(0);
     expect(data.kcalsSelected[gapPeriod]).toBeNaN();
     expect(data.kcalsFactual[gapPeriod]).toBe(1);
@@ -105,7 +106,11 @@ describe('sliceAggregatedChartData', () => {
     const aggregated = aggregateChartData(daily, 'week');
 
     const all = sliceAggregatedChartData(aggregated, 0, 39);
-    const first = sliceAggregatedChartData(aggregated, aggregated.periodStartIdx[0], aggregated.periodEndIdx[0]);
+    const first = sliceAggregatedChartData(
+      aggregated,
+      itemAt(aggregated.periodStartIdx, 0),
+      itemAt(aggregated.periodEndIdx, 0),
+    );
 
     expect(all.dates).toEqual(aggregated.data.dates);
     expect(first.dates).toEqual([aggregated.data.dates[0]]);
@@ -118,8 +123,8 @@ describe('sliceAggregatedChartData', () => {
 
     const result = sliceAggregatedChartData(
       aggregated,
-      aggregated.periodStartIdx[0] + 1,
-      aggregated.periodEndIdx[0] - 1,
+      itemAt(aggregated.periodStartIdx, 0) + 1,
+      itemAt(aggregated.periodEndIdx, 0) - 1,
     );
 
     expect(result.dates).toEqual([]);

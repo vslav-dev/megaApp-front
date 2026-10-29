@@ -183,13 +183,12 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       // unlike Chart.js's own scale rendering, this plugin paints the canvas directly).
       ctx.strokeStyle = Chart.defaults.borderColor as string;
       ctx.lineWidth = 1;
-      for (let i = 1; i < this.yearBoundaries.length; i++) {
+      for (const [i, boundary] of this.yearBoundaries.entries()) {
+        const previous = this.yearBoundaries[i - 1];
+        if (!previous) continue;
         const x =
-          Math.round(
-            (xScale.getPixelForValue(this.yearBoundaries[i - 1].endIdx) +
-              xScale.getPixelForValue(this.yearBoundaries[i].startIdx)) /
-              2,
-          ) + 0.5;
+          Math.round((xScale.getPixelForValue(previous.endIdx) + xScale.getPixelForValue(boundary.startIdx)) / 2) +
+          0.5;
         ctx.beginPath();
         ctx.moveTo(x, chartArea.top);
         ctx.lineTo(x, chartArea.bottom);
@@ -350,11 +349,13 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
         const yearVals = new Array<number>(yearLabels.length).fill(0);
         months.forEach((m, i) => {
           const year = m.substring(0, 4);
+          const row = effectiveData.monthRows[i];
           const val =
             s.categoryId === EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED
-              ? effectiveData.monthRows[i].uncategorizedAmount
-              : (effectiveData.monthRows[i].categoryAmounts[s.categoryId] ?? 0);
-          yearVals[yearIndexMap.get(year)!] += val;
+              ? (row?.uncategorizedAmount ?? 0)
+              : (row?.categoryAmounts[s.categoryId] ?? 0);
+          const yearIndex = yearIndexMap.get(year);
+          if (yearIndex !== undefined) yearVals[yearIndex] = (yearVals[yearIndex] ?? 0) + val;
         });
         yearlyValues!.set(s.categoryId, yearVals);
       });
@@ -387,11 +388,12 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       };
       const seriesValues: number[] = yearly
         ? yearlyValues!.get(series.categoryId)!
-        : months.map((_, i) =>
-            series.categoryId === EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED
-              ? effectiveData.monthRows[i].uncategorizedAmount
-              : (effectiveData.monthRows[i].categoryAmounts[series.categoryId] ?? 0),
-          );
+        : months.map((_, i) => {
+            const row = effectiveData.monthRows[i];
+            return series.categoryId === EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED
+              ? (row?.uncategorizedAmount ?? 0)
+              : (row?.categoryAmounts[series.categoryId] ?? 0);
+          });
       return {
         label: series.categoryName,
         data: seriesValues,

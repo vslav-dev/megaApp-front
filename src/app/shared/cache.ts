@@ -48,14 +48,14 @@ interface ParsedCacheKey {
 }
 
 function parseCacheKey(key: string): ParsedCacheKey | null {
-  const userScopedMatch = key.match(USER_SCOPED_KEY_PATTERN);
-  if (userScopedMatch) {
-    return { baseKey: userScopedMatch[1], version: Number(userScopedMatch[2]), isUserScoped: true };
+  const [, userBaseKey, userVersion] = key.match(USER_SCOPED_KEY_PATTERN) ?? [];
+  if (userBaseKey !== undefined && userVersion !== undefined) {
+    return { baseKey: userBaseKey, version: Number(userVersion), isUserScoped: true };
   }
 
-  const deviceScopedMatch = key.match(DEVICE_SCOPED_KEY_PATTERN);
-  if (deviceScopedMatch) {
-    return { baseKey: deviceScopedMatch[1], version: Number(deviceScopedMatch[2]), isUserScoped: false };
+  const [, deviceBaseKey, deviceVersion] = key.match(DEVICE_SCOPED_KEY_PATTERN) ?? [];
+  if (deviceBaseKey !== undefined && deviceVersion !== undefined) {
+    return { baseKey: deviceBaseKey, version: Number(deviceVersion), isUserScoped: false };
   }
 
   return null;

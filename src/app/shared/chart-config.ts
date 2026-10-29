@@ -17,7 +17,7 @@ export interface DatasetWithRawValues {
 
 export function tooltipValue(item: TooltipItem<'line'>): number {
   const raw = (item.dataset as DatasetWithRawValues)._rawValues;
-  return raw ? raw[item.dataIndex] : (item.parsed.y ?? 0);
+  return raw?.[item.dataIndex] ?? item.parsed.y ?? 0;
 }
 
 export interface ChartColors {

@@ -437,7 +437,7 @@ function isClientErrorStatus(error: unknown): boolean {
 /** The stream is the operation's namespace (`app`, `money`, `error`, `log`, ...): the same convention the
  *  operations already follow, and a label the intake can filter by without opening the data. */
 function streamOf(operation: string): string {
-  const namespace = operation.split('.')[0];
+  const namespace = operation.split('.')[0] ?? '';
   return STREAM_PATTERN.test(namespace) ? namespace : FALLBACK_STREAM;
 }
 

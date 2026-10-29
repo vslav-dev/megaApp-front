@@ -266,7 +266,7 @@ export interface TelemetryEvent {
   trigger?: string;
   outcome?: 'success' | 'error' | 'cancelled';
   message?: string;
-  stack?: string;
+  stack?: string | undefined;
   attributes?: Record<string, string | number | boolean>;
   device: {
     platform: 'mobile' | 'tablet' | 'desktop';
@@ -539,7 +539,7 @@ export interface CatalogueEntry {
   fiber: number;
   description: string;
   // Absent in a catalogue cached before the archive feature — treated as not archived.
-  archived?: boolean;
+  archived?: boolean | undefined;
   imageVersion?: number;
   canDelete?: boolean;
 }
@@ -717,7 +717,7 @@ export interface Organization {
 }
 
 export interface Account {
-  id?: number;
+  id?: number | undefined;
   title: string;
   currencyId: number;
   isInvest: boolean;
@@ -766,17 +766,17 @@ export interface TransactionDetails {
 }
 
 export interface Transaction {
-  id?: number;
+  id?: number | undefined;
   dateISO: string;
   accountId: number;
   amount: number;
   categoryId?: number | null;
   kind: TransactionKind;
   isGift: boolean;
-  notes?: string;
+  notes?: string | undefined;
   // An object, or the same object as a JSON string (the server stores and returns either).
   detailsJSON?: TransactionDetails | string;
-  twinId?: number | null;
+  twinId?: number | null | undefined;
   version?: number;
 }
 

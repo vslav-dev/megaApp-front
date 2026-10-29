@@ -62,7 +62,7 @@ describe('TelemetryService — batching window', () => {
     const request = httpMock.expectOne(EVENTS_URL);
     const body = request.request.body as RequestBody;
     expect(body.events).toHaveLength(1);
-    expect(body.events[0].data.operation).toBe('app.route_ready');
+    expect(body.events[0]?.data.operation).toBe('app.route_ready');
     request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
@@ -202,7 +202,7 @@ describe('TelemetryService — error rate limiting', () => {
     await vi.advanceTimersByTimeAsync(BATCH_WINDOW_MS);
     const request = httpMock.expectOne(EVENTS_URL);
     const body = request.request.body as RequestBody;
-    expect(body.events[0].data.attributes?.['suppressedRepeats']).toBe(1);
+    expect(body.events[0]?.data.attributes?.['suppressedRepeats']).toBe(1);
     request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
@@ -216,7 +216,7 @@ describe('TelemetryService — global error listeners', () => {
     window.dispatchEvent(event);
 
     const request = httpMock.expectOne(EVENTS_URL);
-    expect((request.request.body as RequestBody).events[0].data.operation).toBe(operation);
+    expect((request.request.body as RequestBody).events[0]?.data.operation).toBe(operation);
     request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   }
@@ -246,6 +246,7 @@ describe('TelemetryService — the intake envelope', () => {
     const request = httpMock.expectOne(EVENTS_URL);
     const body = request.request.body as RequestBody;
     const [event] = body.events;
+    if (!event) throw new Error('Expected one telemetry event');
     expect(event.id).toMatch(/:1$/);
     expect(event.stream).toBe('money');
     expect(event.at).toBe(1_790_000_000_000);
@@ -273,7 +274,7 @@ describe('TelemetryService — the intake envelope', () => {
     service.record(operation, 1);
 
     const request = httpMock.expectOne(EVENTS_URL);
-    expect((request.request.body as RequestBody).events[0].stream).toBe(stream);
+    expect((request.request.body as RequestBody).events[0]?.stream).toBe(stream);
     request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
@@ -343,7 +344,7 @@ describe('TelemetryService — the intake envelope', () => {
       .map((text) => JSON.parse(text) as RequestBody)
       .filter((body) => body.events.some((event) => event.data.operation === 'app.beacon_probe'));
     expect(mine).toHaveLength(1);
-    expect(mine[0].events[0]).toMatchObject({ stream: 'app', data: { operation: 'app.beacon_probe' } });
+    expect(mine[0]?.events[0]).toMatchObject({ stream: 'app', data: { operation: 'app.beacon_probe' } });
 
     httpMock.expectOne(EVENTS_URL).flush(ANSWER_STORED_ALL);
     delete (navigator as { sendBeacon?: unknown }).sendBeacon;

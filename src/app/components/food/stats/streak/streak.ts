@@ -8,7 +8,12 @@ import {
   FOOD_DAY_BAND_TEXT_COLOR_VAR,
   FoodDayBand,
 } from '@app/shared/food-day-band';
-import { calculateTodayIsoWithUserTimeShift, formatDateTicks, getRuDeclension } from '@app/shared/utils';
+import {
+  calculateTodayIsoWithUserTimeShift,
+  formatDateTicks,
+  getRuDeclension,
+  parseIsoParts,
+} from '@app/shared/utils';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 
 interface CalendarCell {
@@ -46,7 +51,7 @@ export class Streak {
       ...completedDays.map((day) => ({ dateIso: day.dateIso, band: day.band, isToday: false, hasNoData: day.hasNoData })),
       { dateIso: todayIso, band: null, isToday: true, hasNoData: false },
     ];
-    const padding = Array<null>(this.mondayIndex(cells[0].dateIso)).fill(null);
+    const padding = Array<null>(this.mondayIndex(completedDays[0]?.dateIso ?? todayIso)).fill(null);
     return [...padding, ...cells];
   });
 
@@ -74,7 +79,7 @@ export class Streak {
 
   // Sun=0..Sat=6 -> Mon=0..Sun=6.
   private mondayIndex(dateIso: string): number {
-    const [year, month, day] = dateIso.split('-').map(Number);
+    const [year, month, day] = parseIsoParts(dateIso);
     const sundayIndex = new Date(year, month - 1, day).getDay();
     return (sundayIndex + 6) % 7;
   }

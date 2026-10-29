@@ -163,8 +163,8 @@ export class TransactionsList {
 
   protected readonly totalScrollHeight$$ = computed(() => {
     const measurements = this.groupMeasurements$$();
-    if (!measurements.length) return 0;
-    const last = measurements[measurements.length - 1];
+    const last = measurements.at(-1);
+    if (!last) return 0;
     return last.startY + last.height;
   });
 
@@ -199,15 +199,14 @@ export class TransactionsList {
   });
 
   protected readonly paddingTop$$ = computed(() => {
-    const visible = this.visibleMeasurements$$();
-    return visible.length ? visible[0].startY : 0;
+    return this.visibleMeasurements$$()[0]?.startY ?? 0;
   });
 
   protected readonly paddingBottom$$ = computed(() => {
     const visible = this.visibleMeasurements$$();
     const total = this.totalScrollHeight$$();
-    if (!visible.length) return total;
-    const last = visible[visible.length - 1];
+    const last = visible.at(-1);
+    if (!last) return total;
     return total - (last.startY + last.height);
   });
 

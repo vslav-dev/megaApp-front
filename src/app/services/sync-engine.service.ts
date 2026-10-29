@@ -89,7 +89,7 @@ interface SyncOperationRequest {
   type: SyncOperationType;
   endpoint: string;
   data: object;
-  feedback?: SyncOperationFeedback;
+  feedback?: SyncOperationFeedback | undefined;
 }
 
 // TResponse is the shape the caller expects the server to answer with; it is inferred from the
@@ -113,8 +113,8 @@ export type SyncOperationInput<TResponse = unknown> =
 interface QueuedOperation extends SyncOperationRequest {
   operationId: string;
   retryCount: number;
-  onSuccess?: (response: unknown) => void;
-  onFailure?: (error: SyncOperationError) => void;
+  onSuccess?: ((response: unknown) => void) | undefined;
+  onFailure?: ((error: SyncOperationError) => void) | undefined;
   pendingTimeoutId?: ReturnType<typeof setTimeout> | null;
   pendingNotificationId?: string | null;
 }

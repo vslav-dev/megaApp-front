@@ -138,7 +138,7 @@ export class FoodProductPicker {
     const weightMatch = lastWord?.match(/^(\d+)$/); // Digits only
 
     if (weightMatch && words.length > 1) {
-      const weight = parseInt(weightMatch[1], 10);
+      const weight = parseInt(weightMatch[0], 10);
 
       if (weight > 0) {
         const textWithoutWeight = words.slice(0, -1).join(' ').trim();

@@ -7,13 +7,14 @@ export type MetricAggregation = 'avg' | 'max' | 'sum' | 'last';
 // as the samples don't divide evenly, which reads as a fake artifact for a counter
 // (e.g. "70.2 reprices") rather than a real value. See metrics-catalog-metric.ts.
 export function aggregateMetricValues(aggregation: MetricAggregation, values: number[], integerValued: boolean): number {
-  if (values.length === 0) {
+  const first = values[0];
+  if (first === undefined) {
     return 0;
   }
 
   switch (aggregation) {
     case 'max': {
-      let max = values[0];
+      let max = first;
       for (const value of values.slice(1)) {
         if (value > max) {
           max = value;
@@ -29,7 +30,7 @@ export function aggregateMetricValues(aggregation: MetricAggregation, values: nu
       return sum;
     }
     case 'last':
-      return values[values.length - 1];
+      return values.at(-1) ?? first;
     case 'avg':
     default: {
       let sum = 0;

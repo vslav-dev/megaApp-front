@@ -1,5 +1,19 @@
 import { USER_PREFERRED_MIDNIGHT_OFFSET_HOURS } from '@app/shared/const';
 
+// Reads an element whose index is valid by construction (binary search, computed indices): a bad index is a bug, not data.
+export function itemAt<T>(items: readonly T[], index: number): T {
+  const item = items[index];
+  if (item === undefined) throw new Error(`Index ${index} is out of range (length ${items.length})`);
+  return item;
+}
+
+// 'YYYY-MM' or 'YYYY-MM-DD' (day defaults to 1) as numbers; a malformed key is a bug in the caller, not data.
+export function parseIsoParts(iso: string): [year: number, month: number, day: number] {
+  const [year, month, day = 1] = iso.split('-').map(Number);
+  if (year === undefined || month === undefined) throw new Error(`Malformed ISO date: ${iso}`);
+  return [year, month, day];
+}
+
 export function calculateTodayIsoWithUserTimeShift(): string {
   const todayDate = calcDateWithUserTimeShift(new Date());
   const todayIso = dateToIsoNoTimeNoTZ(todayDate);
@@ -32,7 +46,7 @@ export function calcDateWithUserTimeShift(date: Date): Date {
 // date-only string as UTC midnight, which shifts by a day once read back through local getters for
 // any user behind UTC) by building/reading the Date exclusively through its UTC accessors.
 export function isoDaysBefore(dateISO: string, daysBefore: number): string {
-  const [year, month, day] = dateISO.split('-').map(Number);
+  const [year, month, day] = parseIsoParts(dateISO);
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCDate(date.getUTCDate() - daysBefore);
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
@@ -71,7 +85,7 @@ export function splitNumber(numStr: string): [string, string, string] {
     sign = '-';
     numStr = numStr.substring(1);
   }
-  const [integer, fraction] = numStr.split('.');
+  const [integer = '', fraction] = numStr.split('.');
   return [sign, integer, fraction ? '.' + fraction : ''];
 }
 

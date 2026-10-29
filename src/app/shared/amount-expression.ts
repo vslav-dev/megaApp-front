@@ -108,7 +108,7 @@ function parseAmountExpression(value: string): number | null {
 
     const start = index;
     while (index < value.length) {
-      const char = value[index];
+      const char = value.charAt(index);
       if ((char >= '0' && char <= '9') || char === '.') {
         index += 1;
         continue;

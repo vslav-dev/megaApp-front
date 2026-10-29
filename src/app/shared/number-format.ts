@@ -41,6 +41,6 @@ function groupDigits(integerDigits: string): string {
 // by thousands, leaving the sign and decimal part untouched.
 export function groupNumberText(text: string): string {
   const negative = text.startsWith('-');
-  const [intPart, decPart] = (negative ? text.slice(1) : text).split('.');
+  const [intPart = '', decPart] = (negative ? text.slice(1) : text).split('.');
   return `${negative ? '-' : ''}${groupDigits(intPart)}${decPart ? '.' + decPart : ''}`;
 }

@@ -709,7 +709,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
     if (!headerElement) return;
     this.stickyHeaderHeightPx$$.set(headerElement.offsetHeight);
     this.stickyHeaderResizeObserver = new ResizeObserver(([entry]) => {
-      this.stickyHeaderHeightPx$$.set(entry.borderBoxSize?.[0]?.blockSize ?? headerElement.offsetHeight);
+      this.stickyHeaderHeightPx$$.set(entry?.borderBoxSize?.[0]?.blockSize ?? headerElement.offsetHeight);
     });
     this.stickyHeaderResizeObserver.observe(headerElement);
   }

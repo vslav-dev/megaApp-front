@@ -49,7 +49,8 @@ export class TopProducts {
   // the day) — the list is already sorted descending by that metric, so products()[0] is the max.
   protected barWidthPercent(product: FoodStatsTopProductShare): number {
     const products = this.products$$();
-    const maxValue = products.length > 0 ? this.metricValue(products[0]) : 0;
+    const top = products[0];
+    const maxValue = top ? this.metricValue(top) : 0;
     if (maxValue <= 0) return 0;
     return Math.round((this.metricValue(product) / maxValue) * 100);
   }

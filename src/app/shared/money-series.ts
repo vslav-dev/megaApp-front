@@ -28,9 +28,9 @@ export const INCOME_VIRTUAL_SERIES = {
   CRYPTO_OPEN_PNL: -5,
 } as const;
 
-export const EXPENSE_VIRTUAL_SERIES_NAMES: Readonly<Record<number, string>> = {
+export const EXPENSE_VIRTUAL_SERIES_NAMES = {
   [EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED]: 'Uncategorized',
-};
+} as const satisfies Readonly<Record<number, string>>;
 
 export const INCOME_VIRTUAL_SERIES_NAMES: Readonly<Record<number, string>> = {
   [INCOME_VIRTUAL_SERIES.DIVIDENDS]: 'Дивиденды',

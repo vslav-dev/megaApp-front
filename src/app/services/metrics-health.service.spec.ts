@@ -106,10 +106,10 @@ describe('MetricsHealthService.services$$', () => {
     const { healthService, pushLatest } = setup();
     const nowSeconds = Math.floor(Date.now() / 1000);
     pushLatest([service({ lastBucket: nowSeconds - 100 })]);
-    expect(healthService.services$$()[0].severity).toBe('ok');
+    expect(healthService.services$$()[0]?.severity).toBe('ok');
 
     vi.advanceTimersByTime(NOW_TICK_INTERVAL_MS * 20); // 600s of ticks -> well past errorAfterSeconds
-    expect(healthService.services$$()[0].severity).toBe('error');
+    expect(healthService.services$$()[0]?.severity).toBe('error');
   });
 });
 

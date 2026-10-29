@@ -120,9 +120,9 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
       ctx.save();
       ctx.strokeStyle = pluginOptions.separatorColorChart;
       ctx.lineWidth = pluginOptions.separatorWidth;
-      for (let i = 0; i < groups.length - 1; i += 1) {
-        const current = groups[i];
+      for (const [i, current] of groups.entries()) {
         const next = groups[i + 1];
+        if (!next) break;
         const currentEnd = xScale.getPixelForTick(current.endIndex);
         const nextStart = xScale.getPixelForTick(next.startIndex);
         const separatorX = Math.round((currentEnd + nextStart) / 2) + 0.5;
@@ -173,9 +173,9 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
       if (groups.length > 1) {
         ctx.strokeStyle = pluginOptions.separatorColorLegend;
         ctx.lineWidth = pluginOptions.separatorWidth;
-        for (let i = 0; i < groups.length - 1; i += 1) {
-          const current = groups[i];
+        for (const [i, current] of groups.entries()) {
           const next = groups[i + 1];
+          if (!next) break;
           const currentEnd = xScale.getPixelForTick(current.endIndex);
           const nextStart = xScale.getPixelForTick(next.startIndex);
           const separatorX = Math.round((currentEnd + nextStart) / 2) + 0.5;
@@ -357,12 +357,14 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
         this.appliedBmiBands = bmiBands;
       }
       chart.data.labels = data.dates;
-      chart.data.datasets[0].data = data.weights;
-      chart.data.datasets[0].borderColor = colors.main;
-      chart.data.datasets[0].backgroundColor = colors.main;
-      chart.data.datasets[1].data = data.weightsAvg;
-      chart.data.datasets[1].borderColor = colors.secondary;
-      chart.data.datasets[1].backgroundColor = colors.secondary;
+      const [weights, weightsAvg] = chart.data.datasets;
+      if (!weights || !weightsAvg) return;
+      weights.data = data.weights;
+      weights.borderColor = colors.main;
+      weights.backgroundColor = colors.main;
+      weightsAvg.data = data.weightsAvg;
+      weightsAvg.borderColor = colors.secondary;
+      weightsAvg.backgroundColor = colors.secondary;
       chart.update('none');
     }
   }
@@ -375,15 +377,17 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
       const kcals = splitKcalsBySelection(data.kcalsFactual, data.kcalsSelected);
 
       chart.data.labels = data.dates;
-      chart.data.datasets[0].data = kcals.selected;
-      chart.data.datasets[0].borderColor = selectedColor;
-      chart.data.datasets[0].backgroundColor = selectedColor;
-      chart.data.datasets[1].data = kcals.rest;
-      chart.data.datasets[1].borderColor = colors.main;
-      chart.data.datasets[1].backgroundColor = colors.main;
-      chart.data.datasets[2].data = data.kcalsTarget;
-      chart.data.datasets[2].borderColor = colors.secondary;
-      chart.data.datasets[2].backgroundColor = colors.secondary;
+      const [selected, rest, target] = chart.data.datasets;
+      if (!selected || !rest || !target) return;
+      selected.data = kcals.selected;
+      selected.borderColor = selectedColor;
+      selected.backgroundColor = selectedColor;
+      rest.data = kcals.rest;
+      rest.borderColor = colors.main;
+      rest.backgroundColor = colors.main;
+      target.data = data.kcalsTarget;
+      target.borderColor = colors.secondary;
+      target.backgroundColor = colors.secondary;
 
       chart.update('none');
     }
@@ -485,9 +489,8 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
     let currentLabel = '';
     let currentStart = 0;
 
-    for (let i = 0; i < dates.length; i += 1) {
-      const date = dates[i];
-      const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+    for (const [i, date] of dates.entries()) {
+      const key =`${date.getFullYear()}-${date.getMonth() + 1}`;
       if (key !== currentKey) {
         if (currentKey) {
           groups.push({ startIndex: currentStart, endIndex: i - 1, label: currentLabel });
@@ -511,9 +514,8 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
     let currentLabel = '';
     let currentStart = 0;
 
-    for (let i = 0; i < dates.length; i += 1) {
-      const date = dates[i];
-      const year = date.getFullYear();
+    for (const [i, date] of dates.entries()) {
+      const year =date.getFullYear();
       if (year !== currentYear) {
         if (currentYear !== -1) {
           groups.push({ startIndex: currentStart, endIndex: i - 1, label: currentLabel });
@@ -558,9 +560,9 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private getMonthSpanCount(dates: Date[]): number {
-    if (dates.length === 0) return 0;
     const first = dates[0];
-    const last = dates[dates.length - 1];
+    const last = dates.at(-1);
+    if (!first || !last) return 0;
     return (last.getFullYear() - first.getFullYear()) * 12 + (last.getMonth() - first.getMonth()) + 1;
   }
 

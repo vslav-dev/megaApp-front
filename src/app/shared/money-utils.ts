@@ -1,4 +1,5 @@
 import { Transaction, TransactionDetails } from '@app/shared/types';
+import { parseIsoParts } from '@app/shared/utils';
 
 export function convertAmount(
   amount: number,
@@ -41,8 +42,8 @@ export function toPositiveNumber(value: unknown): number | null {
 
 export function generateMonthRange(fromMonthISO: string, toMonthISO: string): string[] {
   const months: string[] = [];
-  const [fromYear, fromMonth] = fromMonthISO.split('-').map(Number);
-  const [toYear, toMonth] = toMonthISO.split('-').map(Number);
+  const [fromYear, fromMonth] = parseIsoParts(fromMonthISO);
+  const [toYear, toMonth] = parseIsoParts(toMonthISO);
   let y = fromYear,
     m = fromMonth;
   while (y < toYear || (y === toYear && m <= toMonth)) {

@@ -6,6 +6,7 @@ import { NamespaceSettingsStore } from '@app/services/settings/namespace-setting
 import { TelemetryService } from '@app/services/telemetry.service';
 import { firstValueFrom, Observable } from 'rxjs';
 import { areSetsEqual } from '../shared/money-utils';
+import { itemAt } from '../shared/utils';
 import {
   Account,
   Asset,
@@ -741,7 +742,7 @@ export class MoneyService {
     amount: number;
     twinAccountId: number;
     twinAmount: number;
-    notes?: string;
+    notes?: string | undefined;
   }): void {
     const tempId1 = Date.now();
     const tempId2 = tempId1 + 1;
@@ -806,7 +807,7 @@ export class MoneyService {
     amount: number;
     twinAccountId: number;
     twinAmount: number;
-    notes?: string;
+    notes?: string | undefined;
   }): void {
     const snapshot = this.transactions$$();
     this.updateTransferInState(transferData);
@@ -877,7 +878,7 @@ export class MoneyService {
     amount: number;
     twinAccountId: number;
     twinAmount: number;
-    notes?: string;
+    notes?: string | undefined;
   }): void {
     this.transactions$$.update((transactions: Transaction[]) =>
       transactions.map((transaction: Transaction) => {
@@ -915,7 +916,7 @@ export class MoneyService {
       result = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
-      if (snapshots[mid].dateISO <= dateISO) {
+      if (itemAt(snapshots, mid).dateISO <= dateISO) {
         result = mid;
         lo = mid + 1;
       } else {
@@ -923,6 +924,6 @@ export class MoneyService {
       }
     }
 
-    return result >= 0 ? snapshots[result].rates : null;
+    return result >= 0 ? itemAt(snapshots, result).rates : null;
   }
 }

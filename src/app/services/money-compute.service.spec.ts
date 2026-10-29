@@ -187,6 +187,7 @@ describe('MoneyComputeService.balanceChartData$$', () => {
     });
     const result = service.balanceChartData$$();
     const series = result.accountSeries[0];
+    if (!series) throw new Error('Expected an account series');
     // cash spent buying = -100 -100 = -200; ACT position = 5*10 = 50; FRZ position = 3*20 = 60
     expect(series.values[0]).toBe(-200 + 50 + 60);
     expect(series.suspendedValues[0]).toBe(60);
@@ -295,7 +296,7 @@ describe('MoneyComputeService.expenseChartData$$', () => {
     });
     const result = service.expenseChartData$$();
     expect(result.categories).toEqual([{ id: 1, name: 'Подарок' }]);
-    expect(result.monthRows[0].categoryAmounts).toEqual({ 1: 300 });
+    expect(result.monthRows[0]?.categoryAmounts).toEqual({ 1: 300 });
   });
 
   it('keeps a gift expense in its own category when there is no "Подарок" category', () => {
@@ -310,7 +311,7 @@ describe('MoneyComputeService.expenseChartData$$', () => {
         tx({ id: 1, dateISO: '2026-01-10', kind: TransactionKind.EXPENSE, amount: 300, categoryId: 2, isGift: true }),
       ],
     });
-    expect(service.expenseChartData$$().monthRows[0].categoryAmounts).toEqual({ 2: 300 });
+    expect(service.expenseChartData$$().monthRows[0]?.categoryAmounts).toEqual({ 2: 300 });
   });
 });
 

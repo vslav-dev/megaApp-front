@@ -8,6 +8,7 @@ import { VToggleItem } from '@ui-kit/components/v-toggle/v-toggle';
 import { MoneyComputeService } from '../../services/money-compute.service';
 import { MoneyService } from '../../services/money.service';
 import { TelemetryService } from '../../services/telemetry.service';
+import { parseIsoParts } from '@app/shared/utils';
 import { BalanceChartData } from '../../shared/types';
 import { AccountsBalance } from './accounts-balance/accounts-balance';
 import { AccountsList } from './accounts-list/accounts-list';
@@ -150,14 +151,11 @@ export class MoneyScreen implements OnInit {
     if (startIdx === 0 && endIdx === months.length - 1) return data;
     const start = months[startIdx];
     const end = months[endIdx];
+    if (start === undefined || end === undefined) return { dates: [], totals: [], accountSeries: [] };
     const i0 = data.dates.findIndex((d) => d.substring(0, 7) >= start);
-    let i1 = -1;
-    for (let i = data.dates.length - 1; i >= 0; i--) {
-      if (data.dates[i].substring(0, 7) <= end) {
-        i1 = i;
-        break;
-      }
-    }
+    // Dates ascend, so the last one within the range sits right before the first one past it.
+    const firstPastEnd = data.dates.findIndex((d) => d.substring(0, 7) > end);
+    const i1 = firstPastEnd === -1 ? data.dates.length - 1 : firstPastEnd - 1;
     if (i0 < 0 || i1 < 0 || i0 > i1) return { dates: [], totals: [], accountSeries: [] };
     return {
       dates: data.dates.slice(i0, i1 + 1),
@@ -174,8 +172,10 @@ export class MoneyScreen implements OnInit {
     const months = this.allChartMonths$$();
     const startIdx = this.rangeStartIdx$$();
     const endIdx = this.rangeEndIdx$$();
-    if (months.length === 0 || (startIdx === 0 && endIdx === months.length - 1)) return null;
-    return [months[startIdx], months[endIdx]];
+    const start = months[startIdx];
+    const end = months[endIdx];
+    if (start === undefined || end === undefined || (startIdx === 0 && endIdx === months.length - 1)) return null;
+    return [start, end];
   });
 
   protected onChartRangeChange(range: VSliderRangeValue): void {
@@ -219,7 +219,7 @@ export class MoneyScreen implements OnInit {
 
   private formatSliderMonth(ym: string | undefined): string {
     if (!ym) return '';
-    const [year, month] = ym.split('-').map(Number);
+    const [year, month] = parseIsoParts(ym);
     return this.sliderMonthFormatter.format(new Date(year, month - 1, 1));
   }
 }

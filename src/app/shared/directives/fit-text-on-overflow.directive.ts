@@ -25,9 +25,9 @@ export class FitTextOnOverflowDirective implements OnInit, OnDestroy {
 
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private isInitialized = false;
-  private resizeObserver?: ResizeObserver;
+  private resizeObserver?: ResizeObserver | undefined;
   private rafId: number | null = null;
-  private windowResizeListener?: () => void;
+  private windowResizeListener?: (() => void) | undefined;
 
   private readonly inputsEffect = effect(() => {
     this.fullText();

@@ -427,7 +427,10 @@ export class FoodCatalogueService extends BaseFoodService {
 
     // Single place that applies the scope: it also drops ids from a stale cache, so the cache
     // itself never needs cleaning when a product is archived or restored.
-    const results = ids.map((id) => catalogue[id]).filter((entry) => entry && this.matchesSearchScope(entry));
+    const results = ids.flatMap((id) => {
+      const entry = catalogue[id];
+      return entry && this.matchesSearchScope(entry) ? [entry] : [];
+    });
     this.searchResults$$.set(results);
   }
 

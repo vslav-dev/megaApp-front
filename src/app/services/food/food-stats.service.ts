@@ -331,7 +331,8 @@ export class FoodStatsService extends BaseFoodService {
   private savedRangeNeedsFullHistory(savedStart: string): boolean {
     if (savedStart === 'first') return true;
     const loadedDates = this.loadedDates$$();
-    return loadedDates.length > 0 && savedStart < loadedDates[0];
+    const firstLoadedDate = loadedDates[0];
+    return firstLoadedDate !== undefined && savedStart < firstLoadedDate;
   }
 
   public saveDateRange(startIdx: number, endIdx: number): void {
@@ -370,13 +371,14 @@ export class FoodStatsService extends BaseFoodService {
   // the array length jumped from 90 to the full history size at that point, which reshuffled every
   // index-based position on the slider and made it visibly jump/flicker on load.
   private buildFullDateAxis(loadedDates: string[]): string[] {
-    if (loadedDates.length === 0) return loadedDates;
+    const firstLoadedDate = loadedDates[0];
+    if (firstLoadedDate === undefined) return loadedDates;
     const paddingCount = Math.max(0, this.summarySignal$$().daysInDiary - loadedDates.length);
     if (paddingCount === 0) return loadedDates;
 
     const padding: string[] = [];
     for (let offset = paddingCount; offset >= 1; offset--) {
-      padding.push(isoDaysBefore(loadedDates[0], offset));
+      padding.push(isoDaysBefore(firstLoadedDate, offset));
     }
     return [...padding, ...loadedDates];
   }

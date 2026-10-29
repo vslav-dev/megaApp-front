@@ -22,7 +22,7 @@ export interface MetricConfig {
   // отдельной синтетической группе Removed вместо своей штатной группы.
   removed: boolean;
   // Свободная подсказка "теперь смотри X" / "замены нет" для тултипа в Removed.
-  removedNote?: string;
+  removedNote?: string | undefined;
 }
 
 export interface MetricsGroupDefinition {

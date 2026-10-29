@@ -79,8 +79,8 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
       if (!active?.length) return;
 
       const { top, bottom, left, right } = chart.chartArea;
-      const x = active[0].element.x;
-      if (x < left || x > right) return;
+      const x = active[0]?.element.x;
+      if (x === undefined || x < left || x > right) return;
 
       const ctx = chart.ctx;
       ctx.save();
@@ -115,13 +115,12 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
       // unlike Chart.js's own scale rendering, this plugin paints the canvas directly).
       ctx.strokeStyle = Chart.defaults.borderColor as string;
       ctx.lineWidth = 1;
-      for (let i = 1; i < this.yearBoundaries.length; i++) {
+      for (const [i, boundary] of this.yearBoundaries.entries()) {
+        const previous = this.yearBoundaries[i - 1];
+        if (!previous) continue;
         const x =
-          Math.round(
-            (xScale.getPixelForValue(this.yearBoundaries[i - 1].endIdx) +
-              xScale.getPixelForValue(this.yearBoundaries[i].startIdx)) /
-              2,
-          ) + 0.5;
+          Math.round((xScale.getPixelForValue(previous.endIdx) + xScale.getPixelForValue(boundary.startIdx)) / 2) +
+          0.5;
         ctx.beginPath();
         ctx.moveTo(x, chartArea.top);
         ctx.lineTo(x, chartArea.bottom);
@@ -331,8 +330,9 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
 
       const rawValues = series.values.map((_, i) => getEffectiveValue(series, i));
       const cumulativeData = rawValues.map((v, i) => {
-        accumulated[i] += v;
-        return accumulated[i];
+        const total = (accumulated[i] ?? 0) + v;
+        accumulated[i] = total;
+        return total;
       });
 
       datasets.push({

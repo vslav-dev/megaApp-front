@@ -98,7 +98,9 @@ export function buildPositionLots(input: PositionLotsInput): PositionLot[] {
   const lots: PositionLot[] = [];
 
   groups.forEach((groupTrades) => {
-    const { assetType, assetTicker } = groupTrades[0];
+    const first = groupTrades[0];
+    if (!first) return;
+    const { assetType, assetTicker } = first;
     const buys = groupTrades.filter((t) => t.isBuy).sort(byDateThenId);
     const sells = groupTrades.filter((t) => !t.isBuy).sort(byDateThenId);
 

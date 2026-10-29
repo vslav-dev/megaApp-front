@@ -249,13 +249,15 @@ export class MetricChartCard implements OnInit, OnDestroy {
   protected readonly headerOhlcDisplay$$ = computed(() => {
     const values = nonNullValues(this.seriesInput());
     const scaleValues = nonNullValues(this.scalePointsInput());
-    if (values.length === 0 || scaleValues.length === 0) return null;
+    const first = values[0];
+    const last = values.at(-1);
+    if (first === undefined || last === undefined || scaleValues.length === 0) return null;
 
     const unit = this.unitInput();
-    const open = formatMetricUnitValue(unit, values[0]);
+    const open = formatMetricUnitValue(unit, first);
     const high = formatMetricUnitValue(unit, Math.max(...scaleValues));
     const low = formatMetricUnitValue(unit, Math.min(...scaleValues));
-    const close = formatMetricUnitValue(unit, values[values.length - 1]);
+    const close = formatMetricUnitValue(unit, last);
     return `O: ${open} — H: ${high} — L: ${low} — C: ${close}`;
   });
 
@@ -336,11 +338,11 @@ export class MetricChartCard implements OnInit, OnDestroy {
 
   public ngOnInit(): void {
     this.resizeObserver = new ResizeObserver(([entry]) => {
-      this.cardWidthPx$$.set(entry.contentRect.width);
+      if (entry) this.cardWidthPx$$.set(entry.contentRect.width);
     });
     this.resizeObserver.observe(this.hostElement);
 
-    this.intersectionObserver = new IntersectionObserver(([entry]) => this.isVisible$$.set(entry.isIntersecting), {
+    this.intersectionObserver = new IntersectionObserver(([entry]) => entry && this.isVisible$$.set(entry.isIntersecting), {
       rootMargin: `${VIEWPORT_GATE_ROOT_MARGIN_PX}px`,
     });
     this.intersectionObserver.observe(this.hostElement);
@@ -462,10 +464,13 @@ export class MetricChartCard implements OnInit, OnDestroy {
     const windowEnd = this.windowEndInput();
     const tickBuckets = this.buildTickBuckets(windowStart, windowEnd);
 
-    this.chart!.data.datasets[0].data = series.map((point) => ({
-      x: point.bucket,
-      y: point.value,
-    }));
+    const dataset = this.chart!.data.datasets[0];
+    if (dataset) {
+      dataset.data = series.map((point) => ({
+        x: point.bucket,
+        y: point.value,
+      }));
+    }
     this.chart!.options.scales!['x']!.min = windowStart;
     this.chart!.options.scales!['x']!.max = windowEnd;
     this.chart!.options.scales!['x']!.afterBuildTicks = (axis) => {

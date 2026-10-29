@@ -50,10 +50,10 @@ export class FoodStatsInsightsService {
     const data = this.foodStatsService.statsChartData$$();
     return data.dates.map((dateIso, index) => ({
       dateIso,
-      weight: data.weights[index],
-      consumedKcal: data.kcalsFactual[index],
-      targetKcal: data.kcalsTarget[index],
-      hasNoData: data.hasNoData[index],
+      weight: data.weights[index] ?? 0,
+      consumedKcal: data.kcalsFactual[index] ?? 0,
+      targetKcal: data.kcalsTarget[index] ?? 0,
+      hasNoData: data.hasNoData[index] ?? true,
     }));
   });
 
@@ -127,8 +127,8 @@ export class FoodStatsInsightsService {
 
   private computeStreakStats(days: DayPoint[]): StreakStats {
     let current = 0;
-    for (let i = days.length - 1; i >= 0; i--) {
-      if (!this.isStreakSuccessDay(days[i])) break;
+    for (const day of [...days].reverse()) {
+      if (!this.isStreakSuccessDay(day)) break;
       current++;
     }
 

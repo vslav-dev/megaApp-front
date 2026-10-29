@@ -30,7 +30,7 @@ type ModalEvent = (typeof ModalEvent)[keyof typeof ModalEvent];
 interface ModalContext {
   from: ModalState;
   to: ModalState;
-  payload?: CatalogueEntry;
+  payload?: CatalogueEntry | undefined;
 }
 
 type StateTransitionMap = {

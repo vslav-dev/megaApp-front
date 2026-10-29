@@ -87,7 +87,7 @@ describe('NamespaceSettingsStore.set — debounced auto-save', () => {
     vi.advanceTimersByTime(SETTINGS_AUTO_SAVE_DEBOUNCE_MS);
 
     const addOperationSpy = syncEngineFake.addOperation as ReturnType<typeof vi.fn>;
-    const { rollbackCallback } = addOperationSpy.mock.calls[0][0] as { rollbackCallback: () => void };
+    const { rollbackCallback } = addOperationSpy.mock.calls[0]?.[0] as { rollbackCallback: () => void };
     rollbackCallback();
 
     expect(store.value$$().a).toBe(0); // pre-burst value, not 1 (the first intermediate set())
