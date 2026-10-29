@@ -18,28 +18,10 @@ const getLatestGitCommitDateTime = () => {
   }
 };
 
-const buildInfo = `
-const frontInfo = {
-  commitHash: "${getLatestGitCommitHash()}",
-  commitDateTime: "${getLatestGitCommitDateTime()}"
+const buildInfo = {
+  commitHash: getLatestGitCommitHash(),
+  commitDateTime: getLatestGitCommitDateTime(),
 };
 
-let backendInfo = {
-  commitHash: "unknown",
-  commitDateTime: "unknown"
-};
-
-fetch('/api/debug/commit-info')
-  .then(response => response.json())
-  .then(data => {
-    backendInfo = data;
-  })
-  .catch(() => {})
-  .finally(() => {
-    console.log("Latest front commit: [" + frontInfo.commitHash + ", " + frontInfo.commitDateTime + "]");
-    console.log("Latest back commit: [" + backendInfo.commitHash + ", " + backendInfo.commitDateTime + "]");
-  });
-`;
-
-fs.writeFileSync('./src/assets/build-info.js', buildInfo);
+fs.writeFileSync('./src/assets/build-info.json', JSON.stringify(buildInfo, null, 2));
 console.log('Build info generated successfully');

@@ -42,7 +42,7 @@ testem.log
 .DS_Store
 Thumbs.db
 
-build-info.js
+build-info.json
 *.project_src
 .qodo
 .vscode
