@@ -11,31 +11,28 @@
       </div>
     }
 
-    <form [formGroup]="authForm"
-          class="flex flex-col gap-2 mt-6"
-          (ngSubmit)="submit()">
+    <form [formRoot]="authForm"
+          class="flex flex-col gap-2 mt-6">
       @if (!isLoginMode$$() && justRegistered$$()) {
         <div class="w-full font-bold text-green-800">
           Регистрация прошла успешно! Теперь вы можете войти со своими логином и паролем:
         </div>
       }
 
-      <v-input formControlName="username"
+      <v-input [formField]="authForm.username"
                class="w-full"
-               label="Логин"
-               [errorMessage]="usernameErrorMessage$$()">
+               label="Логин">
       </v-input>
 
-      <v-input formControlName="password"
+      <v-input [formField]="authForm.password"
                class="w-full"
                type="password"
-               label="Пароль"
-               [errorMessage]="passwordErrorMessage$$()">
+               label="Пароль">
       </v-input>
 
       <v-button class="v-primary w-full text-lg"
                 type="submit"
-                [isDisabled]="authForm.invalid || submitted$$()">
+                [isDisabled]="authForm().invalid() || authForm().submitting()">
         {{ isLoginMode$$() ? "Войти" : "Зарегистрироваться" }}
       </v-button>
     </form>

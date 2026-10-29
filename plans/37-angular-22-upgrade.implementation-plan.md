@@ -136,7 +136,7 @@
 
 ### Группа 3 — глубокое выравнивание с философией (основной объём рефакторинга)
 - ✅ **Zoneless**: включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и из package.json, пройти по всем 60 `effect()` и 49 `subscribe()` и убедиться, что запись состояния всегда идёт через `signal.set()/update()`, а не через мутацию plain-полей; отдельно смоук-тест графиков (chart.js callbacks) и `v-dropdown`/`v-wheel-select` (используют `subscribe()`/`@HostListener` вне сигнального графа)
-- ⭕ **Signal Forms**: перевести все ~15 файлов на `@angular/forms/signals` (`form()` + schema-валидация), убрать `ReactiveFormsModule`/`FormsModule`/`ngModel`/`FormBuilder` — один способ работы с формами вместо двух
+- ✅ **Signal Forms**: перевести все ~15 файлов на `@angular/forms/signals` (`form()` + schema-валидация), убрать `ReactiveFormsModule`/`FormsModule`/`ngModel`/`FormBuilder` — один способ работы с формами вместо двух
 - ✅ **Functional interceptor**: переписать `auth.interceptor.ts` на `HttpInterceptorFn`, заменить `withInterceptorsFromDi()` на `withInterceptors([...])` в `main.ts`, убрать `HTTP_INTERCEPTORS`-provider
 - ✅ **`@Service()`**: перевести 32 файла с `@Injectable({ providedIn: 'root' })` на `@Service()` (механическая замена, можно скриптом-подсказкой + ручная проверка)
 - ⭕ **`resource()`/`httpResource()`**: поэтапно (не разом) перевести HTTP-ориентированные сервисы с ручного `subscribe()` — начать с самых простых read-only сценариев (`metrics-health.service`, `device-info.service`), затем сложные с ретраями/дебаунсом (`food-diary.service`, `food-catalogue.service`) в последнюю очередь
@@ -259,7 +259,7 @@
 - ✅ Конструкторная инъекция `moneyService` → `inject()` в `category-form`, `organization-form`, `currency-form`, `account-form`
 - ✅ `subscribe` в `transactions-list` (горячая клавиша N через `keyboardService.shortcut$`) оставлен: поток событий, с `takeUntilDestroyed`
 - ✅ `ngClass`/`ngStyle`, `@Input`/`@Output`, `Eager`, `standalone: true` в разделе не встречаются — трогать нечего
-- ⭕ Формы (12 файлов) — к Signal Forms готовы как есть (сигналы — источник правды, `ngModel` лишь мост); фактический перевод ждёт общих контролов ui-kit (Блок 5)
+- ✅ Формы (12 файлов) — к Signal Forms готовы как есть (сигналы — источник правды, `ngModel` лишь мост); фактический перевод ждёт общих контролов ui-kit (Блок 5)
 - ✅ Проверки: `tsc` (app, spec) 0 ошибок, `ng test` 39/447, `ng build --configuration dev` чисто. В браузере (`localhost:4200/money`) проверены загрузка snapshot (балансы, транзакции, три графика), вкладка Setup со списками, открытие и отмена формы «New Organization». Создание/изменение/удаление в браузере **не** проверялись: данные на экране похожи на реальные финансы
 
 ### Блок 3 — Настройки, auth, навигация, уведомления
@@ -285,8 +285,8 @@
 ### Блок 5 — Глобальный (в самом конце)
 Всё, что нельзя разделить по разделам.
 - ✅ ui-kit: `Eager` → `OnPush` на 20 компонентах, `@HostListener` → `host: {}` (`v-modal`, `v-wheel-select`), `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`
-- ⭕ ui-kit: 4 контрола форм на signal-интерфейс контрола Signal Forms
-- ⭕ Signal Forms: перевод форм всех разделов, затем удаление `FormsModule`/`ReactiveFormsModule`
+- ✅ ui-kit: 4 контрола форм на signal-интерфейс контрола Signal Forms
+- ✅ Signal Forms: перевод форм всех разделов, затем удаление `FormsModule`/`ReactiveFormsModule`
 - ✅ Functional interceptor: `auth.interceptor.ts` → `HttpInterceptorFn` + `withInterceptors()`
 - ✅ Общие сервисы на `@Service()` (`network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`)
 - ✅ Zoneless: `provideZonelessChangeDetection()`, убрать `zone.js` из polyfills и зависимостей, `provideCheckNoChangesConfig` в dev, точечные временные логи; обкатка на метриках, затем деньги, еда
@@ -387,7 +387,7 @@
 
 ### Не начато
 - ✅ Zoneless (`provideZonelessChangeDetection()`, убрать `zone.js`, `provideCheckNoChangesConfig`)
-- ⭕ Signal Forms (14 файлов с `FormsModule`/`ReactiveFormsModule`, 4 контрола ui-kit на signal-интерфейс)
+- ✅ Signal Forms (14 файлов с `FormsModule`/`ReactiveFormsModule`, 4 контрола ui-kit на signal-интерфейс)
 - ✅ `withXhr()` → Fetch (решение не принято)
 - ⭕ Angular Aria (`v-dropdown`, `v-expand`, `v-modal`)
 - ⭕ Группа 4: selectorless, `injectAsync`, ESLint без конфига
@@ -499,4 +499,36 @@
 ### Что остаётся
 - ⭕ Signal Forms только для реальных реактивных форм: `auth-form`, `body-weight`, `diary-entry-add-form`, `diary-entry-edit-form`, `catalogue-entry-edit-form`, `diary-nav-buttons` (календарь). Нужен перевод `v-input` с `ControlValueAccessor`/`NgControl` на модель и собственные валидаторы (`range`, `bodyWeight`) на `validate()`.
 - ⭕ `food-product-history-state` как `resource`, Angular Aria, Группа 4 (selectorless, `injectAsync`, ESLint).
+- ⭕ Реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки.
+
+## Блок 5, седьмой заход: Signal Forms для реактивных форм (29.10.2026)
+
+Закрывает «Что остаётся» первого пункта шестого захода. В `src` не осталось импортов `@angular/forms` (только `@angular/forms/signals`): ни `FormGroup`/`FormControl`, ни `ControlValueAccessor`, ни `NgControl`, ни `FormsModule`/`ReactiveFormsModule`.
+
+### Сделано
+- ✅ **`v-input` — контрол Signal Forms** (`FormValueControl<string>`): состояние только в модели `value`; вход `errors` (показывается первое сообщение после ввода пользователя), вход `invalid` (блокирует автосохранение), выход `touch` на blur. Убраны `NgControl`, `ControlValueAccessor`, зеркальный `ngControlValue$$`, вход `pattern` (нигде не использовался). Внешняя смена значения (подстановка, сброс формы) узнаётся эффектом по `knownValue`, как в `v-dropdown`: ошибка скрывается и автосохранение не отправляет подставленное значение.
+- ✅ **Ошибка, найденная на проверке: устаревшая валидность в автосохранении.** `invalid` приходит из поля после следующей отрисовки и в момент ввода описывает предыдущее значение. Верное значение после неверного промежуточного («7» → «70») не запускало бы автосохранение веса, а неверное могло его запустить. Проверка `handleChange` перенесена в `afterNextRender`; тест воспроизводит случай и падает без исправления.
+- ✅ Формы на `form()` + `[formField]` + `[formRoot]`, отправка через `submission.action` (отправка идёт только для валидной формы, `submitting()` заменяет ручные `disable()`/`enable()` и флаг): `auth-form`, `body-weight` (вес и рост), `diary-entry-add-form`, `diary-entry-edit-form`, `catalogue-entry-edit-form`. Валидаторы: `required`, `minLength`, `maxLength`, `pattern`, собственные `weightExpression`, `negativeResult` и `maxAmount` (предел числа в строке). Сообщения теперь у валидаторов (`message`), `ERROR_MESSAGES` в `validators.ts` сведён к `required` и общему «Ошибка». Мёртвые `rangeValidator` и `weightValidator` (на `AbstractControl`, нигде не использовались) удалены вместе со своими тестами.
+- ✅ Календарь в `diary-nav-buttons` не форма: `FormControl` и эффект синхронизации заменены на `[value]="selectedDayIso$$()"`.
+- ✅ Общая `isEmptyOrPositiveWholeAmount` в `amount-expression.ts` для полей веса.
+- ✅ README `v-input` и `v-modal` обновлены.
+
+### Изменения поведения (замечены при переносе)
+- Ошибка пароля и логина в `auth-form` показывается после ввода, а не после ухода с поля (теперь так же, как у всех остальных `v-input`).
+- Ошибка шаблона веса показывает текст «ХХ.Х или ХХ» вместо общего «Ошибка» (константа была в коде, но не использовалась).
+- Кнопка сброса и суффикс «г.» в форме правки записи пропадают, когда поле очищено вручную (раньше после ручной очистки оставались, потому что пустая строка не равна `null`).
+- Пустая форма добавления/правки по Enter как и раньше отправляется без доп. проверок; новая защита не добавлялась.
+
+### Проверки
+- ✅ `tsc` 0 ошибок, `ng test` 42 файла / 453 теста (новые: `v-input.spec` — модель, ошибка после ввода, сброс внешним значением, автосохранение после неверной цифры, без автосохранения для неверного и подставленного значения; `auth-form.spec` — кнопка, сообщение, отказ для неверной формы, вход, сброс, переход), `ng build` чисто.
+- ✅ В Chrome (dev-сервер без зоны): вес (ошибки «ХХ.Х или ХХ» и «Обязательное поле»), модалка роста (подстановка 180, ошибка «XXX»), добавление записи («80*2» даёт 29.1% сразу, «0» — ошибка и блок кнопки), форма продукта (подстановка значений, 2000 ккал — ошибка, 250 и «9,5» — валидно), правка записи (взаимоисключение полей, черновик в счётчиках, «-500» — ошибка, сброс), календарь (значение скрытого поля следует за выбранным днём). Консоль без ошибок.
+- ✅ Дочищено в браузере с реальным сохранением (локальные данные, разрешено): запись дневника — добавление по Enter, правка (+50 г, форма сбросилась), удаление с подтверждением; вес — автосохранение «7» → «70» (POST body-weight 201); рост — 180 → 181 → 180 (шкала ИМТ пересчиталась); продукт — калории 250 → 251 → 250 (тост «Продукт обновлён»); транзакция — создание, правка суммы, удаление (баланс счёта менялся на каждом шаге и вернулся); организация — создание и переименование; счёт — создание с организацией, валютой и типом, переименование.
+- ✅ Дочищено на следующем проходе: удаление тестовых счёта и организации (с подтверждением), форма актива (создание со счётом «Крипта», подстановка при правке, режим «Suspended» с датами, обновление, удаление), подрезка дня в колесе даты (31.Oct → месяц Sep даёт 30.Sep). Тестовые данные убраны, консоль без ошибок.
+- ⭕ Не проверено: создание нового продукта (генерация ИИ), форма входа в браузере (авторизованного пользователя редиректит; покрыта тестом), мобильная вёрстка модалок.
+
+### Решение: Angular Aria исключён (29.10.2026)
+Доступность (a11y) в приложении не используется и не планируется, поэтому пакет `@angular/aria` не ставится, а все прежние пункты про Aria в этом плане (⭕ «Angular Aria (`v-dropdown`, `v-expand`, `v-modal`)» и упоминания в сводках) считаются отменёнными, а не отложенными.
+
+### Что остаётся
+- ⭕ `food-product-history-state` как `resource`, Группа 4 (selectorless, `injectAsync`, ESLint).
 - ⭕ Реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки.

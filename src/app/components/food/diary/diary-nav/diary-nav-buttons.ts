@@ -3,14 +3,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
   ElementRef,
   inject,
   Signal,
   signal,
   viewChild,
 } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { FOOD_DIARY_ACCORDION_GROUP_ID } from '@app/components/food/diary/food-diary-accordion';
 import { FOOD_FAB_ROW_RIGHT_INSET_PX, FoodFabLayer, foodFabStackBottomPx } from '@app/components/food/food-fab-layout';
 import { AuthService } from '@app/services/auth.service';
@@ -28,7 +26,7 @@ import { AccordionGroupService } from '@ui-kit/services/accordion-group.service'
   templateUrl: './diary-nav-buttons.html',
   styleUrl: './diary-nav-buttons.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, ReactiveFormsModule, FitTextOnOverflowDirective, VButton, VIcon],
+  imports: [CommonModule, FitTextOnOverflowDirective, VButton, VIcon],
 })
 export class DiaryNavButtons {
   private readonly accordionGroupService = inject(AccordionGroupService);
@@ -36,10 +34,6 @@ export class DiaryNavButtons {
   protected readonly dateInputElem = viewChild<ElementRef<HTMLInputElement>>('dateInputElem');
 
   protected readonly maxDateIso$$ = signal(dateToIsoNoTimeNoTZ(calcDateWithUserTimeShift(new Date())));
-
-  protected readonly formCalendarSelectedDay: FormControl<string> = new FormControl<string>(this.maxDateIso$$(), {
-    nonNullable: true,
-  });
 
   protected readonly weekdayFull$$: Signal<string> = computed(() =>
     this.formatWeekday(this.foodDiaryService.selectedDayIso$$(), 'long'),
@@ -81,14 +75,8 @@ export class DiaryNavButtons {
   private readonly foodAddModalService = inject(FoodAddModalService);
 
   // selectedDayIso$$ is the single source of truth (can change from outside this component, e.g.
-  // a milestone "jump to date" button) — keep the native date input's control in sync with it
-  // instead of tracking a parallel copy of the selected date here.
-  private readonly syncCalendarInputEffect$$ = effect(() => {
-    const selectedDayIso = this.foodDiaryService.selectedDayIso$$();
-    if (this.formCalendarSelectedDay.value !== selectedDayIso) {
-      this.formCalendarSelectedDay.setValue(selectedDayIso);
-    }
-  });
+  // a milestone "jump to date" button); the native date input just shows it.
+  protected readonly selectedDayIso$$ = this.foodDiaryService.selectedDayIso$$;
 
   protected readonly addFabBottomPx: string = foodFabStackBottomPx(FoodFabLayer.AddFood);
   protected readonly dateNavRowRightPx: string = `${FOOD_FAB_ROW_RIGHT_INSET_PX}px`;

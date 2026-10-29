@@ -26,6 +26,14 @@ export function evaluateWholeAmount(value: string | null | undefined): number | 
   return result === null ? null : Math.round(result);
 }
 
+// For a form field: empty is left to `required`, anything else must evaluate to a positive whole number.
+export function isEmptyOrPositiveWholeAmount(value: string): boolean {
+  if (!value) return true;
+
+  const amount = evaluateWholeAmount(value);
+  return amount !== null && amount > 0;
+}
+
 function parseAmountExpression(value: string): number | null {
   let index = 0;
 

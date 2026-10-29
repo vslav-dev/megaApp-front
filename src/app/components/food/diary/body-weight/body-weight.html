@@ -12,7 +12,7 @@
 
     <v-input class="w-1/3"
              #bodyWeightInputElem
-             [formControl]="form.controls.bodyWeight"
+             [formField]="weightForm.bodyWeight"
              inputmode="decimal"
              label="Вес"
              fontSize="20px"
@@ -30,15 +30,14 @@
 
 <form-modal [isModalOpen]="isHeightModalOpen$$()"
             (closeOutput)="closeHeightModal()">
-  <form [formGroup]="heightForm"
+  <form [formRoot]="heightForm"
         class="flex flex-col gap-4">
     <div class="text-xl font-medium text-center">Рост</div>
 
-    <v-input formControlName="height"
+    <v-input [formField]="heightForm.height"
              #heightInputElem
              inputmode="numeric"
              label="Рост"
-             [errorMessage]="isHeightValid ? '' : FormErrors.HEIGHT"
              fontSize="20px"
              [fontWeight]="500"
              textAlign="right"

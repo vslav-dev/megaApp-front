@@ -108,7 +108,7 @@
          id="date-picker-input"
          type="date"
          class="hide-input"
-         [formControl]="formCalendarSelectedDay"
+         [value]="selectedDayIso$$()"
          [max]="maxDateIso$$()"
          (change)="onDatePicked($event)" />
 </ng-template>

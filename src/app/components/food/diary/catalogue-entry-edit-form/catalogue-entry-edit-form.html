@@ -1,6 +1,5 @@
 <form class="flex flex-col gap-4 p-4"
-      [formGroup]="catalogueEditForm"
-      (ngSubmit)="submitForm()">
+      [formRoot]="catalogueEditForm">
 
   @if (isLoadingPreview$$()) {
     <div class="animate-pulse py-8 text-center">
@@ -45,19 +44,19 @@
     }
 
     <div class="flex flex-col gap-2">
-      <v-input formControlName="name"
+      <v-input [formField]="catalogueEditForm.name"
                label="Название продукта"
                placeholder="Введите название продукта" />
 
       <div class="flex gap-3 *:flex-1">
-        <v-input formControlName="kcals"
+        <v-input [formField]="catalogueEditForm.kcals"
                  class=""
                  inputmode="numeric"
                  label="Калории (на 100г)"
                  placeholder="0"
                  textAlign="right" />
 
-        <v-input formControlName="fiber"
+        <v-input [formField]="catalogueEditForm.fiber"
                  inputmode="decimal"
                  label="Клетчатка"
                  placeholder="0"
@@ -65,25 +64,25 @@
       </div>
 
       <div class="flex gap-3 *:flex-1">
-        <v-input formControlName="protein"
+        <v-input [formField]="catalogueEditForm.protein"
                  inputmode="decimal"
                  label="Белки"
                  placeholder="0"
                  textAlign="right" />
-        <v-input formControlName="fat"
+        <v-input [formField]="catalogueEditForm.fat"
                  inputmode="decimal"
                  label="Жиры"
                  placeholder="0"
                  textAlign="right" />
 
-        <v-input formControlName="carbs"
+        <v-input [formField]="catalogueEditForm.carbs"
                  inputmode="decimal"
                  label="Углеводы"
                  placeholder="0"
                  textAlign="right" />
       </div>
 
-      <v-input formControlName="description"
+      <v-input [formField]="catalogueEditForm.description"
                label="Описание"
                placeholder="Введите описание продукта для улучшения результатов поиска"
                [isTextarea]="true"
