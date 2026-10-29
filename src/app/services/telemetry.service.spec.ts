@@ -1,4 +1,4 @@
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
@@ -27,7 +27,7 @@ function setup(savedQueue: unknown = null) {
 
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(withXhr()),
+      provideHttpClient(),
       provideHttpClientTesting(),
       { provide: Router, useValue: routerFake },
       { provide: DeviceInfoService, useValue: deviceInfoFake },
@@ -205,6 +205,29 @@ describe('TelemetryService — error rate limiting', () => {
     expect(body.events[0].data.attributes?.['suppressedRepeats']).toBe(1);
     request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
+  });
+});
+
+describe('TelemetryService — global error listeners', () => {
+  // Without a zone, errors thrown in timers and rejected promises reach only the window, so the service listens there itself.
+  function expectRecorded(event: Event, operation: string): void {
+    const { httpMock } = setup();
+
+    window.dispatchEvent(event);
+
+    const request = httpMock.expectOne(EVENTS_URL);
+    expect((request.request.body as RequestBody).events[0].data.operation).toBe(operation);
+    request.flush(ANSWER_STORED_ALL);
+    httpMock.verify();
+  }
+
+  it('records an uncaught window error as error.window', () => {
+    expectRecorded(new ErrorEvent('error', { error: new Error('timer boom'), message: 'timer boom' }), 'error.window');
+  });
+
+  it('records an unhandled promise rejection as error.unhandled_rejection', () => {
+    const rejection = Object.assign(new Event('unhandledrejection'), { reason: new Error('lost promise') });
+    expectRecorded(rejection, 'error.unhandled_rejection');
   });
 });
 

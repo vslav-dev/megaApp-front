@@ -3,8 +3,7 @@
 <div class="flex flex-col gap-4">
   <v-input label="Name"
            placeholder="Food & Restaurants"
-           [ngModel]="name$$()"
-           (ngModelChange)="name$$.set($event)" />
+           [(value)]="name$$" />
 
   <div class="flex gap-4">
     <v-dropdown class="flex-1"
@@ -13,15 +12,14 @@
                 [items]="categoryTypeItems()"
                 [isRequired]="true"
                 [isDisabled]="isTypeLocked$$()"
-                [ngModel]="categoryType$$()"
-                (ngModelChange)="categoryType$$.set($event); onCategoryTypeChange()"></v-dropdown>
+                [value]="categoryType$$()"
+                (valueChange)="onCategoryTypeChange($event)"></v-dropdown>
 
     <v-dropdown class="flex-1"
                 [label]="'Parent category (optional)'"
                 [placeholder]="'No parent'"
                 [items]="parentCategoryItems()"
-                [ngModel]="parentId$$()"
-                (ngModelChange)="parentId$$.set($event)"></v-dropdown>
+                [(value)]="parentId$$"></v-dropdown>
   </div>
 
   <v-checkbox [value]="hiddenOnCharts$$()"

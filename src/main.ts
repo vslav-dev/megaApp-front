@@ -1,5 +1,5 @@
-import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
-import { ErrorHandler, inject, provideZoneChangeDetection } from '@angular/core';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { ErrorHandler, inject, provideCheckNoChangesConfig } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { NavigationError, provideRouter, withNavigationErrorHandler } from '@angular/router';
 import { routes } from '@app/app-routes';
@@ -30,8 +30,9 @@ function handleNavigationError(error: NavigationError): void {
 
 bootstrapApplication(MainAppComponent, {
   providers: [
-    provideZoneChangeDetection(),
-    provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
+    // Zoneless is the default; the exhaustive dev-mode check turns any state change that skipped signals into an NG0100 error.
+    provideCheckNoChangesConfig({ exhaustive: true }),
+    provideHttpClient(withInterceptors([authInterceptor])),
     provideRouter(routes, withNavigationErrorHandler(handleNavigationError)),
     { provide: ErrorHandler, useClass: TelemetryErrorHandler },
   ],

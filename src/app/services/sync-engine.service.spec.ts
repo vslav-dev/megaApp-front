@@ -1,4 +1,4 @@
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { LocalStorageService } from '@app/services/local-storage.service';
@@ -25,7 +25,7 @@ function setup() {
 
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(withXhr()),
+      provideHttpClient(),
       provideHttpClientTesting(),
       { provide: LocalStorageService, useValue: localStorageFake },
       { provide: NotificationService, useValue: notificationServiceFake },

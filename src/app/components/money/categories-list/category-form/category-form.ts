@@ -10,7 +10,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ChartThemeService } from '@app/services/chart-theme.service';
 import { MoneyComputeService } from '@app/services/money-compute.service';
 import { MoneyService } from '@app/services/money.service';
@@ -41,7 +40,7 @@ const NEW_CATEGORY_PREVIEW_ID = Number.MAX_SAFE_INTEGER;
 @Component({
   selector: 'category-form',
   templateUrl: './category-form.html',
-  imports: [FormsModule, VButton, VCheckbox, VDropdown, VInput, VSlider],
+  imports: [VButton, VCheckbox, VDropdown, VInput, VSlider],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CategoryForm {
@@ -293,7 +292,9 @@ export class CategoryForm {
     ];
   }
 
-  protected onCategoryTypeChange(): void {
+  // The dropdown only offers the CategoryType items, so its string value is one of them.
+  protected onCategoryTypeChange(value: string | null): void {
+    this.categoryType$$.set(value as CategoryType);
     const parentId = this.parentId$$() ? Number(this.parentId$$()) : null;
     if (!parentId) return;
     const parentCategory = this.categoriesInput().find((category) => category.id === parentId);

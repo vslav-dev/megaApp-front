@@ -5,29 +5,25 @@
     <v-input class="flex-1"
              label="Title"
              placeholder="US Dollar"
-             [ngModel]="title$$()"
-             (ngModelChange)="title$$.set($event)" />
+             [(value)]="title$$" />
 
     <v-input class="flex-1"
              label="Ticker"
              placeholder="USD"
-             [ngModel]="ticker$$()"
-             (ngModelChange)="ticker$$.set($event)" />
+             [(value)]="ticker$$" />
   </div>
 
   <div class="flex gap-4">
     <v-input class="flex-1"
              label="Symbol"
              placeholder="$"
-             [ngModel]="symbol$$()"
-             (ngModelChange)="symbol$$.set($event)" />
+             [(value)]="symbol$$" />
 
     <v-dropdown class="flex-1"
                 [label]="'Symbol Position'"
                 [placeholder]="'Select position'"
                 [items]="symbolPositionItems()"
-                [ngModel]="symbolPosEnum$$()"
-                (ngModelChange)="symbolPosEnum$$.set($event)"></v-dropdown>
+                [(value)]="symbolPosEnum$$"></v-dropdown>
   </div>
 
   <v-checkbox [value]="whitespace$$()"

@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { afterNextRender, ErrorHandler, Injectable, Injector, inject, Service, untracked } from '@angular/core';
+import { afterNextRender, DestroyRef, ErrorHandler, Injector, inject, Service, untracked } from '@angular/core';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { LocalStorageService } from '@app/services/local-storage.service';
@@ -56,6 +56,14 @@ export class TelemetryService {
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     window.addEventListener('pagehide', this.flushOnUnload);
     window.addEventListener('unhandledrejection', this.onUnhandledRejection);
+    // Zoneless: an error thrown in a timer or other non-Angular callback no longer reaches ErrorHandler through the zone.
+    window.addEventListener('error', this.onWindowError);
+    inject(DestroyRef).onDestroy(() => {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+      window.removeEventListener('pagehide', this.flushOnUnload);
+      window.removeEventListener('unhandledrejection', this.onUnhandledRejection);
+      window.removeEventListener('error', this.onWindowError);
+    });
 
     // Deferred: enqueue/maybeStartCycle can send synchronously, and authInterceptor -> AuthService is not safe to construct this early (NG0200).
     afterNextRender(() => {
@@ -314,6 +322,10 @@ export class TelemetryService {
     this.recordError('error.unhandled_rejection', event.reason);
   };
 
+  private readonly onWindowError = (event: ErrorEvent): void => {
+    this.recordError('error.window', event.error ?? event.message);
+  };
+
   private trimQueue(): void {
     while (this.queue.events.length > 0 && JSON.stringify(this.queue).length > MAX_QUEUE_BYTES) {
       this.queue.events.shift();
@@ -392,7 +404,7 @@ export class TelemetryService {
   }
 }
 
-@Injectable()
+@Service({ autoProvided: false })
 export class TelemetryErrorHandler implements ErrorHandler {
   // Lazy, not `inject(TelemetryService)`: ErrorHandler resolves before the component tree exists.
   private readonly injector = inject(Injector);

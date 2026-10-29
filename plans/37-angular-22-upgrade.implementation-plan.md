@@ -128,14 +128,14 @@
 - ✅ `vitest`-сьют — 212/212 тестов, `tsc --noEmit` и `ng build` чистые
 
 ### Группа 2 — идиоматический синтаксис, низкий риск, точечно
-- ⭕ Заменить авто-`Eager` на осознанный `OnPush` во всех 43 компонентах (или наоборот — `Eager` там, где обоснованно, но по умолчанию — `OnPush`)
+- ✅ Заменить авто-`Eager` на осознанный `OnPush` во всех 43 компонентах (или наоборот — `Eager` там, где обоснованно, но по умолчанию — `OnPush`)
 - ✅ Домигрировать `@Input()`/`@Output()`/`@ViewChild()`/`@HostListener()` (4 файла) на `input()`/`output()`/`viewChild()`/`host: {}` — готовые CLI-миграции
 - ✅ Убрать избыточный явный `standalone: true` (4 файла)
 - ✅ Заменить `ngClass`/`ngStyle` на `[class.]`/`[style.]` (по 2 файла)
 - ⭕ Точечно применить новый шаблонный синтаксис v22 (spread/rest в шаблонных выражениях, exhaustive `@switch` с `@default never`, инлайн-стрелочные обработчики событий) — там, где реально упрощает код, не ради самого факта
 
 ### Группа 3 — глубокое выравнивание с философией (основной объём рефакторинга)
-- ⭕ **Zoneless**: включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и из package.json, пройти по всем 60 `effect()` и 49 `subscribe()` и убедиться, что запись состояния всегда идёт через `signal.set()/update()`, а не через мутацию plain-полей; отдельно смоук-тест графиков (chart.js callbacks) и `v-dropdown`/`v-wheel-select` (используют `subscribe()`/`@HostListener` вне сигнального графа)
+- ✅ **Zoneless**: включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и из package.json, пройти по всем 60 `effect()` и 49 `subscribe()` и убедиться, что запись состояния всегда идёт через `signal.set()/update()`, а не через мутацию plain-полей; отдельно смоук-тест графиков (chart.js callbacks) и `v-dropdown`/`v-wheel-select` (используют `subscribe()`/`@HostListener` вне сигнального графа)
 - ⭕ **Signal Forms**: перевести все ~15 файлов на `@angular/forms/signals` (`form()` + schema-валидация), убрать `ReactiveFormsModule`/`FormsModule`/`ngModel`/`FormBuilder` — один способ работы с формами вместо двух
 - ✅ **Functional interceptor**: переписать `auth.interceptor.ts` на `HttpInterceptorFn`, заменить `withInterceptorsFromDi()` на `withInterceptors([...])` в `main.ts`, убрать `HTTP_INTERCEPTORS`-provider
 - ✅ **`@Service()`**: перевести 32 файла с `@Injectable({ providedIn: 'root' })` на `@Service()` (механическая замена, можно скриптом-подсказкой + ручная проверка)
@@ -185,7 +185,7 @@
 ### Инфраструктурные шаги — делать здесь первыми (полигон для всего проекта)
 - ✅ `ng update @angular/core@22 @angular/cli@22`, TypeScript → 6.x, прогнать авто-миграции (сделано 2026-09-17 для всего проекта, включая метрики — build/tsc/vitest чистые, ждём ручной прогон экранов)
 - ✅ Переписать `auth.interceptor.ts` на `HttpInterceptorFn` + `withInterceptors()` в `main.ts` (задействовано всеми HTTP-запросами метрик)
-- ⭕ Включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и package.json
+- ✅ Включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и package.json
 - Механизмы метрик, которые затрагивает zoneless (учесть при включении, Блок 5):
   - `ResizeObserver` в `metric-card-grid.ts`/`metric-chart-card.ts` (ресайз карточек/графиков)
   - `IntersectionObserver` в `metric-chart-card.ts` (`isVisible$$`, скролл дашборда)
@@ -284,13 +284,13 @@
 
 ### Блок 5 — Глобальный (в самом конце)
 Всё, что нельзя разделить по разделам.
-- ⭕ ui-kit: `Eager` → `OnPush` на 20 компонентах, `@HostListener` → `host: {}` (`v-modal`, `v-wheel-select`), `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`
+- ✅ ui-kit: `Eager` → `OnPush` на 20 компонентах, `@HostListener` → `host: {}` (`v-modal`, `v-wheel-select`), `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`
 - ⭕ ui-kit: 4 контрола форм на signal-интерфейс контрола Signal Forms
 - ⭕ Signal Forms: перевод форм всех разделов, затем удаление `FormsModule`/`ReactiveFormsModule`
 - ✅ Functional interceptor: `auth.interceptor.ts` → `HttpInterceptorFn` + `withInterceptors()`
 - ✅ Общие сервисы на `@Service()` (`network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`)
-- ⭕ Zoneless: `provideZonelessChangeDetection()`, убрать `zone.js` из polyfills и зависимостей, `provideCheckNoChangesConfig` в dev, точечные временные логи; обкатка на метриках, затем деньги, еда
-- ⭕ Решить `withXhr()` → Fetch
+- ✅ Zoneless: `provideZonelessChangeDetection()`, убрать `zone.js` из polyfills и зависимостей, `provideCheckNoChangesConfig` в dev, точечные временные логи; обкатка на метриках, затем деньги, еда
+- ✅ Решить `withXhr()` → Fetch
 - ⭕ Angular Aria для `v-dropdown`, `v-expand`, `v-modal` (после поднятия cdk)
 - ⭕ Группа 4 выше (selectorless, `injectAsync`, ESLint) — по желанию
 
@@ -386,9 +386,9 @@
 - Группа 3, `resource()`/`httpResource()`: решено по месту — чтение GET на `async`/`firstValueFrom`, мутации так же, `toSignal()` для потоков; `httpResource` отвергнут для истории метрик и снапшота денег. Открыт только `food-product-history-state`
 
 ### Не начато
-- ⭕ Zoneless (`provideZonelessChangeDetection()`, убрать `zone.js`, `provideCheckNoChangesConfig`)
+- ✅ Zoneless (`provideZonelessChangeDetection()`, убрать `zone.js`, `provideCheckNoChangesConfig`)
 - ⭕ Signal Forms (14 файлов с `FormsModule`/`ReactiveFormsModule`, 4 контрола ui-kit на signal-интерфейс)
-- ⭕ `withXhr()` → Fetch (решение не принято)
+- ✅ `withXhr()` → Fetch (решение не принято)
 - ⭕ Angular Aria (`v-dropdown`, `v-expand`, `v-modal`)
 - ⭕ Группа 4: selectorless, `injectAsync`, ESLint без конфига
 
@@ -410,7 +410,7 @@
 - ✅ `@Service()` для `ZLayerService` и `AccordionGroupService` — в `src` не осталось `providedIn: 'root'`.
 
 ### Осталось в Блоке 5
-- ⭕ `Eager` → `OnPush`: 21 компонент ui-kit + `default-modal`, `form-modal`, `toolbar-group`. Каждый требует проверки обычных полей, меняющихся без сигнала (как в Блоке 4).
+- ✅ `Eager` → `OnPush`: 21 компонент ui-kit + `default-modal`, `form-modal`, `toolbar-group`. Каждый требует проверки обычных полей, меняющихся без сигнала (как в Блоке 4).
 - ⭕ 4 контрола ui-kit на signal-интерфейс → Signal Forms → zoneless → Aria → `withXhr()` → Группа 4.
 
 ### Проверки
@@ -453,3 +453,50 @@
 - ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build --configuration dev` чисто.
 - ✅ В Chrome (`localhost:4200`): деньги — форма транзакции (`form-modal` → `v-modal`: окно над затемнением, список счёта над окном, колесо года выбирает 2027 и значение попадает в поле даты, Escape закрывает), панель «Settings» (`v-expand`: раскрытие и сворачивание, шеврон), диалог удаления транзакции (`default-modal`, нажата «No», транзакция на месте); метрики — кнопка порога (`toolbar-group`: появляется поле «95%» и разделители, возврат выключен), значения в карточках отрисованы (`v-rolling-number`); еда — секция «Съедено…» раскрывается и сворачивается (`v-accordion` + `v-expand`).
 - ⭕ Не проверено в браузере: `v-modal` внутри другого `v-modal` (вложенные слои), мобильный вариант (`deviceType = mobile`), переключение слоя при быстром открытии/закрытии.
+
+## Блок 5, пятый заход: `OnPush` в контролах форм, якорное позиционирование `v-dropdown`, хвосты сервисов (29.10.2026)
+
+Заменяет вывод четвёртого захода: контролы форм не обязаны ждать Signal Forms. Аудит показал, что значение у `v-input`, `v-dropdown`, `v-date-wheel-input` живёт в собственных сигналах (`ngControlValue$$`, `value$$`/`selectedValue$$`, `dateISO$$`), а `writeValue` и подписка на `valueChanges` только пишут в них. Пункт «Eager → OnPush» (Группа 2, Блок 5) закрыт для всего ui-kit.
+
+### Сделано
+- ✅ `Eager` → `OnPush` на `v-input`, `v-dropdown`, `v-date-wheel-input`, `v-slider`. В `v-slider` ширина дорожки уже сигнал `trackWidth$$` (его пишет `ResizeObserver`), от него зависят `computed`-позиции, так что план не требует правок.
+- ✅ **Баг `v-dropdown`: список уезжал на поле ввода и закрывал набранный текст** (воспроизводился и на `Eager`, то есть не регрессия). Причина: список `position: fixed`, а координаты один раз измерялись в `setTimeout(0)` после фокуса. Раскладка в этот момент ещё двигалась (в форме транзакции плашки счетов схлопываются CSS-переходом, модалка перецентрируется), а позже координаты не обновлялись.
+- ✅ Исправление в корне, не заплаткой: список привязан CSS-якорем (anchor positioning) к обёртке поля, у каждого экземпляра своё имя якоря. Позиция, ширина и сторона раскрытия (`expandDirection`) считаются браузером и следуют за полем при любых сдвигах, скролле и ресайзе. Удалены `setTimeout`, `getFixedContainingBlockRect`, `ElementRef`, пять сигналов и `computed` стилей списка; `minDropdownWidth` стал обычным `[style.min-width]`.
+- ✅ `FoodScreenModeService` и `TelemetryErrorHandler`: `@Injectable()` → `@Service({ autoProvided: false })`. Оба подключаются вручную (`providers` в `food-screen`, `useClass` для `ErrorHandler`), в корень не попадают. `@Injectable` в проекте больше не используется.
+- ✅ `DeviceInfoService`: ручная подписка на `resize` заменена на `toSignal(..., { requireSync: true })`, метод `setupResizeListener` удалён.
+
+### Проверки
+- ✅ `tsc` 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build` чисто, ошибок в консоли нет.
+- ✅ В Chrome: еда — диапазонный слайдер графиков (перетаскивание ручки, пресеты «1 год»/«3 месяца», стрелки с клавиатуры, подписи «От/До» и график обновляются), поиск в диалоге записи (`v-input`: ввод, кнопка очистки, ранжированная выдача); деньги — форма транзакции (выбор счёта и категории в `v-dropdown`, сумма с ArrowUp, переключение Expense/Income, колесо дня в `v-date-wheel-input`), список теперь стоит ровно под полем и сохраняет ширину, в том числе после сдвига раскладки; метрики — экран и вкладка Custom рендерятся.
+- ⭕ Открытые вопросы: Signal Forms (14 файлов с `FormsModule`/`ReactiveFormsModule`), zoneless, `withXhr()` → Fetch, `food-product-history-state` как `resource`, Angular Aria, Группа 4.
+- ⭕ Не проверено в браузере: `v-dropdown` в режиме `select` (в `app` не используется), `expandDirection = right` и `minDropdownWidth` (в `app` не заданы), якорное позиционирование в Safari/Firefox, реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки.
+
+## Блок 5, шестой заход: zoneless, Fetch, формы денег без `FormsModule` (29.10.2026)
+
+Закрывает пункты «Zoneless» и «`withXhr()` → Fetch» из «Блока 5» и «Актуального статуса». Для Signal Forms остаются реактивные формы (см. ниже): формы денег оказались не их кандидатами, а обычными сигналами с мостом `ngModel`.
+
+### Zoneless
+- ✅ Убраны `provideZoneChangeDetection()` из `main.ts`, полифилл `zone.js` из `angular.json`, зависимость `zone.js` из `package.json` и `package-lock.json`. Приложение собирается и стартует без зоны (`Zone` в окне не определён).
+- ✅ Добавлен `provideCheckNoChangesConfig({ exhaustive: true })`: в dev-режиме после каждого тика проверяются все представления, как если бы они были `Eager`. Состояние, изменённое мимо сигналов, даёт NG0100 в консоли, а не молча не обновляется. Проход по еде, деньгам и метрикам ошибок не дал.
+- ✅ Аудит зависимостей от зоны: `NgZone`/`fakeAsync`/`waitForAsync` в проекте не используются; `OnPush` уже везде (последним был `v-color-picker`, в v22 `OnPush` по умолчанию, теперь указан явно); таймеры и подписки пишут только в сигналы. Тесты (454) идут без зоны.
+- ✅ **Потерянный канал ошибок.** В зоне исключение в таймере или другом внешнем колбэке попадало в `ErrorHandler`, без зоны оно доходит только до `window`. В `TelemetryService` добавлен слушатель `error` (операция `error.window`, имя из плана 36) рядом с уже существующим `unhandledrejection`. Подключать `provideBrowserGlobalErrorListeners()` не стали: он дублировал бы `unhandledrejection` через `ErrorHandler` и сменил бы операцию `error.unhandled_rejection`.
+- ✅ **Утечка слушателей в `TelemetryService`.** Четыре слушателя `window`/`document` никогда не снимались; в тестах экземпляры из прошлых тестов продолжали реагировать на события (NG0205 «Injector has already been destroyed»). Теперь снимаются через `DestroyRef`; добавлены два теста на новые каналы.
+
+### Fetch
+- ✅ В v22 `HttpClient` по умолчанию использует Fetch, поэтому `withXhr()` просто убран из `main.ts` и пяти спеков. Прогресса загрузки и `reportProgress` в проекте нет, единственный нестандартный запрос (`responseType: 'arraybuffer'` для истории метрик) Fetch поддерживает.
+
+### Формы денег без `FormsModule`
+- ✅ **Вывод:** все 6 форм денег (счета, организации, валюты, категории, активы, транзакция) уже держали состояние в сигналах, а `[ngModel]` + `(ngModelChange)` был лишь мостом. Это не кандидаты на Signal Forms (у них нет валидаторов и `FormControl`), их выгодно упростить до двусторонней привязки.
+- ✅ `v-wheel-input` и `v-date-wheel-input`: вместо `ControlValueAccessor` — модели `values` и `value` (ISO-дата). `v-dropdown`: вместо `ControlValueAccessor` и внутренней `FormGroup` — модель `value` (`string | null`) и внутренний `v-input` на `[value]`/`(valueChange)`. Внешнее изменение модели синхронизируется эффектом, эхо собственного значения (`knownValue`) отсеивается, как раньше отсеивал `NgModel`. Убраны `NG_VALUE_ACCESSOR`, `forwardRef`, `registerOnChange`/`registerOnTouched`, `ReactiveFormsModule`.
+- ✅ 63 привязки `ngModel` в 6 шаблонах заменены на `[(value)]`; в случаях с побочными действиями (`onAccountChange`, `onAssetChange`, `onCategoryTypeChange`) — `[value]` + `(valueChange)`. `FormsModule` убран из 5 компонентов денег; `ngModel` в `app` больше нет.
+- ✅ Обновлён `readme` у `v-dropdown`.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 454 теста, `ng build` чисто.
+- ✅ В Chrome на отдельном dev-сервере без зоны (старый на :4200 держит прежние полифиллы): еда — слайдер, переключатель, поиск, история продукта; деньги — форма транзакции (счёт и категория через список, через плашку и через сброс при смене счёта, сумма, вкладка Transfer с двумя списками, колесо даты: стрелки, месяц, день), формы счёта (создание и редактирование с подстановкой подписей из значений), валюты и категории (смена типа, фильтр родителей), экран метрик и панель настроек; консоль без ошибок.
+- ⭕ Не проверено в браузере: форма организации и актива (код тот же шаблон), смена месяца при выбранном 31-м числе (подрезка дня), отправка форм (создание и сохранение не нажимались, чтобы не менять данные).
+
+### Что остаётся
+- ⭕ Signal Forms только для реальных реактивных форм: `auth-form`, `body-weight`, `diary-entry-add-form`, `diary-entry-edit-form`, `catalogue-entry-edit-form`, `diary-nav-buttons` (календарь). Нужен перевод `v-input` с `ControlValueAccessor`/`NgControl` на модель и собственные валидаторы (`range`, `bodyWeight`) на `validate()`.
+- ⭕ `food-product-history-state` как `resource`, Angular Aria, Группа 4 (selectorless, `injectAsync`, ESLint).
+- ⭕ Реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки.

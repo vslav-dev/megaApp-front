@@ -10,7 +10,6 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { MoneyService } from '@app/services/money.service';
 import { evaluateAmountExpression, normalizeAmountInput } from '@app/shared/amount-expression';
 import {
@@ -38,7 +37,7 @@ import { VToggle } from '@ui-kit/components/v-toggle/v-toggle';
   selector: 'transaction-form',
   templateUrl: './transaction-form.html',
   styleUrl: './transaction-form.scss',
-  imports: [FormsModule, VButton, VCheckbox, VDateWheelInput, VDropdown, VIcon, VInput, VToggle],
+  imports: [VButton, VCheckbox, VDateWheelInput, VDropdown, VIcon, VInput, VToggle],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TransactionForm {

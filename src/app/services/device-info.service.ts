@@ -1,6 +1,7 @@
 import { computed, Service, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { fromEvent } from 'rxjs';
-import { distinctUntilChanged, map, startWith } from 'rxjs/operators';
+import { map, startWith } from 'rxjs/operators';
 
 interface DeviceInfo {
   isMobile: boolean;
@@ -16,7 +17,13 @@ const KEYBOARD_CLOSE_DEBOUNCE_MS = 150; // don't show buttons between food diary
 
 @Service()
 export class DeviceInfoService {
-  private readonly viewportIsMobile$$ = signal(false);
+  private readonly viewportIsMobile$$ = toSignal(
+    fromEvent(window, 'resize').pipe(
+      startWith(null),
+      map(() => window.innerWidth < SCREEN_MOBILE_BREAKPOINT_PX),
+    ),
+    { requireSync: true },
+  );
 
   // Lets a screen with its own layout logic (e.g. food diary's column-fit grid) decide
   // mobile/desktop for the whole app shell instead of the global viewport breakpoint below.
@@ -42,20 +49,7 @@ export class DeviceInfoService {
   private keyboardCloseTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    this.setupResizeListener();
     this.setupKeyboardDetection();
-  }
-
-  private setupResizeListener(): void {
-    fromEvent(window, 'resize')
-      .pipe(
-        startWith(null),
-        map(() => window.innerWidth < SCREEN_MOBILE_BREAKPOINT_PX),
-        distinctUntilChanged(),
-      )
-      .subscribe((isMobile) => {
-        this.viewportIsMobile$$.set(isMobile);
-      });
   }
 
   // isMobile: force mobile/desktop for the whole app shell. null: hand control back to the

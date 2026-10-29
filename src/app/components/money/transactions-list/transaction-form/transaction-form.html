@@ -8,8 +8,7 @@
 
   <div class="">
     <v-date-wheel-input [yearRange]="15"
-                        [ngModel]="dateISO$$()"
-                        (ngModelChange)="dateISO$$.set($event)">
+                        [(value)]="dateISO$$">
       <span v-prefix
             class="flex items-center">
         <v-button class="date-nav-v-button"
@@ -76,8 +75,8 @@
                     [isDisabled]="isEditing$$()"
                     [items]="accountItems()"
                     [isRequired]="true"
-                    [ngModel]="accountId$$()"
-                    (ngModelChange)="onAccountChange($event)"></v-dropdown>
+                    [value]="accountId$$()"
+                    (valueChange)="onAccountChange($event)"></v-dropdown>
 
         @if (!isInvestMode$$()) {
           <v-input #amountInputElem
@@ -86,8 +85,7 @@
                    label="Amount"
                    placeholder="0.00"
                    textAlign="right"
-                   [ngModel]="amount$$()"
-                   (ngModelChange)="amount$$.set($event)">
+                   [(value)]="amount$$">
             <ng-container v-prefix>
               @if (getCurrencyPrefix(); as currencyPrefix) {
                 <span class="mx-2 cursor-pointer"
@@ -126,8 +124,7 @@
                       [label]="'Category (optional)'"
                       [placeholder]="'No category'"
                       [items]="categoryItems()"
-                      [ngModel]="categoryId$$()"
-                      (ngModelChange)="categoryId$$.set($event)"></v-dropdown>
+                      [(value)]="categoryId$$"></v-dropdown>
 
           <div class="shrink-0 pb-1">
             <v-checkbox [value]="isGift$$()"
@@ -157,8 +154,8 @@
                   [items]="assetItems$$()"
                   [isRequired]="true"
                   [isDisabled]="!canEditInvestIdentity$$()"
-                  [ngModel]="assetId$$()"
-                  (ngModelChange)="onAssetChange($event)"></v-dropdown>
+                  [value]="assetId$$()"
+                  (valueChange)="onAssetChange($event)"></v-dropdown>
 
       @if (kind$$() === TransactionKind.INCOME) {
         <v-checkbox [value]="isCouponDividend$$()"
@@ -174,15 +171,13 @@
                    inputmode="decimal"
                    label="Quantity"
                    placeholder="0"
-                   [ngModel]="quantity$$()"
-                   (ngModelChange)="quantity$$.set($event)" />
+                   [(value)]="quantity$$" />
 
           <v-input class="w-1/2"
                    inputmode="decimal"
                    label="Price"
                    placeholder="0.00"
-                   [ngModel]="price$$()"
-                   (ngModelChange)="price$$.set($event)" />
+                   [(value)]="price$$" />
         </div>
 
         <div class="flex gap-4">
@@ -190,16 +185,14 @@
                    inputmode="decimal"
                    label="Commission"
                    placeholder="0.00"
-                   [ngModel]="commissionAmount$$()"
-                   (ngModelChange)="commissionAmount$$.set($event)" />
+                   [(value)]="commissionAmount$$" />
 
           <v-input class="w-1/2"
                    inputmode="decimal"
                    label="Accrued Interest"
                    placeholder="0.00"
                    [isDisabled]="!selectedAssetIsBond$$()"
-                   [ngModel]="accruedInterestAmount$$()"
-                   (ngModelChange)="accruedInterestAmount$$.set($event)" />
+                   [(value)]="accruedInterestAmount$$" />
         </div>
       }
 
@@ -209,7 +202,7 @@
                  placeholder="0.00"
                  [isDisabled]="true"
                  textAlign="right"
-                 [ngModel]="investAmountDisplay$$()">
+                 [value]="investAmountDisplay$$()">
           <ng-container v-prefix>
             @if (getCurrencyPrefix(); as currencyPrefix) {
               <span class="mx-2">{{ currencyPrefix }}</span>
@@ -229,8 +222,7 @@
                  label="Amount"
                  placeholder="0.00"
                  textAlign="right"
-                 [ngModel]="amount$$()"
-                 (ngModelChange)="amount$$.set($event)">
+                 [(value)]="amount$$">
           <ng-container v-prefix>
             @if (getCurrencyPrefix(); as currencyPrefix) {
               <span class="mx-2 cursor-pointer"
@@ -258,8 +250,7 @@
                   [isDisabled]="isEditing$$()"
                   [items]="accountItems()"
                   [isRequired]="true"
-                  [ngModel]="accountId$$()"
-                  (ngModelChange)="accountId$$.set($event)"></v-dropdown>
+                  [(value)]="accountId$$"></v-dropdown>
 
       <v-input #amountFromElem
                class="amount-input w-1/3"
@@ -267,8 +258,7 @@
                label="Amount from"
                placeholder="0.00"
                textAlign="right"
-               [ngModel]="amount$$()"
-               (ngModelChange)="amount$$.set($event)">
+               [(value)]="amount$$">
         <ng-container v-prefix>
           @if (getCurrencyPrefixForAccount(accountId$$()); as currencyPrefix) {
             <span class="mx-2 cursor-pointer"
@@ -292,8 +282,7 @@
                   [isDisabled]="isEditing$$()"
                   [items]="accountItems()"
                   [isRequired]="true"
-                  [ngModel]="accountToId$$()"
-                  (ngModelChange)="accountToId$$.set($event)"></v-dropdown>
+                  [(value)]="accountToId$$"></v-dropdown>
 
       <v-input #amountToElem
                class="amount-input w-1/3"
@@ -301,8 +290,7 @@
                label="Amount to"
                placeholder="0.00"
                textAlign="right"
-               [ngModel]="amountTo$$()"
-               (ngModelChange)="amountTo$$.set($event)">
+               [(value)]="amountTo$$">
         <ng-container v-prefix>
           @if (getCurrencyPrefixForAccount(accountToId$$()); as currencyPrefix) {
             <span class="mx-2 cursor-pointer"
@@ -324,8 +312,7 @@
              placeholder="Add any notes about this transaction..."
              [isTextarea]="true"
              [rows]="2"
-             [ngModel]="notes$$()"
-             (ngModelChange)="notes$$.set($event)"
+             [(value)]="notes$$"
              (onEnterPressed)="save()" />
 
     <div class="flex flex-wrap gap-1 overflow-hidden max-h-[75px]">

@@ -1,4 +1,4 @@
-import { Injectable, signal, WritableSignal } from '@angular/core';
+import { Service, signal, WritableSignal } from '@angular/core';
 
 export const FoodScreenMobileTab = {
   Diary: 'diary',
@@ -11,7 +11,7 @@ export type FoodScreenMobileTab = (typeof FoodScreenMobileTab)[keyof typeof Food
 // the layout computation) and its descendants that need to read or drive the current mode:
 // food-diary/food-stats-accordion (which of the two to render) and food-mode-toggle-fab (the
 // always-mounted button that switches between them).
-@Injectable()
+@Service({ autoProvided: false })
 export class FoodScreenModeService {
   public readonly mobileTab$$: WritableSignal<FoodScreenMobileTab> = signal(FoodScreenMobileTab.Diary);
 

@@ -64,14 +64,12 @@
         <v-input class="flex-1"
                  label="Title"
                  placeholder="Sberbank"
-                 [ngModel]="title$$()"
-                 (ngModelChange)="title$$.set($event)" />
+                 [(value)]="title$$" />
 
         <v-input class="flex-1"
                  label="Ticker"
                  placeholder="SBER"
-                 [ngModel]="ticker$$()"
-                 (ngModelChange)="ticker$$.set($event)" />
+                 [(value)]="ticker$$" />
       </div>
 
       @if (isEditing()) {
@@ -86,15 +84,13 @@
               <v-input class="flex-1"
                        label="Suspended Since"
                        placeholder="YYYY-MM-DD"
-                       [ngModel]="suspendedSince$$()"
-                       (ngModelChange)="suspendedSince$$.set($event)" />
+                       [(value)]="suspendedSince$$" />
 
               <v-input class="flex-1"
                        label="Suspended Until"
                        placeholder="YYYY-MM-DD"
                        [isDisabled]="!suspendedSince$$()"
-                       [ngModel]="suspendedUntil$$()"
-                       (ngModelChange)="suspendedUntil$$.set($event)" />
+                       [(value)]="suspendedUntil$$" />
             </div>
           }
         </div>

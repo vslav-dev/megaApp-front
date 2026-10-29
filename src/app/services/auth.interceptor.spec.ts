@@ -1,4 +1,4 @@
-import { HttpClient, provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
+import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { authInterceptor } from '@app/services/auth.interceptor';
@@ -11,7 +11,7 @@ function setup() {
 
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
+      provideHttpClient(withInterceptors([authInterceptor])),
       provideHttpClientTesting(),
       { provide: AuthService, useValue: authServiceFake },
       { provide: NetworkService, useValue: networkServiceFake },

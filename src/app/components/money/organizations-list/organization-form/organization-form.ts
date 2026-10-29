@@ -9,7 +9,6 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VInput } from '@ui-kit/components/v-input/v-input';
 import { MoneyService } from '../../../../services/money.service';
@@ -18,7 +17,7 @@ import { Organization } from '../../../../shared/types';
 @Component({
   selector: 'organization-form',
   templateUrl: './organization-form.html',
-  imports: [FormsModule, VButton, VInput],
+  imports: [VButton, VInput],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrganizationForm {
