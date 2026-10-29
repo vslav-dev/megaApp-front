@@ -6,7 +6,7 @@
       <div class="text-lg font-semibold">Currencies</div>
       <v-button surface="flat"
                 [paddingY]="1"
-                (onClick)="showCreateForm()">
+                (clickOutput)="showCreateForm()">
         <v-icon v-prefix
                 [name]="Icon.Add"
                 [size]="6"></v-icon>
@@ -53,7 +53,7 @@
             <v-button surface="flat"
                       [isLabelHidden]="true"
                       [padding]="iconButton.padding"
-                      (onClick)="editCurrency(currency)">
+                      (clickOutput)="editCurrency(currency)">
               <v-icon v-prefix
                       [name]="Icon.Edit"
                       [size]="iconButton.size"></v-icon>
@@ -63,7 +63,7 @@
                       [isDisabled]="!canDeleteCurrency(currency.id!)"
                       [isLabelHidden]="true"
                       [padding]="iconButton.padding"
-                      (onClick)="deleteCurrency(currency.id!)">
+                      (clickOutput)="deleteCurrency(currency.id!)">
               <v-icon v-prefix
                       [name]="Icon.Delete"
                       [size]="iconButton.size"></v-icon>

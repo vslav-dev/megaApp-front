@@ -34,12 +34,12 @@
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
               [isDisabled]="!title$$() || !ticker$$() || !symbol$$()"
-              (onClick)="save()">
+              (clickOutput)="save()">
       {{ isEditing() ? 'Update' : 'Create' }}
     </v-button>
 
     <v-button surface="flat"
-              (onClick)="cancel()">
+              (clickOutput)="cancel()">
       Cancel
     </v-button>
   </div>

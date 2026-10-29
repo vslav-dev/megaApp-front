@@ -18,6 +18,27 @@ export interface SyncOperationError {
   body: unknown; // parsed response body, if any (e.g. { result: false, error: '...' })
 }
 
+// What a promise-based caller is rejected with: a real Error (stack, instanceof) carrying the same status and body.
+export class SyncOperationFailure extends Error implements SyncOperationError {
+  public readonly status: number;
+  public readonly body: unknown;
+
+  constructor(error: SyncOperationError) {
+    super(`Sync operation failed with status ${error.status}`);
+    this.name = 'SyncOperationFailure';
+    this.status = error.status;
+    this.body = error.body;
+  }
+}
+
+// The server's `error` text of a failed sync operation, or null when the failure carries none.
+export function syncFailureReason(error: unknown): string | null {
+  if (!(error instanceof SyncOperationFailure)) return null;
+  const body = error.body;
+  if (typeof body !== 'object' || body === null || !('error' in body)) return null;
+  return typeof body.error === 'string' ? body.error : null;
+}
+
 function normalizeSyncError(error: unknown): SyncOperationError {
   if (error instanceof HttpErrorResponse) {
     return { status: error.status, body: error.error };
@@ -67,28 +88,32 @@ export interface SyncOperationFeedback {
 interface SyncOperationRequest {
   type: SyncOperationType;
   endpoint: string;
-  data: any;
+  data: object;
   feedback?: SyncOperationFeedback;
 }
 
-export interface OptimisticSyncOperation extends SyncOperationRequest {
+// TResponse is the shape the caller expects the server to answer with; it is inferred from the
+// callback's parameter type. The response is untyped JSON, so the engine asserts it once, in addOperation.
+export interface OptimisticSyncOperation<TResponse = unknown> extends SyncOperationRequest {
   mode: typeof SyncOperationMode.Optimistic;
-  successCallback?: (response: any) => void;
+  successCallback?: (response: TResponse) => void;
   rollbackCallback?: (error: SyncOperationError) => void;
 }
 
-export interface NonOptimisticSyncOperation extends SyncOperationRequest {
+export interface NonOptimisticSyncOperation<TResponse = unknown> extends SyncOperationRequest {
   mode: typeof SyncOperationMode.NonOptimistic;
-  applyCallback?: (response: any) => void;
+  applyCallback?: (response: TResponse) => void;
   errorCallback?: (error: SyncOperationError) => void;
 }
 
-export type SyncOperationInput = OptimisticSyncOperation | NonOptimisticSyncOperation;
+export type SyncOperationInput<TResponse = unknown> =
+  | OptimisticSyncOperation<TResponse>
+  | NonOptimisticSyncOperation<TResponse>;
 
 interface QueuedOperation extends SyncOperationRequest {
   operationId: string;
   retryCount: number;
-  onSuccess?: (response: any) => void;
+  onSuccess?: (response: unknown) => void;
   onFailure?: (error: SyncOperationError) => void;
   pendingTimeoutId?: ReturnType<typeof setTimeout> | null;
   pendingNotificationId?: string | null;
@@ -100,7 +125,7 @@ interface QueuedOperation extends SyncOperationRequest {
 interface PersistedOperation {
   type: SyncOperationType;
   endpoint: string;
-  data: any;
+  data: object;
   operationId: string;
 }
 
@@ -127,11 +152,12 @@ export class SyncEngineService {
     this.clearPersistedOperation();
   }
 
-  public addOperation(operation: SyncOperationInput): void {
-    const { onSuccess, onFailure } =
+  public addOperation<TResponse>(operation: SyncOperationInput<TResponse>): void {
+    const { successCallback, onFailure } =
       operation.mode === SyncOperationMode.Optimistic
-        ? { onSuccess: operation.successCallback, onFailure: operation.rollbackCallback }
-        : { onSuccess: operation.applyCallback, onFailure: operation.errorCallback };
+        ? { successCallback: operation.successCallback, onFailure: operation.rollbackCallback }
+        : { successCallback: operation.applyCallback, onFailure: operation.errorCallback };
+    const onSuccess = successCallback && ((response: unknown) => successCallback(response as TResponse));
 
     const queuedOperation: QueuedOperation = {
       type: operation.type,
@@ -181,7 +207,7 @@ export class SyncEngineService {
 
   private enqueue(operation: QueuedOperation): void {
     this.queue.push(operation);
-    this.processQueue();
+    void this.processQueue();
   }
 
   private async processQueue(): Promise<void> {

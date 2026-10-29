@@ -21,7 +21,7 @@ export class LocalStorageService {
   public get<T>(key: string): T | null {
     try {
       const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
+      return item ? (JSON.parse(item) as T) : null;
     } catch (error) {
       console.error(`Error reading from localStorage for key "${key}":`, error);
       return null;

@@ -4,7 +4,7 @@
               surface="flat"
               [borderRadius]="7"
               [padding]="3"
-              (onClick)="openHeightModal()">
+              (clickOutput)="openHeightModal()">
       <v-icon v-prefix
               [name]="Icon.Settings"
               [size]="6" />
@@ -20,7 +20,7 @@
              textAlign="right"
              [isAutoSubmitEnabled]="true"
              [autoSubmitResult]="autoSubmitResult$$()"
-             (onAutoSubmit)="onAutoSubmit()">
+             (autoSubmitOutput)="onAutoSubmit()">
       <span v-postfix
             class="ml-1 mr-3 cursor-pointer select-none"
             (click)="focusInput()"> кг </span>
@@ -43,7 +43,7 @@
              textAlign="right"
              [isAutoSubmitEnabled]="true"
              [autoSubmitResult]="heightAutoSubmitResult$$()"
-             (onAutoSubmit)="onHeightAutoSubmit()">
+             (autoSubmitOutput)="onHeightAutoSubmit()">
       <span v-postfix
             class="ml-1 mr-3 cursor-pointer select-none"
             (click)="focusHeightInput()"> см </span>
@@ -52,7 +52,7 @@
     <v-checkbox mode="switch"
                 [isDisabled]="!hasHeight$$()"
                 [value]="isBmiBandsEnabled$$()"
-                (onChanged)="onBmiBandsChange($event)">
+                (changedOutput)="onBmiBandsChange($event)">
       <span class="select-none">BMI-полосы на графике веса</span>
     </v-checkbox>
   </form>

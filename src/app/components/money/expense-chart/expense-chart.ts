@@ -349,7 +349,7 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       labels = yearLabels;
       yearlyValues = new Map();
       activeSeries.forEach((s) => {
-        const yearVals = new Array(yearLabels.length).fill(0);
+        const yearVals = new Array<number>(yearLabels.length).fill(0);
         months.forEach((m, i) => {
           const year = m.substring(0, 4);
           const val =
@@ -376,7 +376,7 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       labels = months.map((m) => formatMonthYearLabel(m));
     }
 
-    (chart.options.scales!['x']!.ticks as any).callback = yearly
+    chart.options.scales!['x']!.ticks!.callback = yearly
       ? (value: unknown, index: number) => labels[index]
       : () => '';
 

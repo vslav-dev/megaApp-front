@@ -278,7 +278,7 @@ export class IncomeChart implements AfterViewInit, OnDestroy {
       labels = yearLabels;
       yearlyValues = new Map();
       activeSeries.forEach((s) => {
-        const yearVals = new Array(yearLabels.length).fill(0);
+        const yearVals = new Array<number>(yearLabels.length).fill(0);
         data.months.forEach((m, i) => {
           const year = m.substring(0, 4);
           yearVals[yearIndexMap.get(year)!] += s.values[i];
@@ -301,7 +301,7 @@ export class IncomeChart implements AfterViewInit, OnDestroy {
       labels = effectiveData.months.map((m) => formatMonthYearLabel(m));
     }
 
-    (chart.options.scales!['x']!.ticks as any).callback = yearly
+    chart.options.scales!['x']!.ticks!.callback = yearly
       ? (value: unknown, index: number) => labels[index]
       : () => '';
 

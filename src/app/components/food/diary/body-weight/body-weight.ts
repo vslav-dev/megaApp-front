@@ -65,7 +65,7 @@ export class BodyWeight {
 
   public onAutoSubmit(): void {
     if (this.weightForm().invalid()) return;
-    this.submitValue();
+    void this.submitValue();
   }
 
   private async submitValue(): Promise<void> {

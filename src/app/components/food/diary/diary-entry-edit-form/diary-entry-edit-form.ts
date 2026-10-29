@@ -246,7 +246,7 @@ export class DiaryEntryEditForm implements OnDestroy {
   }
 
   protected onDeleteConfirmed(): void {
-    this.deleteDiaryEntry();
+    void this.deleteDiaryEntry();
     this.isDeleteConfirmOpen$$.set(false);
   }
 

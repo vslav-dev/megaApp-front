@@ -19,6 +19,7 @@ import {
   balanceCategoricalPalette,
   createBalanceChartConfig,
   formatMonthYearLabel,
+  tooltipValue,
 } from '@app/shared/chart-config';
 import { BalanceChartAccountSeries, BalanceChartData } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -191,17 +192,12 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
     });
     if (chart.options.plugins?.tooltip?.callbacks) {
       chart.options.plugins.tooltip.callbacks.label = (ctx) => {
-        const raw = (ctx.dataset as any)['_rawValues'];
-        const value = raw ? raw[ctx.dataIndex] : ctx.parsed.y;
+        const value = tooltipValue(ctx);
         return ` ${ctx.dataset.label}: ${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)} ${this.currencySymbolInput()}`;
       };
       chart.options.plugins.tooltip.callbacks.footer = (items) => {
         if (items.length < 2) return [];
-        const sum = items.reduce((acc, item) => {
-          const raw = (item.dataset as any)['_rawValues'];
-          const value = raw ? raw[item.dataIndex] : item.parsed.y;
-          return acc + value;
-        }, 0);
+        const sum = items.reduce((acc, item) => acc + tooltipValue(item), 0);
         return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(sum)} ${this.currencySymbolInput()}`;
       };
     }
@@ -329,7 +325,7 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
     }
 
     const datasets: ChartDataset<'line'>[] = [];
-    const accumulated: number[] = new Array(data.dates.length).fill(0);
+    const accumulated: number[] = new Array<number>(data.dates.length).fill(0);
 
     activeSeries.forEach((series, localIdx) => {
       const color = balanceCategoricalPalette.getColor(String(series.accountId), colors);

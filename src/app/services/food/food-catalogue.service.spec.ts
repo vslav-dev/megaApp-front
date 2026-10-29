@@ -31,7 +31,7 @@ function entry(id: number, name: string, archived?: boolean): CatalogueEntry {
 }
 
 function setup(cachedSearches: Record<string, number[]> | null = null) {
-  const wsMessages$ = new Subject<any>();
+  const wsMessages$ = new Subject<unknown>();
   const connected$ = new Subject<void>();
   const sendMessage = vi.fn();
   const setUserScoped = vi.fn();

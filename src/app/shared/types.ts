@@ -57,7 +57,7 @@ export interface SyncStatusWsMessage {
   payload: UserDataLastModifiedTs;
 }
 
-export interface DiaryEntryToCreate extends DiaryEntry {}
+export type DiaryEntryToCreate = DiaryEntry;
 
 export interface DiaryEntryCreatedWsMessage {
   type: typeof WebSocketMessageType.DIARY_ENTRY_CREATED;
@@ -544,8 +544,9 @@ export interface CatalogueEntry {
   canDelete?: boolean;
 }
 
+// Keyed by catalogue id; a string index (numeric keys are strings at runtime) keeps Object.values()/entries() typed.
 export interface Catalogue {
-  [id: number]: CatalogueEntry;
+  [id: string]: CatalogueEntry;
 }
 
 // GET /api/food/catalogue response — version is a cheap "did anything change" signal for
@@ -754,6 +755,16 @@ export const TransactionKind = {
 
 export type TransactionKind = (typeof TransactionKind)[keyof typeof TransactionKind];
 
+// Per-kind extras of a transaction: a transfer leg's direction, or the trade it records.
+export interface TransactionDetails {
+  direction?: 'in' | 'out';
+  assetId?: number;
+  quantity?: number;
+  price?: number;
+  commissionAmount?: number;
+  accruedInterestAmount?: number;
+}
+
 export interface Transaction {
   id?: number;
   dateISO: string;
@@ -763,7 +774,8 @@ export interface Transaction {
   kind: TransactionKind;
   isGift: boolean;
   notes?: string;
-  detailsJSON?: any;
+  // An object, or the same object as a JSON string (the server stores and returns either).
+  detailsJSON?: TransactionDetails | string;
   twinId?: number | null;
   version?: number;
 }

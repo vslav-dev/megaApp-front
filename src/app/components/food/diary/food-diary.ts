@@ -52,10 +52,10 @@ import { NutritionSummary } from './nutrition-summary/nutrition-summary';
 })
 export class FoodDiary {
   protected readonly bodyWeightComponent = viewChild.required<BodyWeight>('bodyWeight');
-  protected readonly diaryEntryHeaders = viewChildren<ElementRef>('diaryEntryHeader');
+  protected readonly diaryEntryHeaders = viewChildren<ElementRef<HTMLElement>>('diaryEntryHeader');
 
-  private readonly weightMeasureElems = viewChildren<ElementRef>('foodWeightMeasureElem');
-  private readonly percentMeasureElems = viewChildren<ElementRef>('foodPercentMeasureElem');
+  private readonly weightMeasureElems = viewChildren<ElementRef<HTMLElement>>('foodWeightMeasureElem');
+  private readonly percentMeasureElems = viewChildren<ElementRef<HTMLElement>>('foodPercentMeasureElem');
 
   // null = no width constraint yet, each row sits at its own natural (auto) width.
   // Never reset on day change — new rows are born pinned to the last committed width

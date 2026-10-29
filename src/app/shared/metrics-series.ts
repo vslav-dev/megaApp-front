@@ -91,7 +91,7 @@ export function buildRoundTickBuckets(
   return buckets;
 }
 
-// LOAD-BEARING: the backend aggregates "day" buckets strictly at UTC midnight
+// [LOAD-BEARING]: the backend aggregates "day" buckets strictly at UTC midnight
 // ((t/86400)*86400 — see flatline's rollup job), and that can't be changed to the
 // user's local midnight without re-aggregating history, which is only possible for the
 // last ~60 days (hourly source data, which day buckets are built from, isn't kept
@@ -105,7 +105,7 @@ export function buildRoundTickBuckets(
 //            UTC offset (e.g. ~5-6h for Asia/Almaty) — the two draw as separate lines.
 const ALIGN_DAY_TICKS_TO_UTC_BUCKET = true;
 
-// LOAD-BEARING: Every midnight (00:00, UTC or local per ALIGN_DAY_TICKS_TO_UTC_BUCKET above) in
+// [LOAD-BEARING]: Every midnight (00:00, UTC or local per ALIGN_DAY_TICKS_TO_UTC_BUCKET above) in
 // [windowStartBucket, windowEndBucket] — steps by calendar day via Date instead of a
 // flat 86400s stride, so a DST transition inside the window can't drift a later tick.
 export function buildRoundDayTickBuckets(windowStartBucket: number, windowEndBucket: number): number[] {

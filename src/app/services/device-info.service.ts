@@ -106,7 +106,7 @@ export class DeviceInfoService {
     }
 
     const isMobile = this.isDeviceMobile();
-    const hasMediaDevices = Boolean(navigator.mediaDevices?.getUserMedia);
+    const hasMediaDevices = Boolean(navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices);
     return (isMobile || isTouchDevice) && hasMediaDevices;
   }
 
@@ -151,7 +151,7 @@ export class DeviceInfoService {
   public logDeviceInfo(): void {
     const isMobile = this.isDeviceMobile();
     const isTouchDevice = this.isTouchDevice();
-    const hasMediaDevices = Boolean(navigator.mediaDevices?.getUserMedia);
+    const hasMediaDevices = Boolean(navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices);
     const userAgent = navigator.userAgent;
     const shouldShow = this.shouldShowCameraButton();
 

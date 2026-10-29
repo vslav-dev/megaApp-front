@@ -17,7 +17,7 @@
                   tabindex="-1"
                   [padding]="1"
                   (mousedown)="$event.preventDefault()"
-                  (onClick)="shiftDate(-1)">
+                  (clickOutput)="shiftDate(-1)">
           <v-icon v-prefix
                   [name]="Icon.KeyboardArrowLeft"
                   [size]="6"></v-icon>
@@ -28,7 +28,7 @@
                   tabindex="-1"
                   [padding]="1"
                   (mousedown)="$event.preventDefault()"
-                  (onClick)="shiftDate(1)">
+                  (clickOutput)="shiftDate(1)">
           <v-icon v-prefix
                   [name]="Icon.KeyboardArrowRight"
                   [size]="6"></v-icon>
@@ -42,7 +42,7 @@
                 tabindex="-1"
                 [padding]="1"
                 (mousedown)="$event.preventDefault()"
-                (onClick)="onDateControlClick()">
+                (clickOutput)="onDateControlClick()">
         <v-icon v-prefix
                 [name]="Icon.CalendarMonth"
                 [size]="6"></v-icon>
@@ -313,7 +313,7 @@
              [isTextarea]="true"
              [rows]="2"
              [(value)]="notes$$"
-             (onEnterPressed)="save()" />
+             (enterPressedOutput)="save()" />
 
     <div class="flex flex-wrap gap-1 overflow-hidden max-h-[75px]">
       @for (note of topNoteItems$$(); track note) {
@@ -327,12 +327,12 @@
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
               [isDisabled]="!isFormValid()"
-              (onClick)="save()">
+              (clickOutput)="save()">
       {{ isEditing$$() ? 'Update' : 'Add' }}
     </v-button>
 
     <v-button surface="flat"
-              (onClick)="cancel()">
+              (clickOutput)="cancel()">
       Cancel
     </v-button>
   </div>

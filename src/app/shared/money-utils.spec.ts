@@ -3,6 +3,7 @@ import {
   areSetsEqual,
   convertAmount,
   generateMonthRange,
+  parseTransactionDetails,
   toPositiveNumber,
 } from './money-utils';
 
@@ -69,6 +70,22 @@ describe('areSetsEqual', () => {
     expect(areSetsEqual(new Set([1, 2]), new Set([2, 1]))).toBe(true);
     expect(areSetsEqual(new Set([1, 2]), new Set([1, 3]))).toBe(false);
     expect(areSetsEqual(new Set([1]), new Set([1, 2]))).toBe(false);
+  });
+});
+
+describe('parseTransactionDetails', () => {
+  it('returns an object as it is', () => {
+    expect(parseTransactionDetails({ direction: 'out' })).toEqual({ direction: 'out' });
+  });
+
+  it('parses a JSON string', () => {
+    expect(parseTransactionDetails('{"assetId":7,"quantity":2}')).toEqual({ assetId: 7, quantity: 2 });
+  });
+
+  it('returns null for nothing or for a string that is not JSON', () => {
+    expect(parseTransactionDetails(undefined)).toBeNull();
+    expect(parseTransactionDetails('')).toBeNull();
+    expect(parseTransactionDetails('not json')).toBeNull();
   });
 });
 

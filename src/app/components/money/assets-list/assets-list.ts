@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { MoneyService } from '@app/services/money.service';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
+import { parseTransactionDetails } from '@app/shared/money-utils';
 import { Account, AccountKind, Asset, AssetType, Transaction, TransactionKind } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
@@ -217,19 +218,7 @@ export class AssetsList {
   }
 
   private isAssetLinkedToTransaction(assetId: number, transaction: Transaction): boolean {
-    const detailsJSON = transaction.detailsJSON;
-    if (!detailsJSON) return false;
-
-    let parsed: any = detailsJSON;
-    if (typeof detailsJSON === 'string') {
-      try {
-        parsed = JSON.parse(detailsJSON);
-      } catch {
-        return false;
-      }
-    }
-
-    return Number(parsed?.assetId) === Number(assetId);
+    return Number(parseTransactionDetails(transaction.detailsJSON)?.assetId) === Number(assetId);
   }
 
   private fillForm(asset: Asset): void {
@@ -287,7 +276,7 @@ export class AssetsList {
     >();
 
     trades.forEach((trade) => {
-      const details = this.parseDetails(trade.detailsJSON);
+      const details = parseTransactionDetails(trade.detailsJSON);
       const assetId = this.toPositiveNumber(details?.assetId);
       const quantity = this.toPositiveNumber(details?.quantity);
 
@@ -383,24 +372,6 @@ export class AssetsList {
     if (cryptoAssets.length > 0) groups.push({ title: 'Crypto', assets: cryptoAssets });
 
     return groups;
-  }
-
-  private parseDetails(detailsJSON: any): any {
-    if (!detailsJSON) return null;
-
-    if (typeof detailsJSON === 'object') {
-      return detailsJSON;
-    }
-
-    if (typeof detailsJSON === 'string') {
-      try {
-        return JSON.parse(detailsJSON);
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
   }
 
   private toPositiveNumber(value: unknown): number | null {

@@ -1,4 +1,4 @@
-import { Directive, ElementRef, OnDestroy, OnInit, effect, input, signal } from '@angular/core';
+import { Directive, ElementRef, OnDestroy, OnInit, effect, inject, input, signal } from '@angular/core';
 
 @Directive({
   selector: '[fitTextOnOverflow]',
@@ -23,7 +23,7 @@ export class FitTextOnOverflowDirective implements OnInit, OnDestroy {
   // read ref.text() on the separate display element instead.
   public readonly text = signal('');
 
-  private readonly element: HTMLElement;
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private isInitialized = false;
   private resizeObserver?: ResizeObserver;
   private rafId: number | null = null;
@@ -38,10 +38,6 @@ export class FitTextOnOverflowDirective implements OnInit, OnDestroy {
 
     this.scheduleUpdate();
   });
-
-  constructor(el: ElementRef<HTMLElement>) {
-    this.element = el.nativeElement;
-  }
 
   public ngOnInit(): void {
     this.isInitialized = true;

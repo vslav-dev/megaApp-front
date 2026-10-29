@@ -15,6 +15,7 @@ import { AuthService } from '@app/services/auth.service';
 import { FoodAddModalService } from '@app/services/food/food-add-modal.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { NotificationService } from '@app/services/notification.service';
+import { syncFailureReason } from '@app/services/sync-engine.service';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { CatalogueEntry, ProductPreviewData, ProductSaveRequest } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -124,13 +125,13 @@ export class CatalogueEntryEditForm implements OnInit {
     { submission: { action: () => this.submitForm() } },
   );
 
-  public async ngOnInit(): Promise<void> {
+  public ngOnInit(): void {
     const mode = this.mode$$();
 
     if (mode === this.formMode.Edit) {
-      await this.loadExistingProductData();
+      void this.loadExistingProductData();
     } else {
-      await this.loadProductPreview();
+      void this.loadProductPreview();
     }
   }
 
@@ -184,7 +185,7 @@ export class CatalogueEntryEditForm implements OnInit {
     try {
       const previewData = await this.foodCatalogueService.generateProductPreview(query);
       this.fillFormWithPreviewData(previewData);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to load product preview:', error);
       this.error$$.set('Failed to generate product data. Please try again.');
     } finally {
@@ -258,10 +259,10 @@ export class CatalogueEntryEditForm implements OnInit {
         mode === this.formMode.Create ? 'Продукт добавлен' : 'Продукт обновлён',
       );
       this.foodAddModalService.submitSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to save product:', error);
 
-      if (error?.body?.error?.includes('already exists')) {
+      if (syncFailureReason(error)?.includes('already exists')) {
         this.error$$.set('Product with this name already exists. Please use a different name.');
       } else {
         this.error$$.set('Failed to save product. Please try again.');
@@ -364,16 +365,17 @@ export class CatalogueEntryEditForm implements OnInit {
       await this.foodCatalogueService.deleteProduct(product.id);
       this.notificationService.addNotification('success', 'Продукт удалён');
       this.foodAddModalService.deletedProduct();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to delete product:', error);
+      const reason = syncFailureReason(error);
 
-      if (error?.body?.error === 'product is used in diary entries') {
+      if (reason === 'product is used in diary entries') {
         this.error$$.set('Продукт уже используется в дневнике и не может быть удалён.');
         this.foodAddModalService.selectedProduct$$.set({
           ...product,
           canDelete: false,
         });
-      } else if (error?.body?.error === 'product not found') {
+      } else if (reason === 'product not found') {
         this.foodAddModalService.deletedProduct();
       } else {
         this.error$$.set('Не удалось удалить продукт. Попробуйте ещё раз.');

@@ -1,3 +1,5 @@
+import { Transaction, TransactionDetails } from '@app/shared/types';
+
 export function convertAmount(
   amount: number,
   fromTicker: string,
@@ -22,11 +24,11 @@ export function convertAmount(
   return usdAmount / toRate;
 }
 
-export function parseTransactionDetails(detailsJSON: unknown): any {
+export function parseTransactionDetails(detailsJSON: Transaction['detailsJSON']): TransactionDetails | null {
   if (!detailsJSON) return null;
   if (typeof detailsJSON === 'object') return detailsJSON;
   try {
-    return JSON.parse(detailsJSON as string);
+    return JSON.parse(detailsJSON) as TransactionDetails;
   } catch {
     return null;
   }

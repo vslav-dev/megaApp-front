@@ -14,7 +14,7 @@
 
     <div class="flex flex-wrap items-center gap-2 text-sm">
       @for (product of trackedProducts$$(); track product.id) {
-        <v-chip (onRemove)="state.removeProduct(product.id)">
+        <v-chip (removeOutput)="state.removeProduct(product.id)">
           {{ product.name }}
           @if (product.archived) {
             <span class="ml-1 text-xs text-[color:var(--v-color-text-muted)]">архив</span>
@@ -29,7 +29,7 @@
                 [isDisabled]="isLimitReached$$()"
                 [paddingX]="2"
                 paddingY="2px"
-                (onClick)="openPicker()">
+                (clickOutput)="openPicker()">
         <v-icon v-prefix
                 [name]="Icon.Add"
                 [size]="6" />
@@ -83,7 +83,7 @@
                           [paddingX]="1"
                           [paddingY]="1"
                           [bgOpacity]="0"
-                          (onClick)="goToDate(row.dateIso)">
+                          (clickOutput)="goToDate(row.dateIso)">
                   <v-icon v-prefix
                           [name]="Icon.SwitchAccessShortcut"
                           [size]="4" />

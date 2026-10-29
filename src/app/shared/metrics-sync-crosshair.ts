@@ -9,6 +9,8 @@ export interface MetricSyncCrosshairOptions {
 }
 
 declare module 'chart.js' {
+  // [LOAD-BEARING] The type parameter must mirror chart.js's own declaration for the augmentation to merge.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface PluginOptionsByType<TType extends ChartType> {
     metricSyncCrosshair?: MetricSyncCrosshairOptions;
   }

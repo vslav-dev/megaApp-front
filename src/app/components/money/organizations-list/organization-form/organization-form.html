@@ -17,14 +17,14 @@
         <v-button surface="flat"
                   [paddingX]="2"
                   [paddingY]="1"
-                  (onClick)="clearLogo()">
+                  (clickOutput)="clearLogo()">
           Remove
         </v-button>
 
         <v-button surface="flat"
                   [paddingX]="2"
                   [paddingY]="1"
-                  (onClick)="triggerFileInput()">
+                  (clickOutput)="triggerFileInput()">
           Replace
         </v-button>
       } @else {
@@ -33,7 +33,7 @@
         <v-button surface="flat"
                   [paddingX]="2"
                   [paddingY]="1"
-                  (onClick)="triggerFileInput()">
+                  (clickOutput)="triggerFileInput()">
           Upload image
         </v-button>
       }
@@ -49,12 +49,12 @@
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
               [isDisabled]="!isFormValid()"
-              (onClick)="save()">
+              (clickOutput)="save()">
       {{ isEditing() ? 'Update' : 'Create' }}
     </v-button>
 
     <v-button surface="flat"
-              (onClick)="cancel()">
+              (clickOutput)="cancel()">
       Cancel
     </v-button>
   </div>

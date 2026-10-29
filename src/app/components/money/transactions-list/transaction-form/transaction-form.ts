@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { MoneyService } from '@app/services/money.service';
 import { evaluateAmountExpression, normalizeAmountInput } from '@app/shared/amount-expression';
+import { parseTransactionDetails } from '@app/shared/money-utils';
 import {
   Account,
   AccountKind,
@@ -22,6 +23,7 @@ import {
   Currency,
   SymbolPosition,
   Transaction,
+  TransactionDetails,
   TransactionKind,
 } from '@app/shared/types';
 import { dateToIsoNoTimeNoTZ } from '@app/shared/utils';
@@ -246,7 +248,7 @@ export class TransactionForm {
 
       if (!Number.isFinite(assetId) || assetId <= 0) return;
 
-      const details: any = {
+      const details: TransactionDetails = {
         assetId,
       };
 
@@ -609,7 +611,7 @@ export class TransactionForm {
     this.isGift$$.set(Boolean(transaction.isGift));
     this.categoryId$$.set(transaction.categoryId ? String(transaction.categoryId) : null);
 
-    const details = this.parseDetails(transaction.detailsJSON);
+    const details = parseTransactionDetails(transaction.detailsJSON);
     this.assetId$$.set(details?.assetId != null ? String(details.assetId) : null);
     this.quantity$$.set(details?.quantity != null ? String(details.quantity) : '');
     this.price$$.set(details?.price != null ? String(details.price) : '');
@@ -688,21 +690,6 @@ export class TransactionForm {
     return quantity * price - commissionAmount + effectiveAccrued;
   }
 
-  private parseDetails(detailsJSON: any): any {
-    if (!detailsJSON) return null;
-    if (typeof detailsJSON === 'object') return detailsJSON;
-
-    if (typeof detailsJSON === 'string') {
-      try {
-        return JSON.parse(detailsJSON);
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
-  }
-
   private readonly accountCashBalances$$ = computed((): Map<number, number> => {
     const balances = new Map<number, number>();
     this.moneyService.accounts$$().forEach((a) => {
@@ -721,7 +708,7 @@ export class TransactionForm {
     if (tx.kind === TransactionKind.INVEST_BUY) return -tx.amount;
     if (tx.kind === TransactionKind.INVEST_SELL || tx.kind === TransactionKind.INVEST_DIVIDEND) return tx.amount;
     if (tx.kind !== TransactionKind.TRANSFER) return 0;
-    const details = this.parseDetails(tx.detailsJSON);
+    const details = parseTransactionDetails(tx.detailsJSON);
     if (details?.direction === 'out') return -tx.amount;
     if (details?.direction === 'in') return tx.amount;
     return 0;

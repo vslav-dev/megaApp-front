@@ -113,7 +113,7 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
       const { ctx, chartArea } = chart;
       const pluginOptions = (options as MonthLabelsPluginOptions | undefined) ?? this.monthLabelsOptions;
       const groups = this.buildTimeGroups(
-        labels as string[],
+        labels,
         pluginOptions.shortMonthSwitchMonths,
         pluginOptions.yearSwitchMonths,
       );
@@ -146,7 +146,7 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
       const { ctx, chartArea } = chart;
       const pluginOptions = (options as MonthLabelsPluginOptions | undefined) ?? this.monthLabelsOptions;
       const groups = this.buildTimeGroups(
-        labels as string[],
+        labels,
         pluginOptions.shortMonthSwitchMonths,
         pluginOptions.yearSwitchMonths,
       );
@@ -431,7 +431,7 @@ export class FoodStatsCharts implements OnInit, AfterViewInit, OnDestroy {
         plugins: {
           ...(baseOptions.plugins ?? {}),
           [this.monthLabelsPlugin.id]: this.monthLabelsOptions,
-        } as NonNullable<ChartConfiguration['options']>['plugins'],
+        },
       },
       plugins: [...(baseConfig.plugins ?? []), this.monthLabelsPlugin],
     };

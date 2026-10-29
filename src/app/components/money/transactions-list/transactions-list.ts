@@ -18,7 +18,7 @@ import { DefaultModal } from '@app/shared/components/default-modal/default-modal
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
 import { sumDayTotals } from '@app/shared/day-totals';
 import { SeriesChart, filterByEnabledSeries } from '@app/shared/money-series';
-import { areArraysShallowEqual, convertAmount } from '@app/shared/money-utils';
+import { areArraysShallowEqual, convertAmount, parseTransactionDetails } from '@app/shared/money-utils';
 import { groupNumberText } from '@app/shared/number-format';
 import {
   AccountKind,
@@ -311,7 +311,7 @@ export class TransactionsList {
   protected getInvestSharesLine(transaction: Transaction): string | null {
     if (!this.isInvestKind(transaction.kind)) return null;
 
-    const details = this.parseDetails(transaction.detailsJSON);
+    const details = parseTransactionDetails(transaction.detailsJSON);
     const assetId = this.toPositiveNumber(details?.assetId);
     if (assetId == null) return null;
 
@@ -398,24 +398,6 @@ export class TransactionsList {
   private getAssetTicker(assetId: number): string {
     const asset = this.assets$$().find((item: Asset) => item.id === assetId);
     return asset?.ticker ?? `asset #${assetId}`;
-  }
-
-  private parseDetails(detailsJSON: any): any {
-    if (!detailsJSON) return null;
-
-    if (typeof detailsJSON === 'object') {
-      return detailsJSON;
-    }
-
-    if (typeof detailsJSON === 'string') {
-      try {
-        return JSON.parse(detailsJSON);
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
   }
 
   private toPositiveNumber(value: unknown): number | null {

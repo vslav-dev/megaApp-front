@@ -182,7 +182,7 @@ export class CategoryForm {
 
     // A slider's own handlers stop the pointerdown event from bubbling, so it is caught on the way
     // down (capture); the release can land anywhere, so it is awaited on the window.
-    const element: HTMLElement = inject(ElementRef).nativeElement;
+    const element: HTMLElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
     element.addEventListener('pointerdown', this.onPointerDownCapture, true);
     inject(DestroyRef).onDestroy(() => {
       element.removeEventListener('pointerdown', this.onPointerDownCapture, true);

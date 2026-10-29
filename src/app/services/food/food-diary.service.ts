@@ -630,7 +630,7 @@ export class FoodDiaryService extends BaseFoodService {
       const consumedKcals = Object.values(day.food).reduce((total, entry) => total + entry.kcals, 0);
       const kcalsPercent = this.calculatePercentage(consumedKcals, targetKcals);
 
-      for (const [id, entry] of Object.entries(day.food)) {
+      for (const entry of Object.values(day.food)) {
         const kcals = entry.kcals;
         const percentage = this.calculatePercentage(kcals, targetKcals);
 
@@ -1155,7 +1155,7 @@ export class FoodDiaryService extends BaseFoodService {
   private hydrateDayFromIndexedDb(dateISO: string): void {
     if (this.diaryRaw$$()[dateISO]) return;
 
-    this.indexedDbCache.getDay<DiaryDay>(dateISO).then((day) => {
+    void this.indexedDbCache.getDay<DiaryDay>(dateISO).then((day) => {
       if (!day) return;
       this.diaryRaw$$.update((diary) => (diary[dateISO] ? diary : { ...diary, [dateISO]: day }));
     });
@@ -1293,10 +1293,10 @@ export class FoodDiaryService extends BaseFoodService {
 
     this.diaryRaw$$.update((diary) => {
       const updatedDiary = { ...diary };
-      const dayData = updatedDiary[dateISO!];
+      const dayData = updatedDiary[dateISO];
 
       if (dayData) {
-        updatedDiary[dateISO!] = {
+        updatedDiary[dateISO] = {
           ...dayData,
           food: {
             ...dayData.food,
@@ -1355,13 +1355,13 @@ export class FoodDiaryService extends BaseFoodService {
 
     this.diaryRaw$$.update((diary) => {
       const updatedDiary = { ...diary };
-      const dayData = updatedDiary[dateISO!];
+      const dayData = updatedDiary[dateISO];
 
       if (dayData) {
         const updatedFood = { ...dayData.food };
         delete updatedFood[deletedDiaryEntryId];
 
-        updatedDiary[dateISO!] = {
+        updatedDiary[dateISO] = {
           ...dayData,
           food: updatedFood,
         };

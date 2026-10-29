@@ -7,7 +7,6 @@ import { fixKeyboardLayout } from '@app/shared/keyboard-layout';
 import {
   Catalogue,
   CatalogueEntry,
-  CatalogueEntryDeletedWsMessage,
   CatalogueEntrySavedWsMessage,
   CatalogueImageFailedWsMessage,
   CatalogueImageGeneratedWsMessage,
@@ -25,7 +24,7 @@ import {
 } from '@app/shared/types';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { SyncOperationError, SyncOperationMode, SyncOperationType } from '../sync-engine.service';
+import { SyncOperationError, SyncOperationFailure, SyncOperationMode, SyncOperationType } from '../sync-engine.service';
 import { TelemetryService } from '../telemetry.service';
 import { BaseFoodService } from './food-base.service';
 
@@ -282,44 +281,40 @@ export class FoodCatalogueService extends BaseFoodService {
     this.networkService.wsMessages$
       .pipe(filter((msg) => msg.type === WebSocketMessageType.SEARCH_RESULTS))
       .subscribe((msg) => {
-        this.handleSearchResults(msg as SearchResultsWsMessage);
+        this.handleSearchResults(msg);
       });
 
     this.networkService.wsMessages$
       .pipe(filter((msg) => msg.type === WebSocketMessageType.CATALOGUE_ENTRY_SAVED))
       .subscribe((msg) => {
-        const typed = msg as CatalogueEntrySavedWsMessage;
-        if (this.isValidCatalogueEntry(typed.payload)) this.handleCatalogueEntrySaved(typed);
+        if (this.isValidCatalogueEntry(msg.payload)) this.handleCatalogueEntrySaved(msg);
       });
 
     this.networkService.wsMessages$
       .pipe(filter((msg) => msg.type === WebSocketMessageType.CATALOGUE_ENTRY_DELETED))
       .subscribe((msg) => {
-        const typed = msg as CatalogueEntryDeletedWsMessage;
-        if (typed.payload && typeof typed.payload.catalogueId === 'number') {
-          this.removeCatalogueEntry(typed.payload.catalogueId);
+        if (msg.payload && typeof msg.payload.catalogueId === 'number') {
+          this.removeCatalogueEntry(msg.payload.catalogueId);
         }
       });
 
     this.networkService.wsMessages$
       .pipe(filter((msg) => msg.type === WebSocketMessageType.CATALOGUE_IMAGE_GENERATED))
       .subscribe((msg) => {
-        const typed = msg as CatalogueImageGeneratedWsMessage;
         if (
-          typed.payload &&
-          typeof typed.payload.catalogueId === 'number' &&
-          typeof typed.payload.imageVersion === 'number'
+          msg.payload &&
+          typeof msg.payload.catalogueId === 'number' &&
+          typeof msg.payload.imageVersion === 'number'
         ) {
-          this.handleCatalogueImageGenerated(typed);
+          this.handleCatalogueImageGenerated(msg);
         }
       });
 
     this.networkService.wsMessages$
       .pipe(filter((msg) => msg.type === WebSocketMessageType.CATALOGUE_IMAGE_FAILED))
       .subscribe((msg) => {
-        const typed = msg as CatalogueImageFailedWsMessage;
-        if (typed.payload && typeof typed.payload.catalogueId === 'number') {
-          this.handleCatalogueImageFailed(typed);
+        if (msg.payload && typeof msg.payload.catalogueId === 'number') {
+          this.handleCatalogueImageFailed(msg);
         }
       });
   }
@@ -525,7 +520,7 @@ export class FoodCatalogueService extends BaseFoodService {
         },
         errorCallback: (error: SyncOperationError) => {
           void this.telemetry.recordAfterPaint('food.catalogue_mutation', startedAt, { mutationType }, 'error');
-          reject(error);
+          reject(new SyncOperationFailure(error));
         },
       });
     });
@@ -583,7 +578,7 @@ export class FoodCatalogueService extends BaseFoodService {
             { mutationType: 'delete' },
             'error',
           );
-          reject(error);
+          reject(new SyncOperationFailure(error));
         },
       });
     });

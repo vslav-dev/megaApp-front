@@ -6,7 +6,7 @@
       <div class="text-lg font-semibold">Categories</div>
       <v-button surface="flat"
                 [paddingY]="1"
-                (onClick)="showCreateForm()">
+                (clickOutput)="showCreateForm()">
         <v-icon v-prefix
                 [name]="Icon.Add"
                 [size]="6"></v-icon>
@@ -50,7 +50,7 @@
                     <v-button surface="flat"
                               [isLabelHidden]="true"
                               [padding]="iconButton.padding"
-                              (onClick)="editCategory(parentCategory)">
+                              (clickOutput)="editCategory(parentCategory)">
                       <v-icon v-prefix
                               [name]="Icon.Edit"
                               [size]="iconButton.size"></v-icon>
@@ -60,7 +60,7 @@
                               [isDisabled]="!canDeleteCategory(parentCategory.id!)"
                               [isLabelHidden]="true"
                               [padding]="iconButton.padding"
-                              (onClick)="deleteCategory(parentCategory.id!)">
+                              (clickOutput)="deleteCategory(parentCategory.id!)">
                       <v-icon v-prefix
                               [name]="Icon.Delete"
                               [size]="iconButton.size"></v-icon>
@@ -87,7 +87,7 @@
                           <v-button surface="flat"
                                     [isLabelHidden]="true"
                                     [padding]="iconButton.padding"
-                                    (onClick)="editCategory(childCategory)">
+                                    (clickOutput)="editCategory(childCategory)">
                             <v-icon v-prefix
                                     [name]="Icon.Edit"
                                     [size]="iconButton.size"></v-icon>
@@ -97,7 +97,7 @@
                                     [isDisabled]="!canDeleteCategory(childCategory.id!)"
                                     [isLabelHidden]="true"
                                     [padding]="iconButton.padding"
-                                    (onClick)="deleteCategory(childCategory.id!)">
+                                    (clickOutput)="deleteCategory(childCategory.id!)">
                             <v-icon v-prefix
                                     [name]="Icon.Delete"
                                     [size]="iconButton.size"></v-icon>

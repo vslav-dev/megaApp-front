@@ -6,7 +6,7 @@ const CHUNK_LOAD_FAILED_RE = /error loading dynamically imported module/i;
 const CHUNK_IMPORT_FAILED_RE = /importing a module script failed/i;
 
 export function isChunkLoadError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? '');
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
   return (
     CHUNK_FETCH_FAILED_RE.test(message) || CHUNK_LOAD_FAILED_RE.test(message) || CHUNK_IMPORT_FAILED_RE.test(message)
   );

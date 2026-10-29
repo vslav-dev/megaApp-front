@@ -467,7 +467,7 @@ export class MetricChartCard implements OnInit, OnDestroy {
     this.chart!.data.datasets[0].data = series.map((point) => ({
       x: point.bucket,
       y: point.value,
-    })) as unknown as number[];
+    }));
     this.chart!.options.scales!['x']!.min = windowStart;
     this.chart!.options.scales!['x']!.max = windowEnd;
     this.chart!.options.scales!['x']!.afterBuildTicks = (axis) => {

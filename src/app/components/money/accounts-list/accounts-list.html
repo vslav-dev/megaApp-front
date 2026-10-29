@@ -6,7 +6,7 @@
       <div class="text-lg font-semibold">Accounts</div>
       <v-button surface="flat"
                 [paddingY]="1"
-                (onClick)="showCreateForm()">
+                (clickOutput)="showCreateForm()">
         <v-icon v-prefix
                 [name]="Icon.Add"
                 [size]="6"></v-icon>
@@ -41,7 +41,7 @@
             <v-button surface="flat"
                       [isLabelHidden]="true"
                       [padding]="iconButton.padding"
-                      (onClick)="editAccount(account)">
+                      (clickOutput)="editAccount(account)">
               <v-icon v-prefix
                       [name]="Icon.Edit"
                       [size]="iconButton.size"></v-icon>
@@ -51,7 +51,7 @@
                       [isDisabled]="!canDeleteAccount(account.id!)"
                       [isLabelHidden]="true"
                       [padding]="iconButton.padding"
-                      (onClick)="deleteAccount(account.id!)">
+                      (clickOutput)="deleteAccount(account.id!)">
               <v-icon v-prefix
                       [name]="Icon.Delete"
                       [size]="iconButton.size"></v-icon>
@@ -92,7 +92,7 @@
                   <v-button surface="flat"
                             [isLabelHidden]="true"
                             [padding]="iconButton.padding"
-                            (onClick)="editAccount(account)">
+                            (clickOutput)="editAccount(account)">
                     <v-icon v-prefix
                             [name]="Icon.Edit"
                             [size]="iconButton.size"></v-icon>
@@ -102,7 +102,7 @@
                             [isDisabled]="!canDeleteAccount(account.id!)"
                             [isLabelHidden]="true"
                             [padding]="iconButton.padding"
-                            (onClick)="deleteAccount(account.id!)">
+                            (clickOutput)="deleteAccount(account.id!)">
                     <v-icon v-prefix
                             [name]="Icon.Delete"
                             [size]="iconButton.size"></v-icon>

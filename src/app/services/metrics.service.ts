@@ -235,6 +235,12 @@ export class MetricsService {
     void Promise.all([this.indexedDbCache.remove(CURSORS_STORAGE_KEY), this.indexedDbCache.clearMetricSeries()]);
   }
 
+  // [LOAD-BEARING]: do not rewrite this as a resource()/httpResource() (decided in plan 37, Angular 22.2).
+  // It is a command with progress, not state derived from params: several batches run one after another,
+  // each merges its points and advances the cursors before the next starts (so a failure part-way keeps
+  // what was fetched), a failure sets a retry backoff, a request arriving mid-flight is remembered and
+  // replayed once, and a manual refresh bypasses the backoff and drives notifications. A resource would
+  // refetch on params change and drop its value on error — none of that fits.
   private refreshHistory(showNotification = false): void {
     if (this.isRefreshing$$()) {
       // A view/service switch (or another automatic trigger) landed while a

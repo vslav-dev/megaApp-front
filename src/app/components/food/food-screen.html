@@ -20,7 +20,7 @@
          desktopWidth="min(100vw, 577px)"
          [borderRadius]="3"
          [padding]="0"
-         (onClose)="closeAddFoodModal()">
+         (closeOutput)="closeAddFoodModal()">
   @switch (foodAddModalService.currentState$$()) {
     @case (ModalState.SEARCH) {
       <food-search />

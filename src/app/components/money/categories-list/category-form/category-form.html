@@ -26,7 +26,7 @@
               [size]="5"
               [gap]="2"
               [checkIconSize]="4"
-              (onChanged)="hiddenOnCharts$$.set($event)">
+              (changedOutput)="hiddenOnCharts$$.set($event)">
     <span class="text-sm">Hide on charts</span>
   </v-checkbox>
 
@@ -49,7 +49,7 @@
         <v-button surface="flat"
                   [class.v-primary]="hue$$() === null"
                   [padding]="1"
-                  (onClick)="hue$$.set(null)">Auto</v-button>
+                  (clickOutput)="hue$$.set(null)">Auto</v-button>
       </div>
       <v-slider [min]="0"
                 [max]="360"
@@ -66,7 +66,7 @@
         <v-button surface="flat"
                   [class.v-primary]="lightness$$() === null"
                   [padding]="1"
-                  (onClick)="lightness$$.set(null)">Default</v-button>
+                  (clickOutput)="lightness$$.set(null)">Default</v-button>
       </div>
       <v-slider [min]="PaletteLimits.lightness.min"
                 [max]="PaletteLimits.lightness.max"
@@ -83,7 +83,7 @@
         <v-button surface="flat"
                   [class.v-primary]="saturation$$() === null"
                   [padding]="1"
-                  (onClick)="saturation$$.set(null)">Default</v-button>
+                  (clickOutput)="saturation$$.set(null)">Default</v-button>
       </div>
       <v-slider [min]="PaletteLimits.saturation.min"
                 [max]="PaletteLimits.saturation.max"
@@ -99,7 +99,7 @@
       <v-button surface="flat"
                 [isDisabled]="isPaletteDefaultUntouched$$()"
                 [padding]="1"
-                (onClick)="resetPaletteDefault()">Reset</v-button>
+                (clickOutput)="resetPaletteDefault()">Reset</v-button>
     </div>
 
     <div class="flex flex-col gap-2">
@@ -126,12 +126,12 @@
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
               [isDisabled]="!name$$() || !categoryType$$()"
-              (onClick)="save()">
+              (clickOutput)="save()">
       {{ isEditing() ? 'Update' : 'Create' }}
     </v-button>
 
     <v-button surface="flat"
-              (onClick)="cancel()">
+              (clickOutput)="cancel()">
       Cancel
     </v-button>
   </div>

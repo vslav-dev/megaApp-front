@@ -895,7 +895,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   }
 
   protected saveSettings(): void {
-    this.metricsSettingsService.saveNow();
+    void this.metricsSettingsService.saveNow();
   }
 
   protected clearMetricsCache(): void {

@@ -71,12 +71,12 @@ export function splitNumber(numStr: string): [string, string, string] {
     sign = '-';
     numStr = numStr.substring(1);
   }
-  let [integer, fraction] = numStr.split('.');
+  const [integer, fraction] = numStr.split('.');
   return [sign, integer, fraction ? '.' + fraction : ''];
 }
 
 export function divideNumberWithWhitespaces(num: string): string {
-  let result = [];
+  const result: string[] = [];
   let count = 0;
   for (let i = num.length - 1; i >= 0; i--) {
     if (count > 0 && count % 3 === 0) {

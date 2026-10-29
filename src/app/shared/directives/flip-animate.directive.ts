@@ -24,7 +24,7 @@ export class FlipAnimateDirective implements OnInit, OnDestroy {
   private debounceTimeout?: ReturnType<typeof setTimeout>;
   private isAnimating = false;
 
-  private readonly elementRef = inject(ElementRef<HTMLElement>);
+  private readonly elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
 
   public ngOnInit(): void {
     this.captureInitialPositions();
@@ -198,7 +198,7 @@ export class FlipAnimateDirective implements OnInit, OnDestroy {
     if (selector === '*') {
       return Array.from(container.children) as HTMLElement[];
     } else {
-      return Array.from(container.querySelectorAll(selector)) as HTMLElement[];
+      return Array.from(container.querySelectorAll<HTMLElement>(selector));
     }
   }
 

@@ -51,8 +51,8 @@ export class CameraPreview implements AfterViewInit, OnDestroy {
     }
   });
 
-  public async ngAfterViewInit(): Promise<void> {
-    await this.startCamera();
+  public ngAfterViewInit(): void {
+    void this.startCamera();
   }
 
   public ngOnDestroy(): void {
@@ -156,7 +156,7 @@ export class CameraPreview implements AfterViewInit, OnDestroy {
   public retakePhoto(): void {
     this.photoDataUrl$$.set('');
     this.capturedFile$$.set(null);
-    this.startCamera();
+    void this.startCamera();
   }
 
   public cancel(): void {
