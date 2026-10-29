@@ -111,8 +111,9 @@ const COMPOSITE_METRIC_DEFINITIONS: CompositeMetricDefinition[] = [
 ];
 
 // Step correction for money moved in/out of the account that isn't trading P&L (a withdrawal,
-// a deposit) — added to one composite definition's value for every bucket at/after the moment it
-// happened, so the sum keeps reading as if that transfer never occurred. A withdrawal needs a
+// a deposit) — added to every composite definition it touches (cash and the account value that
+// includes it) for every bucket at/after the moment it happened, so the sums keep reading as if
+// that transfer never occurred. A withdrawal needs a
 // positive delta (compensates the drop), a deposit a negative one. A bucket is a closed period
 // [bucket, bucket + step) holding its last value, epoch seconds floor-aligned to the selected
 // granularity's step (see metricWindowAt in metrics-granularity.ts). So the adjustment applies
@@ -120,17 +121,23 @@ const COMPOSITE_METRIC_DEFINITIONS: CompositeMetricDefinition[] = [
 // the transfer happened in, whose value is already post-transfer. The same threshold works
 // unchanged across minute/hour/day.
 interface CompositeMetricAdjustment {
-  definitionId: string;
+  definitionIds: string[];
   sinceUnixSeconds: number;
   delta: number;
   note: string;
 }
 
 // Add one entry per real transfer, e.g.:
-// { definitionId: 'estimated_account_value', sinceUnixSeconds: 1735689600, delta: 1000, note: 'Вывод $1000, 2025-01-01' }
+// { definitionIds: ['free_cash', 'estimated_account_value'], sinceUnixSeconds: 1735689600, delta: 1000, note: 'Вывод $1000, 2025-01-01' }
 const COMPOSITE_METRIC_ADJUSTMENTS: CompositeMetricAdjustment[] = [
   // v4 free_cash 2927.07 → 927.05 в минуту 1793180400 (2026-10-28 09:40 UTC); v3 не менялся.
-  { definitionId: 'free_cash', sinceUnixSeconds: 1793180400, delta: 2000, note: 'Вывод $2000, 2026-10-28 09:40 UTC' },
+  // estimated_account_value = free_cash + open positions, поэтому падает на ту же сумму.
+  {
+    definitionIds: ['free_cash', 'estimated_account_value'],
+    sinceUnixSeconds: 1793180400,
+    delta: 2000,
+    note: 'Вывод $2000, 2026-10-28 09:40 UTC',
+  },
 ];
 
 // The 5-minute view exists only to declutter a compact card, not to change what a
@@ -384,7 +391,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
     if (cached) return cached;
 
     const adjustments = COMPOSITE_METRIC_ADJUSTMENTS.filter(
-      (adjustment) => adjustment.definitionId === definition.id,
+      (adjustment) => adjustment.definitionIds.includes(definition.id),
     );
     const chartMode = computed(() =>
       this.metricsSettingsService.metricChartMode(definition.serviceA, definition.metricName),
