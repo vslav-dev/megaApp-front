@@ -113,9 +113,11 @@ const COMPOSITE_METRIC_DEFINITIONS: CompositeMetricDefinition[] = [
 // Step correction for money moved in/out of the account that isn't trading P&L (a withdrawal,
 // a deposit) — added to one composite definition's value for every bucket at/after the moment it
 // happened, so the sum keeps reading as if that transfer never occurred. A withdrawal needs a
-// positive delta (compensates the drop), a deposit a negative one. `sinceUnixSeconds` compares
-// directly against MetricPoint.bucket, which is epoch seconds floor-aligned to the selected
-// granularity's step (see metricWindowAt in metrics-granularity.ts) — the same threshold works
+// positive delta (compensates the drop), a deposit a negative one. A bucket is a closed period
+// [bucket, bucket + step) holding its last value, epoch seconds floor-aligned to the selected
+// granularity's step (see metricWindowAt in metrics-granularity.ts). So the adjustment applies
+// to every bucket whose period ends after `sinceUnixSeconds` — that includes the hour/day bucket
+// the transfer happened in, whose value is already post-transfer. The same threshold works
 // unchanged across minute/hour/day.
 interface CompositeMetricAdjustment {
   definitionId: string;
@@ -126,7 +128,10 @@ interface CompositeMetricAdjustment {
 
 // Add one entry per real transfer, e.g.:
 // { definitionId: 'estimated_account_value', sinceUnixSeconds: 1735689600, delta: 1000, note: 'Вывод $1000, 2025-01-01' }
-const COMPOSITE_METRIC_ADJUSTMENTS: CompositeMetricAdjustment[] = [];
+const COMPOSITE_METRIC_ADJUSTMENTS: CompositeMetricAdjustment[] = [
+  // v4 free_cash 2927.07 → 927.05 в минуту 1793180400 (2026-10-28 09:40 UTC); v3 не менялся.
+  { definitionId: 'free_cash', sinceUnixSeconds: 1793180400, delta: 2000, note: 'Вывод $2000, 2026-10-28 09:40 UTC' },
+];
 
 // The 5-minute view exists only to declutter a compact card, not to change what a
 // metric means (that's still decided by its own `aggregation` for hour/day rollup
@@ -388,6 +393,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
     // corrections for money transfers at/after their own moment (see COMPOSITE_METRIC_ADJUSTMENTS).
     const points = computed<MetricPoint[]>(() => {
       const granularity = this.selectedGranularity$$();
+      const { stepSeconds } = METRIC_GRANULARITY_SPECS[granularity];
       const pointsA = this.metricsService.seriesFor(definition.serviceA, definition.metricName, granularity)();
       const pointsB = this.metricsService.seriesFor(definition.serviceB, definition.metricName, granularity)();
       const valuesA = new Map(pointsA.map((point) => [point.bucket, point.value]));
@@ -399,7 +405,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
         .sort((left, right) => left - right)
         .map((bucket) => {
           const adjustment = adjustments.reduce(
-            (sum, entry) => (bucket >= entry.sinceUnixSeconds ? sum + entry.delta : sum),
+            (sum, entry) => (bucket + stepSeconds > entry.sinceUnixSeconds ? sum + entry.delta : sum),
             0,
           );
           return {
