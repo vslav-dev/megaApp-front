@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { form, FormField, FormRoot, pattern, required } from '@angular/forms/signals';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { FoodSettingsService } from '@app/services/food/food-settings.service';
@@ -27,7 +27,6 @@ const FormErrors = {
 @Component({
   selector: 'body-weight',
   templateUrl: './body-weight.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormField, FormRoot, VInput, VButton, VCheckbox, VIcon, FormModal],
 })
 export class BodyWeight {

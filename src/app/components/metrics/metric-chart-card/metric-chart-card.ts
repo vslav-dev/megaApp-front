@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -115,7 +114,6 @@ function nonNullValues(points: MetricSeriesPoint[]): number[] {
   selector: 'metric-chart-card',
   templateUrl: './metric-chart-card.html',
   imports: [VButton, VCard, VCheckbox, VIcon, VInput, VRollingNumber, VTooltip],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MetricChartCard implements OnInit, OnDestroy {
   public readonly labelInput = input.required<string>();

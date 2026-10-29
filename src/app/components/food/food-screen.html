@@ -21,7 +21,8 @@
          [borderRadius]="3"
          [padding]="0"
          (closeOutput)="closeAddFoodModal()">
-  @switch (foodAddModalService.currentState$$()) {
+  @let modalState = foodAddModalService.currentState$$();
+  @switch (modalState) {
     @case (ModalState.SEARCH) {
       <food-search />
     }
@@ -41,5 +42,9 @@
     @case (ModalState.EDIT_PRODUCT) {
       <catalogue-entry-edit-form />
     }
+
+    @case (ModalState.CLOSED) {}
+
+    @default never;
   }
 </v-modal>

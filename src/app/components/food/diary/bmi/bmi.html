@@ -26,7 +26,7 @@
     <div [class]="segment.twSegmentClasses"
          [style.flex]="bmiSegmentsWidthFractions[$index]"
          [title]="bmiSegmentTitle($index)">
-      @if ($index > 0) {
+      @if (!$first) {
         <span [class]="segment.twLabelClasses">
           {{ bmiKgThresholdValue($index) }}
         </span>

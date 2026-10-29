@@ -33,7 +33,7 @@ export class MetricsHealthService {
   private readonly now$$ = signal(Date.now());
   private readonly nowTickIntervalId = setInterval(() => this.now$$.set(Date.now()), NOW_TICK_INTERVAL_MS);
 
-  constructor() {
+  public constructor() {
     this.networkService.metricsBinaryFrames$.subscribe((frame) => {
       if (frame.frameType === MetricsBinaryFrameType.Latest) {
         this.latestServices$$.set(decodeMetricsWireToLatestSnapshot(frame.payload).services);

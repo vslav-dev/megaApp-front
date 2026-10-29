@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { ChartThemeService } from '@app/services/chart-theme.service';
 import { MoneyComputeService } from '@app/services/money-compute.service';
 import { MoneyService } from '@app/services/money.service';
@@ -16,7 +16,6 @@ import { CategoryForm } from './category-form/category-form';
   selector: 'categories-list',
   templateUrl: './categories-list.html',
   imports: [CategoryForm, DefaultModal, FormModal, VButton, VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CategoriesList {
   protected readonly Icon = IconName;

@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import {
   form,
   FormField,
@@ -43,7 +43,6 @@ function maxAmount(path: SchemaPath<string>, max: number): void {
 @Component({
   selector: 'catalogue-entry-edit-form',
   templateUrl: './catalogue-entry-edit-form.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DefaultModal, FormField, FormRoot, VButton, VCheckbox, VIcon, VInput],
 })
 export class CatalogueEntryEditForm implements OnInit {

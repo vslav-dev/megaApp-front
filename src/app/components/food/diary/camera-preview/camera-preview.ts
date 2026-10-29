@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   ElementRef,
   OnDestroy,
@@ -20,7 +19,6 @@ import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 @Component({
   selector: 'camera-preview',
   templateUrl: './camera-preview.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VIcon, VButton],
 })
 export class CameraPreview implements AfterViewInit, OnDestroy {

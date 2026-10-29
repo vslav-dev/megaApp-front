@@ -615,3 +615,44 @@
 - ✅ `eslint .` — 0 замечаний, `tsc` (app и spec), 450 тестов (стало меньше из-за удалённых тестов мёртвого кода), `ng build` зелёные.
 - ⭕ Коммит блока 6 (сначала ui-kit, затем front с указателем сабмодуля, патч-версия) и решение, подключать ли `lint` к коммиту/CI.
 - ⭕ Реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки — в браузере не проверяются, оставлено.
+
+## Курс команды Angular: пакет 1 правил и флагов (29.10.2026)
+Итог коммита блока 6: закоммичено в ui-kit и front, решение по `lint` в CI/коммит-хук — не подключать (пользователь не хочет удлинять деплой; правило в корневом `AGENTS.md` — прогонять проверки после правок).
+
+Источники курса: официальные страницы angular.dev (roadmap, best-practices для LLM, style guide). Направление: signals везде, zoneless и `OnPush` по умолчанию, `host` вместо `@HostBinding`/`@HostListener`, `@Service`, `model()`, Signal Forms, `resource`, без `CommonModule`, `NgOptimizedImage`, доступность (AXE/WCAG AA).
+
+Что включено сейчас (без `no-developer-preview` — пользователь хочет пробовать developer preview):
+- Правила `angular-eslint` (TS): защита от возврата легаси — `prefer-service-decorator`, `prefer-host-metadata-property`, `prefer-output-readonly`, `prefer-output-emitter-ref`, `prefer-signal-model`, `no-forward-ref`, `no-uncalled-signals`, `computed-must-return`, `reactive-context-must-read-signal`, `no-implicit-take-until-destroyed`, `no-async-lifecycle-method`, `no-lifecycle-call`, `no-pipe-impure`, `no-queries-metadata-property`, `no-duplicates-in-metadata-arrays`, `use-injectable-provided-in`, `no-attribute-decorator`, `consistent-component-styles`, `relative-url-prefix`.
+- `typescript-eslint`: `prefer-readonly` и `explicit-member-accessibility` (явный модификатор у всех членов, включая конструктор — как в правилах пользователя).
+- Шаблоны: `prefer-at-empty`, `prefer-at-else`, `prefer-contextual-for-variables`, `prefer-template-literal`, `require-switch-default`, `button-has-type`.
+- `tsconfig`: `useDefineForClassFields: true` (совпадает с ES2022 и гайдом команды; 0 ошибок компиляции при включении).
+
+Что пришлось менять по существу:
+- `v-wheel-select`: пара вход+выход заменена на `model` (родитель `v-wheel-input` хранит значение как есть, поведение то же).
+- `v-tooltip`: «вычисляемый» z-index читал неизменяемое число — стал обычным полем; `progress-icon`: два `computed`, читавших атрибут элемента (не сигнал), стали обычными полями.
+- Переключатели с исчерпывающей проверкой (`@default never`): состояние модалки еды вынесено в `@let`, потому что вызов сигнала TypeScript не сужает; добавлен явный пустой `@case` для закрытого состояния.
+- `@if (пусто)` + `@for` и пара `@if`/`@if (!...)` заменены на `@empty` и `@else`; пустые конструкторы в маркерных директивах `progress-icon` удалены.
+
+Найдено и не тронуто:
+- Два разных файла директивы `flipAnimate`: в `src/app/shared/directives` (используется) и в `src/ui-kit/directives` (нигде не импортируется). Решение за пользователем: удалить копию в ui-kit или перевести приложение на неё.
+- Явный `OnPush` (72 места): команда считает его лишним с v22, но правило `prefer-on-push-component-change-detection` в рекомендованном наборе его требует — не трогаем.
+- Остальные кандидаты отложены: пакет 2 (доступность, `prefer-ngsrc`, `no-non-null-assertion`) и флаги `noUncheckedIndexedAccess` (229 ошибок), `exactOptionalPropertyTypes` (18).
+
+### Чек-лист
+- ✅ Правила пакета 1 в `eslint.config.mjs`, `useDefineForClassFields`
+- ✅ Замечания исправлены (56 → 0)
+- ✅ `eslint` 0 замечаний, `tsc` (app и spec), 450 тестов, `ng build` зелёные
+- ✅ Живая проверка `v-wheel-select`, `progress-icon`, тултипа и модалок еды после `useDefineForClassFields` — выполнена, см. раздел ниже
+
+## Дубль flipAnimate, явный OnPush, проверка в браузере (29.10.2026)
+Происхождение дубля `flipAnimate`: директиву написали в приложении (сентябрь 2025), в марте 2026 её скопировали в ui-kit уже с исправлением — отмена анимации после завершения (иначе `fill: both` навсегда оставляет элемент в конечном состоянии). Приложение на копию ui-kit не перевели, копии разошлись.
+- ✅ Общая директива живёт в ui-kit рядом с `shadow` и `backdrop` (у неё нет зависимостей от приложения); копия в приложении удалена, список выбора продукта импортирует её из ui-kit.
+- ✅ Явный `OnPush` убран из 72 компонентов вместе с импортом (в Angular 22 он по умолчанию, `Default` переименован в `Eager`); правило `prefer-on-push-component-change-detection` выключено с пояснением в конфиге.
+- ✅ `eslint` 0 замечаний, `tsc` (app и spec), 450 тестов, `ng build` зелёные.
+
+### Проверка в браузере (свой dev-сервер, реальный бэкенд, данные не менялись)
+- ✅ Еда: экран и колонки статистики, модалка добавления, поиск с вводом (директива из ui-kit: после анимации не осталось незавершённых анимаций, скрытых карточек нет), форма добавления с `progress-icon`, форма редактирования продукта, закрытие по Escape, тултип справки (у экземпляров разные z-index).
+- ✅ Деньги: диаграммы, форма транзакции (колесо выбора месяца меняет дату, вкладки Расход/Доход/Перевод), вкладки настройки/категорий/активов, архивные счета.
+- ✅ Метрики: дашборд открывается.
+- ✅ Ошибок в консоли нет (кроме информационного сообщения про HMR и `@defer`).
+- ⭕ Не проверено: мобильная раскладка навигации (окно не уменьшилось через инструмент), режим инвестиций в форме транзакции, пустые состояния списков (в данных везде есть записи).

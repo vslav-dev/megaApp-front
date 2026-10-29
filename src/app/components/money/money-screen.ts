@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { VExpand } from '@ui-kit/components/v-expand/v-expand';
@@ -49,7 +49,6 @@ type MoneyTab = (typeof MoneyTab)[keyof typeof MoneyTab];
     VIcon,
     VSlider,
   ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MoneyScreen implements OnInit {
   protected readonly Icon = IconName;

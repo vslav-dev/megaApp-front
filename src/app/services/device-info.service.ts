@@ -48,7 +48,7 @@ export class DeviceInfoService {
   private initialViewportHeight: number = 0;
   private keyboardCloseTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  constructor() {
+  public constructor() {
     this.setupKeyboardDetection();
   }
 

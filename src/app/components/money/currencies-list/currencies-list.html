@@ -14,12 +14,6 @@
       </v-button>
     </div>
 
-    @if (currencies$$().length === 0) {
-      <div class="opacity-70 py-8 text-center">
-        No currencies found.
-      </div>
-    }
-
     @for (currency of currencies$$(); track currency.id) {
       <div class="last:border-b-0 py-4 border-b border-[color:var(--v-outline-color)]">
         <div class="flex items-start justify-between gap-4">
@@ -70,6 +64,10 @@
             </v-button>
           </div>
         </div>
+      </div>
+    } @empty {
+      <div class="opacity-70 py-8 text-center">
+        No currencies found.
       </div>
     }
   </v-card>

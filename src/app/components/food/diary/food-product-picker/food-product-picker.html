@@ -93,7 +93,7 @@
     <div flipAnimate
          class="contents">
       @for (catalogueEntry of searchResults$$(); track catalogueEntry.id) {
-        <v-card [attr.data-flip-key]="'catalogue-' + catalogueEntry.id"
+        <v-card [attr.data-flip-key]="`catalogue-${catalogueEntry.id}`"
                 class="w-full cursor-pointer"
                 [padding]="1"
                 minHeight="104px"

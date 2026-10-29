@@ -165,7 +165,7 @@ export class FoodStatsService extends BaseFoodService {
     }
   });
 
-  constructor() {
+  public constructor() {
     super();
     this.loadStatsFromLocalStorageOnInit();
     // Refetch after every diary/weight mutation, live-window dates included — milestones (summary$$)

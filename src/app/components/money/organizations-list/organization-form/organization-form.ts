@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   effect,
   ElementRef,
@@ -18,7 +17,6 @@ import { Organization } from '../../../../shared/types';
   selector: 'organization-form',
   templateUrl: './organization-form.html',
   imports: [VButton, VInput],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrganizationForm {
   public readonly organizationInput = input<Organization | null>(null);
@@ -32,7 +30,7 @@ export class OrganizationForm {
   protected readonly title$$ = signal('');
   protected readonly logoBase64$$ = signal<string | null>(null);
 
-  constructor() {
+  public constructor() {
     effect(() => {
       const current = this.organizationInput();
       if (current) {

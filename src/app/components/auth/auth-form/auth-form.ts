@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { form, FormField, FormRoot, minLength, required } from '@angular/forms/signals';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '@app/services/auth.service';
@@ -16,7 +16,6 @@ const EMPTY_CREDS: UserCreds = { username: '', password: '' };
 @Component({
   selector: 'auth-form',
   templateUrl: './auth-form.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormField, FormRoot, VCard, VInput, VButton],
 })
 export class AuthForm {

@@ -141,7 +141,7 @@ export class MetricsService {
     this.resetAllState();
   });
 
-  constructor() {
+  public constructor() {
     const cacheStartedAt = performance.now();
     void Promise.all([
       this.indexedDbCache.get<MetricsCursorMap>(CURSORS_STORAGE_KEY),

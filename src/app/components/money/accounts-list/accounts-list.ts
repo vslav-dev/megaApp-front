@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { MoneyService } from '@app/services/money.service';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
@@ -19,7 +19,6 @@ interface AccountBalance {
   selector: 'accounts-list',
   templateUrl: './accounts-list.html',
   imports: [AccountForm, DefaultModal, FormModal, VButton, VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AccountsList {
   protected readonly Icon = IconName;

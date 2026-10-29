@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, Signal } from '@angular/core';
+import { Component, computed, inject, Signal } from '@angular/core';
 import { FoodFabLayer, foodFabStackBottomPx } from '@app/components/food/food-fab-layout';
 import { AuthService } from '@app/services/auth.service';
 import { DeviceInfoService } from '@app/services/device-info.service';
@@ -12,7 +12,6 @@ import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
   selector: 'food-mode-toggle-fab',
   templateUrl: './food-mode-toggle-fab.html',
   imports: [VButton, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FoodModeToggleFab {
   protected readonly authService = inject(AuthService);

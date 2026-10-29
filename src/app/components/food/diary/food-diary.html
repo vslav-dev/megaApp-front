@@ -29,7 +29,7 @@
       }
 
       @if (selectedDaysConsumedPercentText$$(); as percentText) {
-        <span class="day-progress-label font-normal">Съедено <v-rolling-number [textInput]="percentText + '%'" /> от
+        <span class="day-progress-label font-normal">Съедено <v-rolling-number [textInput]="`${percentText}%`" /> от
           дневной нормы</span>
       }
     </div>

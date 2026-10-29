@@ -146,9 +146,7 @@
           </div>
         </div>
       </div>
-    }
-
-    @if (isInvestMode$$()) {
+    } @else {
       <v-dropdown [label]="'Asset'"
                   [placeholder]="'Select an asset'"
                   [items]="assetItems$$()"
@@ -214,9 +212,7 @@
             }
           </ng-container>
         </v-input>
-      }
-
-      @if (isInvestDividendMode$$()) {
+      } @else {
         <v-input #investDividendAmountElem
                  inputmode="decimal"
                  label="Amount"

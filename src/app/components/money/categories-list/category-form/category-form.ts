@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   DestroyRef,
@@ -41,7 +40,6 @@ const NEW_CATEGORY_PREVIEW_ID = Number.MAX_SAFE_INTEGER;
   selector: 'category-form',
   templateUrl: './category-form.html',
   imports: [VButton, VCheckbox, VDropdown, VInput, VSlider],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CategoryForm {
   public readonly categoryInput = input<Category | null>(null);
@@ -154,7 +152,7 @@ export class CategoryForm {
     this.saturationTrack(this.paletteDefault$$().lightness),
   );
 
-  constructor() {
+  public constructor() {
     effect(() => {
       const currentCategory = this.categoryInput();
       if (currentCategory) {

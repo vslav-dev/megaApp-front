@@ -1,6 +1,5 @@
 import {
   afterRenderEffect,
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -35,7 +34,6 @@ import { NutritionSummary } from './nutrition-summary/nutrition-summary';
   selector: 'food-diary',
   templateUrl: './food-diary.html',
   styleUrl: './food-diary.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     DiaryNavButtons,
     DiaryEntryEditForm,

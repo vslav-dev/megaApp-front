@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -54,7 +53,6 @@ const HOST_HORIZONTAL_PADDING_PX = 16;
     '[class.grid]': 'totalColumnCount$$() >= 2',
     '[style.grid-template-columns]': 'gridTemplateColumns$$()',
   },
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FoodScreen implements OnInit, OnDestroy {
   private readonly foodSyncCoordinatorService = inject(FoodSyncCoordinatorService);

@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   ElementRef,
   OnDestroy,
@@ -55,13 +54,12 @@ interface ExpenseChartSeries {
   selector: 'expense-chart',
   templateUrl: './expense-chart.html',
   imports: [VButton, VCheckbox, VInput, VToggle],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExpenseChart implements AfterViewInit, OnDestroy {
-  readonly dataInput = input.required<ExpenseChartData>();
-  readonly currencySymbolInput = input<string>('₽');
-  readonly currencyTickerInput = input<string>('RUB');
-  readonly monthRangeInput = input<[string, string] | null>(null);
+  public readonly dataInput = input.required<ExpenseChartData>();
+  public readonly currencySymbolInput = input<string>('₽');
+  public readonly currencyTickerInput = input<string>('RUB');
+  public readonly monthRangeInput = input<[string, string] | null>(null);
 
   protected readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   protected readonly yMaxElem = viewChild.required<VInput>('yMaxElem');

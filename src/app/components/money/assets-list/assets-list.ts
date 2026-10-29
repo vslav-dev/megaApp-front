@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { MoneyService } from '@app/services/money.service';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
@@ -37,7 +37,6 @@ interface AssetGroup {
   selector: 'assets-list',
   templateUrl: './assets-list.html',
   imports: [DefaultModal, FormModal, VButton, VCard, VIcon, VInput, VToggle, VCheckbox],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AssetsList {
   protected readonly Icon = IconName;

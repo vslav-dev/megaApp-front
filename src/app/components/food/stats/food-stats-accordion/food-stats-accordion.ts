@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, Signal } from '@angular/core';
+import { Component, inject, Signal } from '@angular/core';
 import { FoodStatsBlock, getFoodStatsBlockOrder } from '@app/components/food/stats/food-stats-block';
 import { FoodStatsCharts } from '@app/components/food/stats/food-stats-charts/food-stats-charts';
 import { Milestones } from '@app/components/food/stats/milestones/milestones';
@@ -29,7 +29,6 @@ const BLOCK_TOGGLES: BlockToggle[] = getFoodStatsBlockOrder().map((block) => ({ 
   selector: 'food-stats-accordion',
   templateUrl: './food-stats-accordion.html',
   imports: [VButton, VIcon, Streak, TopProducts, Milestones, FoodStatsCharts, ProductHistory],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FoodStatsAccordion {
   private readonly foodSettingsService = inject(FoodSettingsService);

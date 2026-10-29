@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   ElementRef,
   OnDestroy,
@@ -46,11 +45,10 @@ Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineContro
   selector: 'balances-chart',
   templateUrl: './balances-chart.html',
   imports: [VButton, VCheckbox, VToggle],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BalancesChart implements AfterViewInit, OnDestroy {
-  readonly dataInput = input.required<BalanceChartData>();
-  readonly currencySymbolInput = input<string>('₽');
+  public readonly dataInput = input.required<BalanceChartData>();
+  public readonly currencySymbolInput = input<string>('₽');
 
   protected readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   protected readonly chart$$ = signal<Chart | null>(null);

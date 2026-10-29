@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -39,12 +38,11 @@ Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, L
   selector: 'income-chart',
   templateUrl: './income-chart.html',
   imports: [VButton, VCheckbox],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class IncomeChart implements AfterViewInit, OnDestroy {
-  readonly dataInput = input.required<IncomeChartData>();
-  readonly currencySymbolInput = input<string>('₽');
-  readonly monthRangeInput = input<[string, string] | null>(null);
+  public readonly dataInput = input.required<IncomeChartData>();
+  public readonly currencySymbolInput = input<string>('₽');
+  public readonly monthRangeInput = input<[string, string] | null>(null);
 
   protected readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   protected readonly chart$$ = signal<Chart | null>(null);

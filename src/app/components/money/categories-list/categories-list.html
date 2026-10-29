@@ -26,90 +26,88 @@
           {{ getCategoryTypeDisplayName(categoryType) }}
         </div>
 
-        @if (getRootCategories(categoryType).length === 0) {
+        @for (parentCategory of getRootCategories(categoryType); track parentCategory.id) {
+          <div>
+            <div class="last:border-b-0 py-1 border-b border-[color:var(--v-outline-color)]">
+              <div class="flex items-center justify-between gap-4">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                          [style.background]="getCategoryColor(parentCategory)"></span>
+                    <span class="font-medium">{{ parentCategory.name }}</span>
+                    @if (parentCategory.hiddenOnCharts) {
+                      <span class="text-xs opacity-60">hidden on charts</span>
+                    }
+                  </div>
+                </div>
+
+                <div class="flex gap-2">
+                  <v-button surface="flat"
+                            [isLabelHidden]="true"
+                            [padding]="iconButton.padding"
+                            (clickOutput)="editCategory(parentCategory)">
+                    <v-icon v-prefix
+                            [name]="Icon.Edit"
+                            [size]="iconButton.size"></v-icon>
+                  </v-button>
+
+                  <v-button class="v-danger"
+                            [isDisabled]="!canDeleteCategory(parentCategory.id!)"
+                            [isLabelHidden]="true"
+                            [padding]="iconButton.padding"
+                            (clickOutput)="deleteCategory(parentCategory.id!)">
+                    <v-icon v-prefix
+                            [name]="Icon.Delete"
+                            [size]="iconButton.size"></v-icon>
+                  </v-button>
+                </div>
+              </div>
+            </div>
+
+            @if (getChildCategories(parentCategory.id!).length > 0) {
+              <div class="ml-6">
+                @for (childCategory of getChildCategories(parentCategory.id!); track childCategory.id) {
+                  <div class="last:border-b-0 py-1 border-b border-[color:var(--v-outline-color)]">
+                    <div class="flex items-center justify-between gap-4">
+                      <div class="flex flex-1 items-center gap-2">
+                        <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                              [style.background]="getCategoryColor(childCategory)"></span>
+                        <span>{{ childCategory.name }}</span>
+                        @if (childCategory.hiddenOnCharts) {
+                          <span class="text-xs opacity-60">hidden on charts</span>
+                        }
+                      </div>
+
+                      <div class="flex gap-2">
+                        <v-button surface="flat"
+                                  [isLabelHidden]="true"
+                                  [padding]="iconButton.padding"
+                                  (clickOutput)="editCategory(childCategory)">
+                          <v-icon v-prefix
+                                  [name]="Icon.Edit"
+                                  [size]="iconButton.size"></v-icon>
+                        </v-button>
+
+                        <v-button class="v-danger"
+                                  [isDisabled]="!canDeleteCategory(childCategory.id!)"
+                                  [isLabelHidden]="true"
+                                  [padding]="iconButton.padding"
+                                  (clickOutput)="deleteCategory(childCategory.id!)">
+                          <v-icon v-prefix
+                                  [name]="Icon.Delete"
+                                  [size]="iconButton.size"></v-icon>
+                        </v-button>
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        } @empty {
           <div class="opacity-70 py-3 text-sm">
             No categories for this type.
           </div>
-        } @else {
-          @for (parentCategory of getRootCategories(categoryType); track parentCategory.id) {
-            <div>
-              <div class="last:border-b-0 py-1 border-b border-[color:var(--v-outline-color)]">
-                <div class="flex items-center justify-between gap-4">
-                  <div class="flex-1">
-                    <div class="flex items-center gap-2">
-                      <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
-                            [style.background]="getCategoryColor(parentCategory)"></span>
-                      <span class="font-medium">{{ parentCategory.name }}</span>
-                      @if (parentCategory.hiddenOnCharts) {
-                        <span class="text-xs opacity-60">hidden on charts</span>
-                      }
-                    </div>
-                  </div>
-
-                  <div class="flex gap-2">
-                    <v-button surface="flat"
-                              [isLabelHidden]="true"
-                              [padding]="iconButton.padding"
-                              (clickOutput)="editCategory(parentCategory)">
-                      <v-icon v-prefix
-                              [name]="Icon.Edit"
-                              [size]="iconButton.size"></v-icon>
-                    </v-button>
-
-                    <v-button class="v-danger"
-                              [isDisabled]="!canDeleteCategory(parentCategory.id!)"
-                              [isLabelHidden]="true"
-                              [padding]="iconButton.padding"
-                              (clickOutput)="deleteCategory(parentCategory.id!)">
-                      <v-icon v-prefix
-                              [name]="Icon.Delete"
-                              [size]="iconButton.size"></v-icon>
-                    </v-button>
-                  </div>
-                </div>
-              </div>
-
-              @if (getChildCategories(parentCategory.id!).length > 0) {
-                <div class="ml-6">
-                  @for (childCategory of getChildCategories(parentCategory.id!); track childCategory.id) {
-                    <div class="last:border-b-0 py-1 border-b border-[color:var(--v-outline-color)]">
-                      <div class="flex items-center justify-between gap-4">
-                        <div class="flex flex-1 items-center gap-2">
-                          <span class="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
-                                [style.background]="getCategoryColor(childCategory)"></span>
-                          <span>{{ childCategory.name }}</span>
-                          @if (childCategory.hiddenOnCharts) {
-                            <span class="text-xs opacity-60">hidden on charts</span>
-                          }
-                        </div>
-
-                        <div class="flex gap-2">
-                          <v-button surface="flat"
-                                    [isLabelHidden]="true"
-                                    [padding]="iconButton.padding"
-                                    (clickOutput)="editCategory(childCategory)">
-                            <v-icon v-prefix
-                                    [name]="Icon.Edit"
-                                    [size]="iconButton.size"></v-icon>
-                          </v-button>
-
-                          <v-button class="v-danger"
-                                    [isDisabled]="!canDeleteCategory(childCategory.id!)"
-                                    [isLabelHidden]="true"
-                                    [padding]="iconButton.padding"
-                                    (clickOutput)="deleteCategory(childCategory.id!)">
-                            <v-icon v-prefix
-                                    [name]="Icon.Delete"
-                                    [size]="iconButton.size"></v-icon>
-                          </v-button>
-                        </div>
-                      </div>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          }
         }
       </div>
     }

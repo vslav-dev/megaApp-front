@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, Signal } from '@angular/core';
+import { Component, computed, inject, Signal } from '@angular/core';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { BMI_CATEGORIES, BMI_SCALE, bmiToKg } from '@app/shared/bmi-bands';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
@@ -11,7 +11,6 @@ interface BmiSegment {
 @Component({
   selector: 'bmi',
   templateUrl: './bmi.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VIcon],
 })
 export class BMI {

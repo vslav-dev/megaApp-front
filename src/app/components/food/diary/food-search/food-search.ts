@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, viewChild } from '@angular/core';
+import { Component, effect, inject, viewChild } from '@angular/core';
 import {
   FoodProductPicker,
   ProductPickerSelection,
@@ -14,7 +14,6 @@ import { CatalogueEntry, DiaryEntry, HistoryEntryAction } from '@app/shared/type
 @Component({
   selector: 'food-search',
   templateUrl: './food-search.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FoodProductPicker],
 })
 export class FoodSearch {

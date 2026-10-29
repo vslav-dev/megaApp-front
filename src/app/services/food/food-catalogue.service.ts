@@ -76,7 +76,7 @@ export class FoodCatalogueService extends BaseFoodService {
     }
   });
 
-  constructor() {
+  public constructor() {
     super();
     this.loadCatalogueFromLocalStorage();
     this.loadSearchCacheFromLocalStorage();

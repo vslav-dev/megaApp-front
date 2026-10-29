@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -35,7 +34,6 @@ const EMPTY_WEIGHTS = { foodWeightNew: '', foodWeightChange: '' };
   host: {
     style: 'display: flex; flex-direction: column;',
   },
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FormField,
     FormRoot,
@@ -131,7 +129,7 @@ export class DiaryEntryEditForm implements OnDestroy {
   protected readonly hasNewWeight$$ = computed(() => this.diaryEntryForm.foodWeightNew().value() !== '');
   protected readonly hasChangeWeight$$ = computed(() => this.diaryEntryForm.foodWeightChange().value() !== '');
 
-  private inputFocusEffect$$ = effect(() => {
+  private readonly inputFocusEffect$$ = effect(() => {
     const focusId = this.foodDiaryService.diaryEntryFocusId$$();
     if (focusId === this.diaryEntryId$$()) {
       setTimeout(() => {
@@ -140,7 +138,7 @@ export class DiaryEntryEditForm implements OnDestroy {
     }
   });
 
-  private formResetEffect$$ = effect(() => {
+  private readonly formResetEffect$$ = effect(() => {
     const resetId = this.foodDiaryService.diaryEntryResetId$$();
     setTimeout(() => {
       if (resetId === this.diaryEntryId$$()) {

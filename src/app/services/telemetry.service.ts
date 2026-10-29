@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { afterNextRender, DestroyRef, ErrorHandler, Injector, inject, Service, untracked } from '@angular/core';
+import { afterNextRender, DestroyRef, ErrorHandler, inject, Injector, Service, untracked } from '@angular/core';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { LocalStorageService } from '@app/services/local-storage.service';
@@ -42,13 +42,13 @@ export class TelemetryService {
   // Lazy, not `inject(Router)`: eager here re-enters this ctor via the initial route's guards (NG0200).
   private readonly injector = inject(Injector);
 
-  private queue: TelemetryQueue = this.readQueue();
+  private readonly queue: TelemetryQueue = this.readQueue();
   private readonly sessionId = crypto.randomUUID();
   private persistTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private cycleTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private nextCycleAllowedAt = 0;
   private sending = false;
-  private routeStarts = new Map<number, number>();
+  private readonly routeStarts = new Map<number, number>();
   private readonly suppressedErrorCounts = new Map<string, number>();
   private readonly errorSignatureLastSentAt = new Map<string, number>();
 

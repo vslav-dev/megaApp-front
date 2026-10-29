@@ -173,7 +173,7 @@ export class FoodDiaryService extends BaseFoodService {
     }
   });
 
-  constructor() {
+  public constructor() {
     super();
     this.loadDeletedDaySnapshotFromLocalStorage();
     this.subscribe();

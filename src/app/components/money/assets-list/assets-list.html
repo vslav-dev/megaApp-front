@@ -1,24 +1,12 @@
 <div>
 
-  @if (openedPositionGroups$$().length === 0) {
-    <div class="mb-4">
-      <v-card [borderRadius]="2"
-              [padding]="4">
-        <div class="mb-4 text-lg font-semibold">Opened Positions</div>
-        <div class="opacity-70 py-4 text-sm">
-          No opened positions.
-        </div>
-      </v-card>
-    </div>
-  }
-
   @for (group of openedPositionGroups$$(); track group.accountId) {
     <div class="mb-4">
       <v-card [borderRadius]="2"
               [padding]="4">
         <div class="mb-4 text-lg font-semibold">{{ group.accountTitle }}</div>
 
-        @for (position of group.positions; track position.accountId + '-' + position.assetId) {
+        @for (position of group.positions; track `${position.accountId}-${position.assetId}`) {
           <div class="last:border-b-0 py-3 border-b border-[color:var(--v-outline-color)]">
             <div class="flex items-baseline min-w-0 gap-2 mb-1">
               <span class="font-semibold truncate">{{ position.assetTitle }}</span>
@@ -34,6 +22,16 @@
             </div>
           </div>
         }
+      </v-card>
+    </div>
+  } @empty {
+    <div class="mb-4">
+      <v-card [borderRadius]="2"
+              [padding]="4">
+        <div class="mb-4 text-lg font-semibold">Opened Positions</div>
+        <div class="opacity-70 py-4 text-sm">
+          No opened positions.
+        </div>
       </v-card>
     </div>
   }

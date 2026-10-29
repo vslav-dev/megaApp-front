@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -196,7 +195,6 @@ interface CardLiveSignals {
     MetricCardGrid,
     FitTextOnOverflowDirective,
   ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   protected readonly metricsService = inject(MetricsService);

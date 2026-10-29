@@ -39,7 +39,7 @@ export class SettingsService {
     this.darkTheme$$.set(value);
   }
 
-  async updateSetting<K extends keyof UserSettings>(key: K, value: UserSettings[K]): Promise<boolean> {
+  public async updateSetting<K extends keyof UserSettings>(key: K, value: UserSettings[K]): Promise<boolean> {
     if (!this.networkService.isNetworkAvailable$$()) {
       return false;
     }
@@ -72,7 +72,7 @@ export class SettingsService {
     }, ANIMATION_DURATION_MS.THEME);
   }
 
-  async saveSetting(setting: Partial<UserSettings>): Promise<boolean> {
+  public async saveSetting(setting: Partial<UserSettings>): Promise<boolean> {
     const key = Object.keys(setting)[0] as keyof UserSettings;
     const value = setting[key];
 

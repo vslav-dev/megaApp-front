@@ -14,12 +14,6 @@
       </v-button>
     </div>
 
-    @if (organizations$$().length === 0) {
-      <div class="opacity-70 py-8 text-center">
-        No organizations found.
-      </div>
-    }
-
     @for (organization of organizations$$(); track organization.id) {
       <div class="last:border-b-0 py-4 border-b border-[color:var(--v-outline-color)]">
         <div class="flex items-center justify-between gap-4">
@@ -56,6 +50,10 @@
             </v-button>
           </div>
         </div>
+      </div>
+    } @empty {
+      <div class="opacity-70 py-8 text-center">
+        No organizations found.
       </div>
     }
   </v-card>

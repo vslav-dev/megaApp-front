@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   ElementRef,
   computed,
@@ -58,7 +57,6 @@ interface GroupMeasurement {
   templateUrl: './transactions-list.html',
   styleUrl: './transactions-list.scss',
   imports: [DefaultModal, FormModal, TransactionForm, VButton, VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TransactionsList {
   protected readonly Icon = IconName;

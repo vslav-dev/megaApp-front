@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -40,7 +39,6 @@ import { VToggle } from '@ui-kit/components/v-toggle/v-toggle';
   templateUrl: './transaction-form.html',
   styleUrl: './transaction-form.scss',
   imports: [VButton, VCheckbox, VDateWheelInput, VDropdown, VIcon, VInput, VToggle],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TransactionForm {
   protected readonly Icon = IconName;

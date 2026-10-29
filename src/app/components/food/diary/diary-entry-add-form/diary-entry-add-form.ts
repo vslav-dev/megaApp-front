@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   computed,
   inject,
@@ -24,7 +23,6 @@ import { UiProgressIcon } from '@ui-kit/progress-icon/progress-icon.component';
 @Component({
   selector: 'diary-entry-add-form',
   templateUrl: './diary-entry-add-form.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormField, FormRoot, UiProgressIcon, VButton, VIcon, VInput, VRollingNumber],
 })
 export class DiaryEntryAddForm implements AfterViewInit, OnDestroy {

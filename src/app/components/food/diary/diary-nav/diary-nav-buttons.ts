@@ -1,6 +1,5 @@
 import { CommonModule } from '@angular/common';
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   ElementRef,
@@ -25,7 +24,6 @@ import { AccordionGroupService } from '@ui-kit/services/accordion-group.service'
   selector: 'diary-nav-buttons',
   templateUrl: './diary-nav-buttons.html',
   styleUrl: './diary-nav-buttons.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FitTextOnOverflowDirective, VButton, VIcon],
 })
 export class DiaryNavButtons {

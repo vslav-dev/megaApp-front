@@ -69,7 +69,7 @@ export class FoodProductHistoryStateService implements OnDestroy {
     }
   });
 
-  constructor() {
+  public constructor() {
     // A diary change (local, or an event from another device) can add or remove a tracked product's
     // entry: the chart's bar updates from the diary at once, so its tracked part has to follow.
     this.foodDiaryService.mutationApplied$.pipe(takeUntilDestroyed()).subscribe(() => {

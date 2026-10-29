@@ -23,7 +23,7 @@ export class SyncOperationFailure extends Error implements SyncOperationError {
   public readonly status: number;
   public readonly body: unknown;
 
-  constructor(error: SyncOperationError) {
+  public constructor(error: SyncOperationError) {
     super(`Sync operation failed with status ${error.status}`);
     this.name = 'SyncOperationFailure';
     this.status = error.status;

@@ -63,7 +63,8 @@
 
     @if (archivedAccounts$$().length > 0) {
       <div class="mt-2">
-        <button class="opacity-60 hover:opacity-90 flex items-center w-full gap-2 py-3 text-sm"
+        <button type="button"
+                class="opacity-60 hover:opacity-90 flex items-center w-full gap-2 py-3 text-sm"
                 (click)="toggleArchivedAccounts()">
           <v-icon [name]="showArchivedAccounts$$() ? Icon.KeyboardArrowUp : Icon.KeyboardArrowDown"
                   [size]="5"></v-icon>

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
+import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { MoneyService } from '@app/services/money.service';
 import { Account, AccountKind, Currency, Organization } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -10,7 +10,6 @@ import { VInput } from '@ui-kit/components/v-input/v-input';
   selector: 'account-form',
   templateUrl: './account-form.html',
   imports: [VButton, VDropdown, VCheckbox, VInput],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AccountForm {
   public readonly accountInput = input<Account | null>(null);
@@ -29,7 +28,7 @@ export class AccountForm {
   protected readonly kind$$ = signal<AccountKind | ''>('');
   protected readonly organizationId$$ = signal<string | null>(null);
 
-  constructor() {
+  public constructor() {
     effect(() => {
       const currentAccount = this.accountInput();
       if (currentAccount) {

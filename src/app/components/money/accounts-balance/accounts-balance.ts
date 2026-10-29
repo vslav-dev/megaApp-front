@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { MoneyService } from '@app/services/money.service';
 import { convertAmount, parseTransactionDetails } from '@app/shared/money-utils';
 import { groupNumberText } from '@app/shared/number-format';
@@ -10,7 +10,6 @@ import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
   selector: 'accounts-balance',
   templateUrl: './accounts-balance.html',
   imports: [VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AccountsBalance {
   // Edit this array to control the display order of accounts (by account ID).

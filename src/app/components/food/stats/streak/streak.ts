@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, Signal } from '@angular/core';
+import { Component, computed, inject, Signal } from '@angular/core';
 import { StatsHelpIcon } from '@app/components/food/stats/stats-help-icon/stats-help-icon';
 import { FoodStatsInsightsService, FoodStatsStreak } from '@app/services/food/food-stats-insights.service';
 import {
@@ -22,7 +22,6 @@ interface CalendarCell {
   selector: 'food-stats-streak',
   templateUrl: './streak.html',
   imports: [VCard, StatsHelpIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Streak {
   protected readonly BandLabel = FOOD_DAY_BAND_LABEL;

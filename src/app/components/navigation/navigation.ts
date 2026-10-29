@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -22,7 +21,6 @@ import { DarkSwitch } from '../settings/dark-switch/dark-switch';
   selector: 'navigation',
   templateUrl: './navigation.html',
   styleUrl: './navigation.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VButton, VIcon, DarkSwitch, MetricsHealthDot],
 })
 export class Navigation {

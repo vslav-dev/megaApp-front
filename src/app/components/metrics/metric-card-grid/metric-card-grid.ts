@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -74,7 +73,6 @@ const EMPTY_KEY_SET: ReadonlySet<string> = new Set();
     class: 'grid gap-3',
     '[style.grid-template-columns]': 'gridTemplateColumns$$()',
   },
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MetricCardGrid implements OnInit, OnDestroy {
   public readonly cardsInput = input.required<MetricChartCardData[]>();
