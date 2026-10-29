@@ -5,7 +5,7 @@ import { VModal } from '@ui-kit/components/v-modal/v-modal';
 @Component({
   selector: 'form-modal',
   templateUrl: './form-modal.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VModal],
 })
 export class FormModal {

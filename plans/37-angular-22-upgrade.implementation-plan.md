@@ -129,16 +129,16 @@
 
 ### Группа 2 — идиоматический синтаксис, низкий риск, точечно
 - ⭕ Заменить авто-`Eager` на осознанный `OnPush` во всех 43 компонентах (или наоборот — `Eager` там, где обоснованно, но по умолчанию — `OnPush`)
-- ⭕ Домигрировать `@Input()`/`@Output()`/`@ViewChild()`/`@HostListener()` (4 файла) на `input()`/`output()`/`viewChild()`/`host: {}` — готовые CLI-миграции
-- ⭕ Убрать избыточный явный `standalone: true` (4 файла)
-- ⭕ Заменить `ngClass`/`ngStyle` на `[class.]`/`[style.]` (по 2 файла)
+- ✅ Домигрировать `@Input()`/`@Output()`/`@ViewChild()`/`@HostListener()` (4 файла) на `input()`/`output()`/`viewChild()`/`host: {}` — готовые CLI-миграции
+- ✅ Убрать избыточный явный `standalone: true` (4 файла)
+- ✅ Заменить `ngClass`/`ngStyle` на `[class.]`/`[style.]` (по 2 файла)
 - ⭕ Точечно применить новый шаблонный синтаксис v22 (spread/rest в шаблонных выражениях, exhaustive `@switch` с `@default never`, инлайн-стрелочные обработчики событий) — там, где реально упрощает код, не ради самого факта
 
 ### Группа 3 — глубокое выравнивание с философией (основной объём рефакторинга)
 - ⭕ **Zoneless**: включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и из package.json, пройти по всем 60 `effect()` и 49 `subscribe()` и убедиться, что запись состояния всегда идёт через `signal.set()/update()`, а не через мутацию plain-полей; отдельно смоук-тест графиков (chart.js callbacks) и `v-dropdown`/`v-wheel-select` (используют `subscribe()`/`@HostListener` вне сигнального графа)
 - ⭕ **Signal Forms**: перевести все ~15 файлов на `@angular/forms/signals` (`form()` + schema-валидация), убрать `ReactiveFormsModule`/`FormsModule`/`ngModel`/`FormBuilder` — один способ работы с формами вместо двух
 - ✅ **Functional interceptor**: переписать `auth.interceptor.ts` на `HttpInterceptorFn`, заменить `withInterceptorsFromDi()` на `withInterceptors([...])` в `main.ts`, убрать `HTTP_INTERCEPTORS`-provider
-- ⭕ **`@Service()`**: перевести 32 файла с `@Injectable({ providedIn: 'root' })` на `@Service()` (механическая замена, можно скриптом-подсказкой + ручная проверка)
+- ✅ **`@Service()`**: перевести 32 файла с `@Injectable({ providedIn: 'root' })` на `@Service()` (механическая замена, можно скриптом-подсказкой + ручная проверка)
 - ⭕ **`resource()`/`httpResource()`**: поэтапно (не разом) перевести HTTP-ориентированные сервисы с ручного `subscribe()` — начать с самых простых read-only сценариев (`metrics-health.service`, `device-info.service`), затем сложные с ретраями/дебаунсом (`food-diary.service`, `food-catalogue.service`) в последнюю очередь
 - ⭕ **Angular Aria**: подключить для новых/пересматриваемых ui-kit компонентов, начиная с самых слабых по a11y — `v-dropdown` (menu/listbox pattern), `v-expand` (accordion pattern), `v-modal` (dialog pattern) — не переписывать всё сразу, встраивать по мере доработки каждого компонента
 
@@ -397,3 +397,59 @@
 2. Signal Forms — после контролов ui-kit
 3. Zoneless — последним, обкатка на метриках → деньги → еда
 4. Aria, `withXhr()` → Fetch, Группа 4 — по желанию
+
+## Блок 5, второй заход: ui-kit без legacy-синтаксиса (29.10.2026)
+
+Дополняет предыдущую секцию. В «Группа 2» и «Группа 3» отмечены ✅: `@Input`/`@Output`/`@ViewChild`/`@HostListener`, `standalone: true`, `ngClass`/`ngStyle`, `@Service()` — в `src` их больше нет. `Eager` → `OnPush` остаётся ⭕ (в `app` сделано, остались ui-kit и `shared/components`).
+
+### Сделано
+- ✅ `@HostListener` → `host: {}`: `v-modal` (`document:keydown.escape`), `v-wheel-select` (`document:pointerdown`, `document:keydown.escape`).
+- ✅ Конструкторная DI → `inject()` во всём ui-kit. Нашлось больше, чем в аудите: `v-dropdown`, `v-tooltip`, `v-wheel-select`, `backdrop.directive` (`@Optional`/`@Inject(PARENT_LAYER_ID)`), `v-input` (`@Optional() @Self() NgControl`), `flip-animate.directive` (ui-kit и `app/shared`), `progress-icon`. Опциональные токены — `inject(..., { optional: true })`; `v-tooltip` регистрирует слой в инициализаторе поля.
+- ✅ `v-dropdown`: `ngStyle` → `[style]` (4 места), убран `CommonModule`.
+- ✅ `standalone: true` убран в `v-accordion` и `flip-animate.directive` (ui-kit).
+- ✅ `@Service()` для `ZLayerService` и `AccordionGroupService` — в `src` не осталось `providedIn: 'root'`.
+
+### Осталось в Блоке 5
+- ⭕ `Eager` → `OnPush`: 21 компонент ui-kit + `default-modal`, `form-modal`, `toolbar-group`. Каждый требует проверки обычных полей, меняющихся без сигнала (как в Блоке 4).
+- ⭕ 4 контрола ui-kit на signal-интерфейс → Signal Forms → zoneless → Aria → `withXhr()` → Группа 4.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build --configuration dev` чисто; `grep` по `src` — ни `HostListener`, ни `standalone: true`, ни `ngStyle`, ни `providedIn: 'root'`, ни `@Optional`/`@Inject(`.
+- ✅ В Chrome (`localhost:4200`): деньги — клавиша N открывает форму (`v-modal`, backdrop), выпадающий список счёта (`v-dropdown`, стиль позиции) выбирается, Escape закрывает форму; колесо года в поле даты (`v-wheel-select`) открывается и закрывается кликом вне; еда — окно добавления записи, поиск «шаурма» перестраивает сетку (`flipAnimate`), тултип «?» над графиками (`v-tooltip`), секции дневника (`v-accordion`). Данные не сохранялись.
+- ⭕ Не проверено в браузере: `ui-progress-icon` (в формах записи еды, при пустом дне недоступен), консоль ошибок за время прогона (запись консоли начата только в конце, ошибок на тот момент нет).
+
+## Блок 5, третий заход: `OnPush` в простых компонентах ui-kit (29.10.2026)
+
+Продолжает пункт «Eager → OnPush» (⭕ в «Группе 2» и «Блоке 5» остаётся: часть компонентов ещё на `Eager`).
+
+### Сделано
+- ✅ `Eager` → `OnPush` на 10 компонентах: `v-button`, `v-card`, `v-chip`, `v-icon`, `v-progress`, `v-toggle`, `v-checkbox`, `v-toast`, `v-tooltip`, `ui-progress-icon`.
+- Перед заменой прочитаны классы и шаблоны. Обычных полей, меняющихся без сигнала, нет: все входы — `input()`/`model()`, состояние — `signal`, шаблоны читают только сигналы и методы поверх сигналов. Ripple в `v-button` рисуется через `Renderer2` мимо шаблона. У `ui-progress-icon` `computed` читает атрибут `pieStyle` у элемента без сигнальных зависимостей — считается один раз, как и раньше (атрибут статический).
+- Единственный риск для `v-toggle` — `items` как входной массив: проверено, во всех 6 местах использования это либо константа, либо `computed`/новый массив, на месте элементы не мутируются.
+
+### Осталось на `Eager` (13 файлов)
+- ⭕ Сложные ui-kit: `v-input`, `v-dropdown`, `v-date-wheel-input` (контролы форм, `ControlValueAccessor`/`NgControl` — смотреть вместе с Signal Forms), `v-wheel-input`, `v-wheel-select`, `v-modal`, `v-slider`, `v-rolling-number`, `v-expand` и `v-accordion`.
+- ⭕ `app/shared/components`: `default-modal`, `form-modal`, `toolbar-group`.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build --configuration dev` чисто.
+- ✅ В Chrome (`localhost:4200`): деньги — переключатель Monthly/Yearly на графике расходов (`v-toggle` + `v-button`), возврат в Monthly; метрики — переключатель M/H/D (смена и возврат на H), панель настроек, переключатель «Синхронное наведение» (`v-checkbox` в режиме switch, иконка меняется, возврат в «вкл»), кнопка «Принудительно обновить метрики» → тост «Metrics refreshed» (`v-toast`); еда — переключатель «По калориям»/«По весу» перестраивает список с полосками (`v-progress`), тултип «?» (`v-tooltip`, проверен ранее на новой сборке).
+- ⭕ Не проверено в браузере: `v-chip` (не встречается в шаблонах `app`), `ui-progress-icon` (в формах записи еды, при пустом дне недоступен), крестик закрытия в тосте, ошибок в консоли не поймано, но запись консоли стартует с первого вызова.
+
+## Блок 5, четвёртый заход: `OnPush` в остальных компонентах, кроме контролов форм (29.10.2026)
+
+Продолжает предыдущую секцию. Пункт «Eager → OnPush» (Группа 2, Блок 5) закрыт для всего, кроме четырёх компонентов — они ждут Signal Forms.
+
+### Сделано
+- ✅ `Eager` → `OnPush` на 9 компонентах: `v-modal`, `v-wheel-select`, `v-wheel-input`, `v-expand`, `v-accordion`, `v-rolling-number` (ui-kit) и `default-modal`, `form-modal`, `toolbar-group` (`app/shared/components`).
+- ✅ **`v-modal`: `zIndex` — обычное поле, не сигнал.** Его пишет `effect` при первом открытии, а читает host-биндинг `--v-modal-z-index`. Host-биндинги считаются в представлении родителя: при `OnPush` у родителя и без смены его входов значение могло остаться старым. Заменено на сигнал `zIndex$$`.
+- Остальные восемь прочитаны целиком: состояние только в сигналах, шаблоны читают сигналы и методы поверх них. `v-rolling-number` шаблон без биндингов, всё через `effect` и движок (`RollingNumberEngine`), `OnPush` ему не мешает. `v-accordion`/`v-expand` держат позиции и открытость в сигналах (`isOpen()` читает сигнальный сервис), так что `computed` остаётся реактивным.
+
+### Осталось на `Eager` (4 файла)
+- ⭕ `v-input`, `v-dropdown`, `v-date-wheel-input` — контролы форм (`NgControl`/`ControlValueAccessor`): значение живёт в `FormControl`, а не в сигнале, поэтому их `OnPush` делаем вместе с переводом на Signal Forms.
+- ⭕ `v-slider` (539 строк, состояние перетаскивания) — отдельный аудит.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build --configuration dev` чисто.
+- ✅ В Chrome (`localhost:4200`): деньги — форма транзакции (`form-modal` → `v-modal`: окно над затемнением, список счёта над окном, колесо года выбирает 2027 и значение попадает в поле даты, Escape закрывает), панель «Settings» (`v-expand`: раскрытие и сворачивание, шеврон), диалог удаления транзакции (`default-modal`, нажата «No», транзакция на месте); метрики — кнопка порога (`toolbar-group`: появляется поле «95%» и разделители, возврат выключен), значения в карточках отрисованы (`v-rolling-number`); еда — секция «Съедено…» раскрывается и сворачивается (`v-accordion` + `v-expand`).
+- ⭕ Не проверено в браузере: `v-modal` внутри другого `v-modal` (вложенные слои), мобильный вариант (`deviceType = mobile`), переключение слоя при быстром открытии/закрытии.

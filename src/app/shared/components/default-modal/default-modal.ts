@@ -6,7 +6,7 @@ import { VModal } from '@ui-kit/components/v-modal/v-modal';
 @Component({
   selector: 'default-modal',
   templateUrl: 'default-modal.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VButton, VModal],
 })
 export class DefaultModal {

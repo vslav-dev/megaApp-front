@@ -8,7 +8,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   selector: 'toolbar-group',
   templateUrl: './toolbar-group.html',
   styleUrl: './toolbar-group.css',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[class.active]': 'isActive()',
   },
