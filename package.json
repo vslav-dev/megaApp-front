@@ -1,9 +1,8 @@
 {
   "name": "megaapp-front",
-  "version": "2.5.6",
+  "version": "2.5.7",
   "scripts": {
     "ng": "ng",
-    "prebuild": "node generate-build-info.js",
     "start": "ng serve --configuration dev",
     "start-ngrok": "ng serve --configuration dev --disable-host-check",
     "serve:dev": "ng serve --configuration dev",

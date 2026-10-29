@@ -49,6 +49,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate build info
+        run: node generate-build-info.js
+
       - name: Build Angular app
         run: npm run build -- --configuration=${{ inputs.build-config }}
 

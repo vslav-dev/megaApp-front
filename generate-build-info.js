@@ -18,6 +18,8 @@ const getLatestGitCommitDateTime = () => {
   }
 };
 
+// Run by CI only (build-and-deploy.yml) — overwrites the "dev" placeholder committed in
+// src/assets/build-info.json, so local builds never touch a tracked file.
 const buildInfo = {
   commitHash: getLatestGitCommitHash(),
   commitDateTime: getLatestGitCommitDateTime(),
