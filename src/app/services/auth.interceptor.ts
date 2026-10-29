@@ -1,29 +1,24 @@
-import { HttpErrorResponse, HttpEvent, HttpHandler, HttpInterceptor, HttpRequest } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { inject } from '@angular/core';
 import { AuthService } from '@app/services/auth.service';
 import { NetworkService } from '@app/services/network.service';
-import { Observable, throwError } from 'rxjs';
+import { throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 const SESSION_ENDPOINT = '/api/auth/session';
 
-@Injectable()
-export class AuthInterceptor implements HttpInterceptor {
-  private readonly networkService = inject(NetworkService);
-  private readonly authService = inject(AuthService);
+export const authInterceptor: HttpInterceptorFn = (request, next) => {
+  const authService = inject(AuthService);
+  const preparedRequest = request.clone({
+    setHeaders: { 'X-Client-ID': inject(NetworkService).getClientId() },
+  });
 
-  public intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    const preparedRequest = request.clone({
-      setHeaders: { 'X-Client-ID': this.networkService.getClientId() },
-    });
-
-    return next.handle(preparedRequest).pipe(
-      catchError((error: unknown) => {
-        if (error instanceof HttpErrorResponse && error.status === 401 && !request.url.includes(SESSION_ENDPOINT)) {
-          this.authService.invalidateSession();
-        }
-        return throwError(() => error);
-      }),
-    );
-  }
-}
+  return next(preparedRequest).pipe(
+    catchError((error: unknown) => {
+      if (error instanceof HttpErrorResponse && error.status === 401 && !request.url.includes(SESSION_ENDPOINT)) {
+        authService.invalidateSession();
+      }
+      return throwError(() => error);
+    }),
+  );
+};

@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, Signal, signal } from '@angular/core';
+import { computed, inject, Service, Signal, signal } from '@angular/core';
 import {
   CHART_COLORS_DARK,
   CHART_COLORS_LIGHT,
@@ -14,9 +14,7 @@ import { SettingsService } from './settings.service';
 
 // Single place every Chart.js-based component reads its theme from — replaces the
 // darkTheme ternary that used to be duplicated independently in each chart component.
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class ChartThemeService {
   private readonly settingsService = inject(SettingsService);
 

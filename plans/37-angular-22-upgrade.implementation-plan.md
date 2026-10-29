@@ -137,7 +137,7 @@
 ### Группа 3 — глубокое выравнивание с философией (основной объём рефакторинга)
 - ⭕ **Zoneless**: включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и из package.json, пройти по всем 60 `effect()` и 49 `subscribe()` и убедиться, что запись состояния всегда идёт через `signal.set()/update()`, а не через мутацию plain-полей; отдельно смоук-тест графиков (chart.js callbacks) и `v-dropdown`/`v-wheel-select` (используют `subscribe()`/`@HostListener` вне сигнального графа)
 - ⭕ **Signal Forms**: перевести все ~15 файлов на `@angular/forms/signals` (`form()` + schema-валидация), убрать `ReactiveFormsModule`/`FormsModule`/`ngModel`/`FormBuilder` — один способ работы с формами вместо двух
-- ⭕ **Functional interceptor**: переписать `auth.interceptor.ts` на `HttpInterceptorFn`, заменить `withInterceptorsFromDi()` на `withInterceptors([...])` в `main.ts`, убрать `HTTP_INTERCEPTORS`-provider
+- ✅ **Functional interceptor**: переписать `auth.interceptor.ts` на `HttpInterceptorFn`, заменить `withInterceptorsFromDi()` на `withInterceptors([...])` в `main.ts`, убрать `HTTP_INTERCEPTORS`-provider
 - ⭕ **`@Service()`**: перевести 32 файла с `@Injectable({ providedIn: 'root' })` на `@Service()` (механическая замена, можно скриптом-подсказкой + ручная проверка)
 - ⭕ **`resource()`/`httpResource()`**: поэтапно (не разом) перевести HTTP-ориентированные сервисы с ручного `subscribe()` — начать с самых простых read-only сценариев (`metrics-health.service`, `device-info.service`), затем сложные с ретраями/дебаунсом (`food-diary.service`, `food-catalogue.service`) в последнюю очередь
 - ⭕ **Angular Aria**: подключить для новых/пересматриваемых ui-kit компонентов, начиная с самых слабых по a11y — `v-dropdown` (menu/listbox pattern), `v-expand` (accordion pattern), `v-modal` (dialog pattern) — не переписывать всё сразу, встраивать по мере доработки каждого компонента
@@ -184,7 +184,7 @@
 
 ### Инфраструктурные шаги — делать здесь первыми (полигон для всего проекта)
 - ✅ `ng update @angular/core@22 @angular/cli@22`, TypeScript → 6.x, прогнать авто-миграции (сделано 2026-09-17 для всего проекта, включая метрики — build/tsc/vitest чистые, ждём ручной прогон экранов)
-- ⭕ Переписать `auth.interceptor.ts` на `HttpInterceptorFn` + `withInterceptors()` в `main.ts` (задействовано всеми HTTP-запросами метрик)
+- ✅ Переписать `auth.interceptor.ts` на `HttpInterceptorFn` + `withInterceptors()` в `main.ts` (задействовано всеми HTTP-запросами метрик)
 - ⭕ Включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и package.json
 - Механизмы метрик, которые затрагивает zoneless (учесть при включении, Блок 5):
   - `ResizeObserver` в `metric-card-grid.ts`/`metric-chart-card.ts` (ресайз карточек/графиков)
@@ -287,8 +287,8 @@
 - ⭕ ui-kit: `Eager` → `OnPush` на 20 компонентах, `@HostListener` → `host: {}` (`v-modal`, `v-wheel-select`), `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`
 - ⭕ ui-kit: 4 контрола форм на signal-интерфейс контрола Signal Forms
 - ⭕ Signal Forms: перевод форм всех разделов, затем удаление `FormsModule`/`ReactiveFormsModule`
-- ⭕ Functional interceptor: `auth.interceptor.ts` → `HttpInterceptorFn` + `withInterceptors()`
-- ⭕ Общие сервисы на `@Service()` (`network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`)
+- ✅ Functional interceptor: `auth.interceptor.ts` → `HttpInterceptorFn` + `withInterceptors()`
+- ✅ Общие сервисы на `@Service()` (`network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`)
 - ⭕ Zoneless: `provideZonelessChangeDetection()`, убрать `zone.js` из polyfills и зависимостей, `provideCheckNoChangesConfig` в dev, точечные временные логи; обкатка на метриках, затем деньги, еда
 - ⭕ Решить `withXhr()` → Fetch
 - ⭕ Angular Aria для `v-dropdown`, `v-expand`, `v-modal` (после поднятия cdk)
@@ -345,3 +345,55 @@
 Чек-лист по нашим основным правилам создания чек-листов и туду-листов.
 
 - ✅ 1. Условие «есть результаты поиска» продублировано в шаблоне пикера
+
+## Блок 5, первый заход: interceptor и общие сервисы (29.10.2026)
+
+Дополняет «Блок 5 — Глобальный». Взят безопасный по объёму кусок: не требует ui-kit и не трогает change detection.
+
+### Сделано
+- ✅ `auth.interceptor.ts` → функциональный `authInterceptor` (`HttpInterceptorFn`); в `main.ts` `withInterceptors([authInterceptor])`, убраны `HTTP_INTERCEPTORS` и `withInterceptorsFromDi()`. `AuthService` теперь берётся через `inject()` на каждый запрос — к моменту запроса сервис всё равно создан, порядок создания прежний (см. комментарий про NG0200 в `telemetry.service`).
+- ✅ Общие сервисы на `@Service()`: `network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`, `device-info`. `TelemetryErrorHandler` остаётся `@Injectable()` — провайдится вручную в `main.ts`.
+- ✅ `NetworkService`: конструкторная инъекция `NotificationService` → `inject()`. Компилятор не принимает `@Service` с параметрами конструктора (NG2028), а `tsc --noEmit` этого не ловит — только `ng build`/`ng test`.
+- ✅ Убран `standalone: true` в `app/shared/directives/flip-animate.directive.ts`.
+- ✅ Новый `auth.interceptor.spec.ts` (4 теста): заголовок `X-Client-ID`, 401 → `invalidateSession`, 401 от `/api/auth/session` не инвалидирует, другие статусы не инвалидируют.
+
+### Остаётся в Блоке 5
+- ⭕ ui-kit (отдельный репозиторий): `z-layer` и `accordion-group` всё ещё `providedIn: 'root'` (в плане не были названы), `Eager` ×21 + 3 в `shared/components`, `@HostListener`, `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`.
+- ⭕ Signal Forms, zoneless, `withXhr()` → Fetch, Aria, формы еды, `subscribe` в еде.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build --configuration dev` чисто.
+- ✅ В Chrome (`localhost:4200`, залогиненная сессия): метрики (дашборд, графики рисуются), деньги (балансы, транзакции, три графика; клавиша N открывает форму транзакции — `KeyboardService` работает; форма закрыта без сохранения), еда (серия, график веса, топ продуктов). Запросы `/api/auth/session`, `/api/settings/*`, `/api/ingest/telemetry` — 200 после перехода на функциональный interceptor, ошибок в консоли нет.
+- ⚠️ `POST /api/metrics/history` на странице метрик вернул 502: бэкенд сам отвечает «Failed to load metrics history» (`megaapp-back/internal/metrics/http.go:72`), на ручные запросы без заголовка `X-Client-ID` и с ним отвечает одинаково (400). К interceptor отношения не имеет; графики показаны из локального кэша.
+- ⭕ Не проверено в браузере: реальный 401 (разлогин по сессии), камера, загрузка фото.
+
+## Актуальный статус плана (29.10.2026)
+
+Сводка по всему документу: что из старых пунктов закрыто, что осталось. В старых секциях ⭕ → ✅ переставлены только у полностью выполненных пунктов (functional interceptor — «Группа 3», «Блок 1», «Блок 5»; общие сервисы на `@Service()` — «Блок 5»). Пункты, выполненные частично, там остались ⭕: остаток описан ниже. Секция «Блок 5, первый заход» выше — детали этого захода, а не отдельный блок.
+
+### Закрыто
+- ✅ `ng update` 21→22.2.x, TS 6.0.3, `@angular/cdk` override удалён (Блок 0 + поправка про cdk)
+- ✅ Блоки 1–3 (Метрики, Деньги, Настройки/auth/навигация/уведомления) целиком
+- ✅ Блок 4 (Еда): `OnPush`, `input()`/`output()`/`viewChild()`, `@Service()`, `BaseFoodService` на `inject()`
+- ✅ Functional interceptor + `withInterceptors()`
+- ✅ `@Service()` во всех сервисах `app` (в `src/app` не осталось `providedIn: 'root'`)
+- ✅ Тесты на `@angular/build:unit-test` + Vitest, control flow на `@if`/`@for`/`@switch`, функциональные guards, 0 `NgModule`
+
+### Закрыто частично (старый ⭕ остаётся, пока не доделан остаток)
+- Группа 2, `Eager` → `OnPush` (стр. «Заменить авто-`Eager`»): в `app` сделано, остались 3 компонента в `shared/components` (`default-modal`, `form-modal`, `toolbar-group`) и 21 в `ui-kit`
+- Группа 2, декораторы `@HostListener` (`v-modal`, `v-wheel-select`), `standalone: true` (`v-accordion`, `flip-animate` в ui-kit), `ngStyle` (`v-dropdown`): в `app` всё убрано, остаток только в `ui-kit`
+- Группа 3, `@Service()` (32 файла): остались `z-layer` и `accordion-group` в `ui-kit`
+- Группа 3, `resource()`/`httpResource()`: решено по месту — чтение GET на `async`/`firstValueFrom`, мутации так же, `toSignal()` для потоков; `httpResource` отвергнут для истории метрик и снапшота денег. Открыт только `food-product-history-state`
+
+### Не начато
+- ⭕ Zoneless (`provideZonelessChangeDetection()`, убрать `zone.js`, `provideCheckNoChangesConfig`)
+- ⭕ Signal Forms (14 файлов с `FormsModule`/`ReactiveFormsModule`, 4 контрола ui-kit на signal-интерфейс)
+- ⭕ `withXhr()` → Fetch (решение не принято)
+- ⭕ Angular Aria (`v-dropdown`, `v-expand`, `v-modal`)
+- ⭕ Группа 4: selectorless, `injectAsync`, ESLint без конфига
+
+### Порядок на дальше
+1. ui-kit (отдельный репозиторий): `Eager` → `OnPush`, остаток legacy, `@Service()` для двух сервисов
+2. Signal Forms — после контролов ui-kit
+3. Zoneless — последним, обкатка на метриках → деньги → еда
+4. Aria, `withXhr()` → Fetch, Группа 4 — по желанию

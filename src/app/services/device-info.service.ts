@@ -1,4 +1,4 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, Service, signal } from '@angular/core';
 import { fromEvent } from 'rxjs';
 import { distinctUntilChanged, map, startWith } from 'rxjs/operators';
 
@@ -14,9 +14,7 @@ const SCREEN_MOBILE_BREAKPOINT_PX = 768;
 const KEYBOARD_DETECTION_HEIGHT_THRESHOLD_PX = 150;
 const KEYBOARD_CLOSE_DEBOUNCE_MS = 150; // don't show buttons between food diary selections
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class DeviceInfoService {
   private readonly viewportIsMobile$$ = signal(false);
 

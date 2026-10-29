@@ -1,5 +1,5 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { inject, Service } from '@angular/core';
 import {
   BACKGROUND_SYNC_RETRIES_MAX,
   BACKGROUND_SYNC_TIMEOUT_MS,
@@ -107,9 +107,7 @@ interface PersistedOperation {
 const DEFAULT_PENDING_MESSAGE = 'Сохраняю...';
 const PENDING_OPERATION_STORAGE_KEY = 'sync_pending_operation';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class SyncEngineService {
   private readonly queue: QueuedOperation[] = [];
   private isProcessing = false;

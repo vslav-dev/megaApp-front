@@ -13,7 +13,6 @@ interface AnimationOptions {
 
 @Directive({
   selector: '[flipAnimate]',
-  standalone: true,
 })
 export class FlipAnimateDirective implements OnInit, OnDestroy {
   readonly flipAnimateDuration = input(200);

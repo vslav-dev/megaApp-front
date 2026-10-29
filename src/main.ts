@@ -1,10 +1,10 @@
-import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http';
+import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { ErrorHandler, inject, provideZoneChangeDetection } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { NavigationError, provideRouter, withNavigationErrorHandler } from '@angular/router';
 import { routes } from '@app/app-routes';
 import { MainAppComponent } from '@app/app.component';
-import { AuthInterceptor } from '@app/services/auth.interceptor';
+import { authInterceptor } from '@app/services/auth.interceptor';
 import { NotificationService } from '@app/services/notification.service';
 import { TelemetryErrorHandler, TelemetryService } from '@app/services/telemetry.service';
 import { purgeStaleCacheVersions } from '@app/shared/cache';
@@ -31,9 +31,8 @@ function handleNavigationError(error: NavigationError): void {
 bootstrapApplication(MainAppComponent, {
   providers: [
     provideZoneChangeDetection(),
-    provideHttpClient(withXhr(), withInterceptorsFromDi()),
+    provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
     provideRouter(routes, withNavigationErrorHandler(handleNavigationError)),
-    { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
     { provide: ErrorHandler, useClass: TelemetryErrorHandler },
   ],
 }).catch((err) => console.error(err));

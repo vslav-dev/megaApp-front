@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { afterNextRender, ErrorHandler, Injectable, Injector, inject, untracked } from '@angular/core';
+import { afterNextRender, ErrorHandler, Injectable, Injector, inject, Service, untracked } from '@angular/core';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { LocalStorageService } from '@app/services/local-storage.service';
@@ -34,7 +34,7 @@ const REQUEST_OVERHEAD_BYTES = 64;
 const FALLBACK_STREAM = 'misc';
 const STREAM_PATTERN = /^[a-z0-9._-]{1,64}$/;
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class TelemetryService {
   private readonly http = inject(HttpClient);
   private readonly deviceInfoService = inject(DeviceInfoService);
@@ -57,7 +57,7 @@ export class TelemetryService {
     window.addEventListener('pagehide', this.flushOnUnload);
     window.addEventListener('unhandledrejection', this.onUnhandledRejection);
 
-    // Deferred: enqueue/maybeStartCycle can send synchronously, and AuthInterceptor -> AuthService is not safe to construct this early (NG0200).
+    // Deferred: enqueue/maybeStartCycle can send synchronously, and authInterceptor -> AuthService is not safe to construct this early (NG0200).
     afterNextRender(() => {
       this.router.events.subscribe((event) => this.handleRouterEvent(event));
       this.observeBrowserPerformance();

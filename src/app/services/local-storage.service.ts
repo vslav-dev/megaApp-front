@@ -1,9 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Service } from '@angular/core';
 import { buildCacheKey, hasCacheUser } from '@app/shared/cache';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class LocalStorageService {
   public getUserScoped<T>(baseKey: string): T | null {
     if (!hasCacheUser()) return null;
