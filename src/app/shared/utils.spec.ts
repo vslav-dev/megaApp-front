@@ -1,5 +1,4 @@
 import {
-  calcDateWithUserTimeShift,
   dateToIsoNoTimeNoTZ,
   divideNumberWithWhitespaces,
   epochToIsoNoTimeNoTZ,
@@ -68,15 +67,6 @@ describe('epochToIsoNoTimeNoTZ', () => {
   it('formats an epoch timestamp using local date parts', () => {
     const date = new Date(2026, 2, 3);
     expect(epochToIsoNoTimeNoTZ(date.getTime())).toBe('2026-03-03');
-  });
-});
-
-describe('calcDateWithUserTimeShift', () => {
-  it('shifts the date backward by USER_PREFERRED_MIDNIGHT_OFFSET_HOURS hours', () => {
-    const input = new Date(2026, 7, 19, 2, 0, 0);
-    const shifted = calcDateWithUserTimeShift(input);
-    expect(shifted.getTime()).toBeLessThan(input.getTime());
-    expect(input.getHours()).toBe(2);
   });
 });
 

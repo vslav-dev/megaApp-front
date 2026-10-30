@@ -2,6 +2,7 @@ import { Component, computed, inject, Signal } from '@angular/core';
 import { StatsHelpIcon } from '@app/components/food/stats/stats-help-icon/stats-help-icon';
 import { FoodScreenModeService } from '@app/services/food/food-screen-mode.service';
 import { FoodStatsInsightsService, FoodStatsStreak } from '@app/services/food/food-stats-insights.service';
+import { foodTodayIso } from '@app/shared/food-day';
 import {
   FOOD_DAY_BAND_COLOR_VAR,
   FOOD_DAY_BAND_LABEL,
@@ -9,12 +10,7 @@ import {
   FOOD_DAY_BAND_TEXT_COLOR_VAR,
   FoodDayBand,
 } from '@app/shared/food-day-band';
-import {
-  calculateTodayIsoWithUserTimeShift,
-  formatDateTicks,
-  getRuDeclension,
-  parseIsoParts,
-} from '@app/shared/utils';
+import { formatDateTicks, getRuDeclension, parseIsoParts } from '@app/shared/utils';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 
 interface CalendarCell {
@@ -48,7 +44,7 @@ export class Streak {
   // making full weeks (rows of 7) read as actual calendar weeks.
   protected readonly calendarCells$$: Signal<(CalendarCell | null)[]> = computed(() => {
     const completedDays = this.insightsService.ribbon30$$();
-    const todayIso = calculateTodayIsoWithUserTimeShift();
+    const todayIso = foodTodayIso();
     const cells: CalendarCell[] = [
       ...completedDays.map((day) => ({ dateIso: day.dateIso, band: day.band, isToday: false, hasNoData: day.hasNoData })),
       { dateIso: todayIso, band: null, isToday: true, hasNoData: false },

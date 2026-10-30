@@ -1,5 +1,3 @@
-import { USER_PREFERRED_MIDNIGHT_OFFSET_HOURS } from '@app/shared/const';
-
 // Reads an element whose index is valid by construction (binary search, computed indices): a bad index is a bug, not data.
 export function itemAt<T>(items: readonly T[], index: number): T {
   const item = items[index];
@@ -12,12 +10,6 @@ export function parseIsoParts(iso: string): [year: number, month: number, day: n
   const [year, month, day = 1] = iso.split('-').map(Number);
   if (year === undefined || month === undefined) throw new Error(`Malformed ISO date: ${iso}`);
   return [year, month, day];
-}
-
-export function calculateTodayIsoWithUserTimeShift(): string {
-  const todayDate = calcDateWithUserTimeShift(new Date());
-  const todayIso = dateToIsoNoTimeNoTZ(todayDate);
-  return todayIso;
 }
 
 export function dateToIsoNoTimeNoTZ(date: Date): string {
@@ -35,12 +27,6 @@ export function epochToIsoNoTimeNoTZ(tsMs: number): string {
 //   return date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2);
 // }
 
-
-export function calcDateWithUserTimeShift(date: Date): Date {
-  const adjustedDate = new Date(date.getTime());
-  adjustedDate.setHours(adjustedDate.getHours() - USER_PREFERRED_MIDNIGHT_OFFSET_HOURS);
-  return adjustedDate;
-}
 
 // All-UTC date arithmetic — deliberately avoids new Date(dateISO) for parsing (that reads a
 // date-only string as UTC midnight, which shifts by a day once read back through local getters for

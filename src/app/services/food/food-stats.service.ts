@@ -10,7 +10,8 @@ import {
 } from '@app/shared/stats-chart-data';
 import { FoodStatsResponse, FoodStatsSummary, FoodStatsTopProduct, Stats, StatsChartData } from '@app/shared/types';
 import { firstValueFrom } from 'rxjs';
-import { calculateTodayIsoWithUserTimeShift, formatDateTicks, isoDaysBefore } from '../../shared/utils';
+import { foodTodayIso } from '@app/shared/food-day';
+import { formatDateTicks, isoDaysBefore } from '../../shared/utils';
 import { TelemetryService } from '../telemetry.service';
 import { BaseFoodService } from './food-base.service';
 import { FoodDiaryService } from './food-diary.service';
@@ -196,7 +197,7 @@ export class FoodStatsService extends BaseFoodService {
   // Anchored to the same user-shifted "today" as the diary, so the night hours before the day
   // cutoff still belong to the previous day here too.
   private liveWindowDates(): string[] {
-    const todayIso = calculateTodayIsoWithUserTimeShift();
+    const todayIso = foodTodayIso();
     return Array.from({ length: LIVE_WINDOW_DAYS }, (_, offset) => isoDaysBefore(todayIso, offset));
   }
 

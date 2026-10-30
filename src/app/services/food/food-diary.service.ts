@@ -26,7 +26,8 @@ import {
   UnifiedDiary,
   WebSocketMessageType,
 } from '@app/shared/types';
-import { calculateTodayIsoWithUserTimeShift, dateToIsoNoTimeNoTZ } from '@app/shared/utils';
+import { foodTodayIso } from '@app/shared/food-day';
+import { dateToIsoNoTimeNoTZ } from '@app/shared/utils';
 import { firstValueFrom, Subject } from 'rxjs';
 import { NotificationService } from '../notification.service';
 import { SyncOperationMode, SyncOperationType } from '../sync-engine.service';
@@ -65,7 +66,7 @@ export class FoodDiaryService extends BaseFoodService {
     ),
   );
 
-  public readonly selectedDayIso$$: WritableSignal<string> = signal(calculateTodayIsoWithUserTimeShift());
+  public readonly selectedDayIso$$: WritableSignal<string> = signal(foodTodayIso());
   public readonly selectedDayDeletedSnapshot$$: Signal<DeletedDiaryDaySnapshot | null> = computed(() => {
     const snapshot = this.deletedDaySnapshot$$();
     const selectedDay = this.selectedDayIso$$();
@@ -182,7 +183,7 @@ export class FoodDiaryService extends BaseFoodService {
   public reset(): void {
     this.diaryRaw$$.set({});
     this.deletedDaySnapshot$$.set(null);
-    this.selectedDayIso$$.set(calculateTodayIsoWithUserTimeShift());
+    this.selectedDayIso$$.set(foodTodayIso());
     this.diaryEntryFocusId$$.set(null);
     this.diaryEntryResetId$$.set(null);
     this.draftEntryWeight$$.set(null);
@@ -233,7 +234,7 @@ export class FoodDiaryService extends BaseFoodService {
 
   public async getFoodDiaryFullUpdateRange(dateIso?: string, offset?: number): Promise<Diary> {
     const startedAt = performance.now();
-    const date = dateIso ?? calculateTodayIsoWithUserTimeShift();
+    const date = dateIso ?? foodTodayIso();
     const paramsStr = `date=${date}&offset=${offset ?? this.FIRST_SEGMENT_OFFSET_DAYS}`;
 
     const response = await firstValueFrom(this.http.get<Diary>(`/api/food/diary-full-update?${paramsStr}`));
@@ -1073,7 +1074,7 @@ export class FoodDiaryService extends BaseFoodService {
   // ensureDiarySegmentEffect$$), so calling this never double-fetches even if that effect already
   // kicked off the same first segment moments earlier.
   public ensureTodaySegmentLoaded(): Promise<void> {
-    return this.ensureSegmentCoverage(calculateTodayIsoWithUserTimeShift());
+    return this.ensureSegmentCoverage(foodTodayIso());
   }
 
   // First segment of the session is small (the common case), every subsequent one is large (see

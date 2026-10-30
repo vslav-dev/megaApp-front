@@ -5,7 +5,6 @@ import {
   ElementRef,
   inject,
   Signal,
-  signal,
   viewChild,
 } from '@angular/core';
 import { FOOD_DIARY_ACCORDION_GROUP_ID } from '@app/components/food/diary/food-diary-accordion';
@@ -15,12 +14,8 @@ import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodAddModalService } from '@app/services/food/food-add-modal.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { FitTextOnOverflowDirective } from '@app/shared/directives/fit-text-on-overflow.directive';
-import {
-  calcDateWithUserTimeShift,
-  calculateTodayIsoWithUserTimeShift,
-  dateToIsoNoTimeNoTZ,
-  parseIsoParts,
-} from '@app/shared/utils';
+import { foodTodayIso } from '@app/shared/food-day';
+import { dateToIsoNoTimeNoTZ, parseIsoParts } from '@app/shared/utils';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { AccordionGroupService } from '@ui-kit/services/accordion-group.service';
@@ -36,7 +31,7 @@ export class DiaryNavButtons {
 
   protected readonly dateInputElem = viewChild<ElementRef<HTMLInputElement>>('dateInputElem');
 
-  protected readonly maxDateIso$$ = signal(dateToIsoNoTimeNoTZ(calcDateWithUserTimeShift(new Date())));
+  protected readonly maxDateIso = foodTodayIso();
 
   protected readonly weekdayFull$$: Signal<string> = computed(() =>
     this.formatWeekday(this.foodDiaryService.selectedDayIso$$(), 'long'),
@@ -51,12 +46,12 @@ export class DiaryNavButtons {
   );
 
   protected readonly isTodaySelected$$: Signal<boolean> = computed(() => {
-    return this.foodDiaryService.selectedDayIso$$() === calculateTodayIsoWithUserTimeShift();
+    return this.foodDiaryService.selectedDayIso$$() === foodTodayIso();
   });
 
   // Undo arrow points left (back to today from the future); mirrored when today lies ahead.
   protected readonly isPastDaySelected$$: Signal<boolean> = computed(() => {
-    return this.foodDiaryService.selectedDayIso$$() < calculateTodayIsoWithUserTimeShift();
+    return this.foodDiaryService.selectedDayIso$$() < foodTodayIso();
   });
 
   protected readonly primaryActionIcon$$: Signal<IconName> = computed(() => {
@@ -95,7 +90,7 @@ export class DiaryNavButtons {
     const result = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 
     const year = dateIso.slice(0, 4);
-    const currentYear = calculateTodayIsoWithUserTimeShift().slice(0, 4);
+    const currentYear = foodTodayIso().slice(0, 4);
     return year === currentYear ? result : `${result} ${year}`;
   }
 
@@ -109,7 +104,6 @@ export class DiaryNavButtons {
 
   protected onDateControlClick(): void {
     if (this.isTodaySelected$$()) {
-      this.refreshTodayReference();
       this.openNativeDatePicker(this.dateInputElem()?.nativeElement);
       return;
     }
@@ -126,15 +120,7 @@ export class DiaryNavButtons {
   }
 
   protected goToToday(): void {
-    const todayDate = this.refreshTodayReference();
-    const todayIso = dateToIsoNoTimeNoTZ(todayDate);
-    this.foodDiaryService.selectedDayIso$$.set(todayIso);
-  }
-
-  private refreshTodayReference(): Date {
-    const todayDate = calcDateWithUserTimeShift(new Date());
-    this.maxDateIso$$.set(dateToIsoNoTimeNoTZ(todayDate));
-    return todayDate;
+    this.foodDiaryService.selectedDayIso$$.set(foodTodayIso());
   }
 
   private switchCurrentDay(dayShift: number): void {

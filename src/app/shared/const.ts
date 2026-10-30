@@ -2,8 +2,6 @@ import { UserSettings } from './types';
 
 export const FETCH_DAYS_RANGE_OFFSET: number = 10; // TODO: create settings item out of this constant
 
-export const USER_PREFERRED_MIDNIGHT_OFFSET_HOURS: number = 4;
-
 export const DEFAULT_INPUT_FIELD_PROGRESS_TIMER: number = 2000;
 
 export const DEFAULT_REQUEST_STATUS_FADE_OUT_TIMER: number = 3000;

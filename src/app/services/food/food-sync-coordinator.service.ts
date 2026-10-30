@@ -4,13 +4,13 @@ import { AuthService, AuthSessionState } from '@app/services/auth.service';
 import { LocalStorageService } from '@app/services/local-storage.service';
 import { NetworkService } from '@app/services/network.service';
 import { TelemetryService } from '@app/services/telemetry.service';
+import { foodTodayIso } from '@app/shared/food-day';
 import {
   CatalogueVersionResponse,
   IncomingWsMessage,
   UserDataLastModifiedTs,
   WebSocketMessageType,
 } from '@app/shared/types';
-import { calculateTodayIsoWithUserTimeShift } from '@app/shared/utils';
 import { firstValueFrom } from 'rxjs';
 import { FoodCatalogueService } from './food-catalogue.service';
 import { FoodDiaryService } from './food-diary.service';
@@ -73,7 +73,7 @@ export class FoodSyncCoordinatorService {
       this.foodStatsService.getStats(),
     ]);
 
-    if (!this.getCheckpoint()) this.setCheckpoint(calculateTodayIsoWithUserTimeShift());
+    if (!this.getCheckpoint()) this.setCheckpoint(foodTodayIso());
     this.lastSyncTs = Date.now();
 
     void this.telemetry.recordAfterPaint('food.initial_load', startedAt, {
@@ -100,7 +100,7 @@ export class FoodSyncCoordinatorService {
     const checkpoint = this.getCheckpoint();
     if (!checkpoint) return; // bootstrap hasn't run yet — loadInitialFoodData() owns that case
 
-    const today = calculateTodayIsoWithUserTimeShift();
+    const today = foodTodayIso();
     if (checkpoint >= today) {
       this.lastSyncTs = Date.now();
       return;

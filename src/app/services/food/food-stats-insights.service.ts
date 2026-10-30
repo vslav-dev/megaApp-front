@@ -1,8 +1,8 @@
 import { computed, inject, Service, Signal } from '@angular/core';
 import { FoodStatsService } from '@app/services/food/food-stats.service';
+import { foodTodayIso } from '@app/shared/food-day';
 import { FoodDayBand, isFoodStreakSuccessBand, resolveFoodDayBand } from '@app/shared/food-day-band';
 import { FoodStatsSummary, FoodStatsTopProduct } from '@app/shared/types';
-import { calculateTodayIsoWithUserTimeShift } from '@app/shared/utils';
 
 export interface FoodStatsRibbonDay {
   dateIso: string;
@@ -63,7 +63,7 @@ export class FoodStatsInsightsService {
   // verdict. Filtered by date, not by position: the backend's own "today" is the UTC date, which
   // can be a day ahead of or behind the user's.
   private readonly completedDays$$: Signal<DayPoint[]> = computed(() => {
-    const todayIso = calculateTodayIsoWithUserTimeShift();
+    const todayIso = foodTodayIso();
     return this.allDays$$().filter((day) => day.dateIso < todayIso);
   });
 
