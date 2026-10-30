@@ -49,6 +49,10 @@ export class FoodAddModalService {
 
   public readonly selectedProduct$$: WritableSignal<CatalogueEntry | null> = signal(null);
 
+  // The query of the search results the selected product was picked from; it lives and dies with the
+  // selection, and stays when the product is edited. Null for a product made in the modal.
+  public readonly selectedProductQuery$$: WritableSignal<string | null> = signal(null);
+
   // Set by callers that want to reuse this same search modal for something other than the default
   // "select a product → add a diary entry" flow (e.g. product-history's "track this product" picker).
   // When set, FoodSearch routes the picked product here instead of transitioning to ADD_DIARY_ENTRY.
@@ -127,6 +131,7 @@ export class FoodAddModalService {
           from === ModalState.EDIT_PRODUCT
         ) {
           this.selectedProduct$$.set(null);
+          this.selectedProductQuery$$.set(null);
         }
         break;
 
@@ -139,6 +144,7 @@ export class FoodAddModalService {
       case ModalState.CLOSED:
         this.searchQuery$$.set('');
         this.selectedProduct$$.set(null);
+        this.selectedProductQuery$$.set(null);
         this.productSelectionCallback$$.set(null);
         break;
     }
@@ -161,7 +167,8 @@ export class FoodAddModalService {
     this.transition(ModalEvent.CLOSE);
   }
 
-  public selectProduct(product: CatalogueEntry): void {
+  public selectProduct(product: CatalogueEntry, query: string | null): void {
+    this.selectedProductQuery$$.set(query);
     this.transition(ModalEvent.SELECT_PRODUCT, product);
   }
 

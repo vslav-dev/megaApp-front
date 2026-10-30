@@ -22,6 +22,9 @@ import { FlipAnimateDirective } from '@ui-kit/directives/flip-animate.directive'
 export interface ProductPickerSelection {
   product: CatalogueEntry;
   weight: number | null;
+  // The query of the results the product was picked from (null in the legacy search); the server learns
+  // from it which product is picked for which query.
+  query: string | null;
 }
 
 // Presentational catalogue search: type text, get a live results grid, pick a product. No
@@ -111,7 +114,8 @@ export class FoodProductPicker {
   }
 
   protected selectProduct(product: CatalogueEntry): void {
-    this.productSelected.emit({ product, weight: this.extractedWeight$$() });
+    const query = this.foodCatalogueService.pickProduct(product);
+    this.productSelected.emit({ product, weight: this.extractedWeight$$(), query });
   }
 
   protected requestCreateNewProduct(): void {

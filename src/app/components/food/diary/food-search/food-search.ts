@@ -35,7 +35,7 @@ export class FoodSearch {
   });
 
   protected async onProductSelected(selection: ProductPickerSelection): Promise<void> {
-    const { product, weight } = selection;
+    const { product, weight, query } = selection;
 
     const selectionCallback = this.foodAddModalService.productSelectionCallback$$();
     if (selectionCallback) {
@@ -46,9 +46,9 @@ export class FoodSearch {
 
     // An archived product can't get a diary entry: it opens the add form (with the button disabled).
     if (weight !== null && weight > 0 && !product.archived) {
-      await this.createDiaryEntryWithWeight(product, weight);
+      await this.createDiaryEntryWithWeight(product, weight, query);
     } else {
-      this.foodAddModalService.selectProduct(product);
+      this.foodAddModalService.selectProduct(product, query);
     }
   }
 
@@ -60,7 +60,11 @@ export class FoodSearch {
     this.foodAddModalService.closeModal();
   }
 
-  private async createDiaryEntryWithWeight(product: CatalogueEntry, weight: number): Promise<void> {
+  private async createDiaryEntryWithWeight(
+    product: CatalogueEntry,
+    weight: number,
+    query: string | null,
+  ): Promise<void> {
     const entry: DiaryEntry = {
       id: 0,
       dateISO: this.foodDiaryService.selectedDayIso$$(),
@@ -71,16 +75,16 @@ export class FoodSearch {
     };
 
     try {
-      const response = await this.foodDiaryService.createDiaryEntry(entry);
+      const response = await this.foodDiaryService.createDiaryEntry(entry, query);
 
       if (response?.result && response.diaryId) {
         this.foodAddModalService.submitSuccess();
       } else {
-        this.foodAddModalService.selectProduct(product);
+        this.foodAddModalService.selectProduct(product, query);
       }
     } catch (error) {
       console.error('Failed to create diary entry:', error);
-      this.foodAddModalService.selectProduct(product);
+      this.foodAddModalService.selectProduct(product, query);
     }
   }
 }

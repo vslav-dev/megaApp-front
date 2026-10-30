@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { SearchScope } from '@app/shared/types';
-import { FoodAddModalService } from './food-add-modal.service';
+import { CatalogueEntry, SearchScope } from '@app/shared/types';
+import { FoodAddModalService, ModalState } from './food-add-modal.service';
 import { FoodCatalogueService } from './food-catalogue.service';
 
 function setup() {
@@ -36,6 +36,47 @@ describe('FoodAddModalService search scope', () => {
     service.openModal();
 
     expect(setSearchScope).toHaveBeenLastCalledWith(SearchScope.Active);
+  });
+
+  it('keeps the query of the picked product while the product is edited, and drops it with the selection', () => {
+    const { service } = setup();
+    const product = { id: 1, name: 'Леденцы' } as CatalogueEntry;
+
+    service.openModal();
+    service.selectProduct(product, 'конфеты');
+    expect(service.selectedProductQuery$$()).toBe('конфеты');
+
+    service.editProduct(product);
+    service.submitSuccess();
+    expect(service.currentState$$()).toBe(ModalState.ADD_DIARY_ENTRY);
+    expect(service.selectedProductQuery$$()).toBe('конфеты');
+
+    service.goBackToSearch();
+    expect(service.selectedProductQuery$$()).toBeNull();
+  });
+
+  it('forgets the query when the modal closes', () => {
+    const { service } = setup();
+
+    service.openModal();
+    service.selectProduct({ id: 1, name: 'Леденцы' } as CatalogueEntry, 'конфеты');
+    service.closeModal();
+
+    expect(service.selectedProductQuery$$()).toBeNull();
+  });
+
+  it('does not give a product made in the modal the query of an earlier pick', () => {
+    const { service } = setup();
+    const made = { id: 2, name: 'Новый' } as CatalogueEntry;
+
+    service.openModal();
+    service.selectProduct({ id: 1, name: 'Леденцы' } as CatalogueEntry, 'конфеты');
+    service.goBackToSearch();
+    service.addProduct();
+    service.transition('SUBMIT_SUCCESS', made);
+
+    expect(service.selectedProduct$$()).toBe(made);
+    expect(service.selectedProductQuery$$()).toBeNull();
   });
 
   it('keeps the scope when the modal goes between its own states', () => {

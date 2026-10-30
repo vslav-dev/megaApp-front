@@ -42,6 +42,7 @@ function setup(cachedSearches: Record<string, number[]> | null = null) {
   const sendMessage = vi.fn();
   const setUserScoped = vi.fn();
   const getUserScoped = vi.fn((key: string) => (key === SEARCH_CACHE_KEY ? cachedSearches : null));
+  const record = vi.fn();
 
   TestBed.configureTestingModule({
     providers: [
@@ -51,7 +52,7 @@ function setup(cachedSearches: Record<string, number[]> | null = null) {
       { provide: SyncEngineService, useValue: { addOperation: vi.fn() } },
       { provide: LocalStorageService, useValue: { getUserScoped, setUserScoped } },
       { provide: AuthService, useValue: { sessionState$$: signal(AuthSessionState.Authenticated) } },
-      { provide: TelemetryService, useValue: { record: vi.fn(), recordAfterPaint: vi.fn(() => Promise.resolve()) } },
+      { provide: TelemetryService, useValue: { record, recordAfterPaint: vi.fn(() => Promise.resolve()) } },
     ],
   });
 
@@ -71,7 +72,7 @@ function setup(cachedSearches: Record<string, number[]> | null = null) {
   const ids = () => service.searchResults$$().map((item) => item.id);
   const waitForSend = () => vi.advanceTimersByTime(FOOD_SEARCH_SEND_DEBOUNCE_MS);
 
-  return { service, wsMessages$, connected$, sendMessage, reply, searchCacheWrites, ids, waitForSend };
+  return { service, wsMessages$, connected$, sendMessage, reply, searchCacheWrites, ids, waitForSend, record };
 }
 
 describe('FoodCatalogueService search scope', () => {
@@ -377,6 +378,89 @@ describe('FoodCatalogueService search send debounce', () => {
     waitForSend();
 
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('FoodCatalogueService picking a product from the results', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns the query of the results from the server and records where the product stood', () => {
+    const { service, reply, record, waitForSend } = setup();
+    service.searchProducts('яблоко');
+    waitForSend();
+    reply({ catalogueIds: [2, 1], sequenceNumber: 1 });
+
+    const query = service.pickProduct(entry(1, 'Яблоко'));
+
+    expect(query).toBe('яблоко');
+    expect(record).toHaveBeenCalledWith('food.catalogue_pick', expect.any(Number), {
+      position: 2,
+      results: 2,
+      queryLength: 6,
+    });
+  });
+
+  it('returns the query of the cached results shown at once', () => {
+    const { service } = setup({ яблоко: [1, 2] });
+
+    service.searchProducts('яблоко');
+
+    expect(service.pickProduct(entry(1, 'Яблоко'))).toBe('яблоко');
+  });
+
+  it('returns the query of the results on screen while the results of the typed text are on their way', () => {
+    const { service, reply, waitForSend } = setup({ яблок: [1, 2] });
+
+    service.searchProducts('яблок');
+    service.searchProducts('яблоко');
+    waitForSend();
+    expect(service.pickProduct(entry(1, 'Яблоко'))).toBe('яблок');
+
+    reply({ catalogueIds: [1, 2], sequenceNumber: 2 });
+    expect(service.pickProduct(entry(1, 'Яблоко'))).toBe('яблоко');
+  });
+
+  it('returns the query as the server saw it, with the keyboard layout fixed', () => {
+    const { service, reply, waitForSend } = setup();
+
+    service.searchProducts('ztkjrj');
+    waitForSend();
+    reply({ query: 'яблоко', catalogueIds: [1], sequenceNumber: 1 });
+
+    expect(service.pickProduct(entry(1, 'Яблоко'))).toBe('яблоко');
+  });
+
+  it('returns nothing and records nothing in the legacy search', () => {
+    const { service, record } = setup();
+    service.toggleLegacySearch();
+
+    service.legacySearchProducts('яблоко');
+
+    expect(service.pickProduct(entry(1, 'Яблоко'))).toBeNull();
+    expect(record).not.toHaveBeenCalledWith('food.catalogue_pick', expect.anything(), expect.anything());
+  });
+
+  it('returns nothing when no results are on screen', () => {
+    const { service, reply, waitForSend } = setup();
+    expect(service.pickProduct(entry(1, 'Яблоко'))).toBeNull();
+
+    service.searchProducts('яблоко');
+    waitForSend();
+    reply({ catalogueIds: [1], sequenceNumber: 1 });
+    service.clearSearch();
+    expect(service.pickProduct(entry(1, 'Яблоко'))).toBeNull();
+
+    service.searchProducts('яблоко');
+    waitForSend();
+    reply({ catalogueIds: [1], sequenceNumber: 1 });
+    service.setSearchScope(SearchScope.All);
+    expect(service.pickProduct(entry(1, 'Яблоко'))).toBeNull();
   });
 });
 

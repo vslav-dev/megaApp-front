@@ -103,7 +103,10 @@ export class DiaryEntryAddForm implements AfterViewInit, OnDestroy {
       history: [{ action: HistoryEntryAction.INIT, value: foodWeight }],
     };
 
-    const response = await this.foodDiaryService.createDiaryEntry(entry);
+    const response = await this.foodDiaryService.createDiaryEntry(
+      entry,
+      this.foodAddModalService.selectedProductQuery$$(),
+    );
     this.foodDiaryService.clearDraftEntryWeight(null);
 
     if (response?.result && response.diaryId) {

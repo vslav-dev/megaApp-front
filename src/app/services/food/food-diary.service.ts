@@ -249,7 +249,13 @@ export class FoodDiaryService extends BaseFoodService {
     return response;
   }
 
-  public async createDiaryEntry(diaryEntry: DiaryEntry): Promise<{ result: boolean; diaryId: number }> {
+  // searchQuery is the query of the search results the product was picked from. It goes to the server next to the
+  // entry, not inside it: the server learns from it which product is picked for which query, and the entry
+  // that is stored and merged locally has no use for it.
+  public async createDiaryEntry(
+    diaryEntry: DiaryEntry,
+    searchQuery: string | null,
+  ): Promise<{ result: boolean; diaryId: number }> {
     if (!this.checkNetworkAvailability()) {
       console.error('Network not available for creating diary entry');
       this.notificationService.addNotification('error', 'Нет соединения — запись не сохранена');
@@ -287,7 +293,7 @@ export class FoodDiaryService extends BaseFoodService {
       mode: SyncOperationMode.Optimistic,
       type: SyncOperationType.CREATE,
       endpoint: '/api/food/diary/',
-      data: diaryEntry,
+      data: searchQuery ? { ...diaryEntry, searchQuery } : diaryEntry,
       successCallback: successCallback,
       rollbackCallback: rollbackFunction,
       feedback: {

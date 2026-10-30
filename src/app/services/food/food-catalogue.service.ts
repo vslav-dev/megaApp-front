@@ -59,6 +59,10 @@ export class FoodCatalogueService extends BaseFoodService {
   private searchCache: Record<string, number[]> = {};
   private searchSequenceNumber: number = 0;
   private lastDisplayedSequenceNumber: number = 0;
+  // The query the results on screen belong to, and when they appeared. It trails the typed text for the
+  // moment between a keystroke and its results, and a click in that moment picks from the list on screen.
+  private displayedQuery: string | null = null;
+  private displayedAt: number = 0;
   private searchStartedAt: number | null = null;
   private searchSendTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -101,6 +105,7 @@ export class FoodCatalogueService extends BaseFoodService {
     this.searchCache = {};
     this.searchSequenceNumber = 0;
     this.lastDisplayedSequenceNumber = 0;
+    this.displayedQuery = null;
     this.searchStartedAt = null;
     this.cancelScheduledSearchQuery();
     this.resetImageGenerating();
@@ -172,6 +177,7 @@ export class FoodCatalogueService extends BaseFoodService {
     if (this.scope$$() === scope) return;
     this.scope$$.set(scope);
     this.searchResults$$.set([]);
+    this.displayedQuery = null;
   }
 
   // The query is retyped to the Russian layout here, once, so the local cache, the server, its caches and the
@@ -183,6 +189,7 @@ export class FoodCatalogueService extends BaseFoodService {
     if (!query.trim()) {
       this.cancelScheduledSearchQuery();
       this.searchResults$$.set([]);
+      this.displayedQuery = null;
       this.searchSequenceNumber = 0;
       this.lastDisplayedSequenceNumber = 0;
       return;
@@ -193,7 +200,7 @@ export class FoodCatalogueService extends BaseFoodService {
 
     const cachedIds = this.isScopeCached(this.scope$$()) ? this.getSearchCachedResults(query) : null;
     if (cachedIds) {
-      this.displaySearchResults(cachedIds);
+      this.displaySearchResults(cachedIds, query);
       this.lastDisplayedSequenceNumber = this.searchSequenceNumber;
       this.telemetry.record('food.catalogue_search', performance.now() - this.searchStartedAt, {
         source: 'cache',
@@ -346,7 +353,7 @@ export class FoodCatalogueService extends BaseFoodService {
       // The last displayed number is the query on screen; its own reply (equal number) refines what the local
       // cache showed, while a reply to an earlier query (smaller number) is dropped.
       if (replyScope === this.scope$$() && sequenceFromMessage >= this.lastDisplayedSequenceNumber) {
-        this.displaySearchResults(results);
+        this.displaySearchResults(results, queryFromMessage);
         this.lastDisplayedSequenceNumber = sequenceFromMessage;
       }
     }
@@ -417,8 +424,10 @@ export class FoodCatalogueService extends BaseFoodService {
     }
   }
 
-  private displaySearchResults(ids: number[]): void {
+  private displaySearchResults(ids: number[], query: string): void {
     const catalogue = this.catalogue$$();
+    this.displayedQuery = query;
+    this.displayedAt = performance.now();
 
     if (!ids || !Array.isArray(ids) || !catalogue) {
       this.searchResults$$.set([]);
@@ -479,8 +488,25 @@ export class FoodCatalogueService extends BaseFoodService {
     this.searchQuery$$.set('');
     this.searchResults$$.set([]);
     this.legacySearchResults$$.set([]);
+    this.displayedQuery = null;
     this.searchSequenceNumber = 0;
     this.lastDisplayedSequenceNumber = 0;
+  }
+
+  // Called when the user picks a product from the results. Returns the query the results on screen belong
+  // to, which the server learns from when the picked product is added to the diary: the same text the
+  // server searched, so it is not rebuilt from the input. Null in the legacy search (its text is about old
+  // names, not the server's ranking) and when no results are on screen.
+  public pickProduct(product: CatalogueEntry): string | null {
+    if (this.isLegacySearch$$() || this.displayedQuery === null) return null;
+
+    const position = this.searchResults$$().findIndex((item) => item.id === product.id) + 1;
+    this.telemetry.record('food.catalogue_pick', performance.now() - this.displayedAt, {
+      position,
+      results: this.searchResults$$().length,
+      queryLength: this.displayedQuery.length,
+    });
+    return this.displayedQuery;
   }
 
   public async generateProductPreview(description: string): Promise<ProductPreviewData> {
