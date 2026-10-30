@@ -30,7 +30,7 @@ type ModalEvent = (typeof ModalEvent)[keyof typeof ModalEvent];
 interface ModalContext {
   from: ModalState;
   to: ModalState;
-  payload?: any;
+  payload?: CatalogueEntry | undefined;
 }
 
 type StateTransitionMap = {
@@ -89,7 +89,7 @@ export class FoodAddModalService {
     },
   };
 
-  public transition(event: ModalEvent, payload?: any): void {
+  public transition(event: ModalEvent, payload?: CatalogueEntry): void {
     const currentState = this.currentState$$();
     const nextState = this.stateTransitions[currentState]?.[event];
 

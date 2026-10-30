@@ -7,8 +7,34 @@ import {
   getRuDeclension,
   isDeepEqual,
   isoDaysBefore,
+  itemAt,
+  parseIsoParts,
   splitNumber,
 } from './utils';
+
+describe('itemAt', () => {
+  it('returns the element at a valid index', () => {
+    expect(itemAt(['a', 'b'], 1)).toBe('b');
+  });
+
+  it('throws on an index outside the array', () => {
+    expect(() => itemAt(['a'], 1)).toThrow('Index 1 is out of range (length 1)');
+  });
+});
+
+describe('parseIsoParts', () => {
+  it('splits a full date into numbers', () => {
+    expect(parseIsoParts('2026-08-19')).toEqual([2026, 8, 19]);
+  });
+
+  it('defaults the day to 1 for a year-month key', () => {
+    expect(parseIsoParts('2026-08')).toEqual([2026, 8, 1]);
+  });
+
+  it('throws on a malformed key', () => {
+    expect(() => parseIsoParts('2026')).toThrow('Malformed ISO date: 2026');
+  });
+});
 
 describe('isoDaysBefore', () => {
   it('subtracts days within the same month', () => {

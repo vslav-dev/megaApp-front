@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -196,7 +195,6 @@ interface CardLiveSignals {
     MetricCardGrid,
     FitTextOnOverflowDirective,
   ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   protected readonly metricsService = inject(MetricsService);
@@ -711,7 +709,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
     if (!headerElement) return;
     this.stickyHeaderHeightPx$$.set(headerElement.offsetHeight);
     this.stickyHeaderResizeObserver = new ResizeObserver(([entry]) => {
-      this.stickyHeaderHeightPx$$.set(entry.borderBoxSize?.[0]?.blockSize ?? headerElement.offsetHeight);
+      this.stickyHeaderHeightPx$$.set(entry?.borderBoxSize?.[0]?.blockSize ?? headerElement.offsetHeight);
     });
     this.stickyHeaderResizeObserver.observe(headerElement);
   }
@@ -895,7 +893,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   }
 
   protected saveSettings(): void {
-    this.metricsSettingsService.saveNow();
+    void this.metricsSettingsService.saveNow();
   }
 
   protected clearMetricsCache(): void {

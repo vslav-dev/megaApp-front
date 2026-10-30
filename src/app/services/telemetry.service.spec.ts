@@ -1,4 +1,4 @@
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
@@ -27,7 +27,7 @@ function setup(savedQueue: unknown = null) {
 
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(withXhr()),
+      provideHttpClient(),
       provideHttpClientTesting(),
       { provide: Router, useValue: routerFake },
       { provide: DeviceInfoService, useValue: deviceInfoFake },
@@ -62,7 +62,7 @@ describe('TelemetryService — batching window', () => {
     const request = httpMock.expectOne(EVENTS_URL);
     const body = request.request.body as RequestBody;
     expect(body.events).toHaveLength(1);
-    expect(body.events[0].data.operation).toBe('app.route_ready');
+    expect(body.events[0]?.data.operation).toBe('app.route_ready');
     request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
@@ -202,9 +202,32 @@ describe('TelemetryService — error rate limiting', () => {
     await vi.advanceTimersByTimeAsync(BATCH_WINDOW_MS);
     const request = httpMock.expectOne(EVENTS_URL);
     const body = request.request.body as RequestBody;
-    expect(body.events[0].data.attributes?.['suppressedRepeats']).toBe(1);
+    expect(body.events[0]?.data.attributes?.['suppressedRepeats']).toBe(1);
     request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
+  });
+});
+
+describe('TelemetryService — global error listeners', () => {
+  // Without a zone, errors thrown in timers and rejected promises reach only the window, so the service listens there itself.
+  function expectRecorded(event: Event, operation: string): void {
+    const { httpMock } = setup();
+
+    window.dispatchEvent(event);
+
+    const request = httpMock.expectOne(EVENTS_URL);
+    expect((request.request.body as RequestBody).events[0]?.data.operation).toBe(operation);
+    request.flush(ANSWER_STORED_ALL);
+    httpMock.verify();
+  }
+
+  it('records an uncaught window error as error.window', () => {
+    expectRecorded(new ErrorEvent('error', { error: new Error('timer boom'), message: 'timer boom' }), 'error.window');
+  });
+
+  it('records an unhandled promise rejection as error.unhandled_rejection', () => {
+    const rejection = Object.assign(new Event('unhandledrejection'), { reason: new Error('lost promise') });
+    expectRecorded(rejection, 'error.unhandled_rejection');
   });
 });
 
@@ -223,6 +246,7 @@ describe('TelemetryService — the intake envelope', () => {
     const request = httpMock.expectOne(EVENTS_URL);
     const body = request.request.body as RequestBody;
     const [event] = body.events;
+    if (!event) throw new Error('Expected one telemetry event');
     expect(event.id).toMatch(/:1$/);
     expect(event.stream).toBe('money');
     expect(event.at).toBe(1_790_000_000_000);
@@ -250,7 +274,7 @@ describe('TelemetryService — the intake envelope', () => {
     service.record(operation, 1);
 
     const request = httpMock.expectOne(EVENTS_URL);
-    expect((request.request.body as RequestBody).events[0].stream).toBe(stream);
+    expect((request.request.body as RequestBody).events[0]?.stream).toBe(stream);
     request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
   });
@@ -320,7 +344,7 @@ describe('TelemetryService — the intake envelope', () => {
       .map((text) => JSON.parse(text) as RequestBody)
       .filter((body) => body.events.some((event) => event.data.operation === 'app.beacon_probe'));
     expect(mine).toHaveLength(1);
-    expect(mine[0].events[0]).toMatchObject({ stream: 'app', data: { operation: 'app.beacon_probe' } });
+    expect(mine[0]?.events[0]).toMatchObject({ stream: 'app', data: { operation: 'app.beacon_probe' } });
 
     httpMock.expectOne(EVENTS_URL).flush(ANSWER_STORED_ALL);
     delete (navigator as { sendBeacon?: unknown }).sendBeacon;
@@ -330,8 +354,8 @@ describe('TelemetryService — the intake envelope', () => {
 function readBlob(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read the blob'));
     reader.readAsText(blob);
   });
 }

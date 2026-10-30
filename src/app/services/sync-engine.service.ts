@@ -1,5 +1,5 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { inject, Service } from '@angular/core';
 import {
   BACKGROUND_SYNC_RETRIES_MAX,
   BACKGROUND_SYNC_TIMEOUT_MS,
@@ -16,6 +16,27 @@ import { TelemetryService } from './telemetry.service';
 export interface SyncOperationError {
   status: number; // 0 for network failure/timeout/anything not carrying a real HTTP status
   body: unknown; // parsed response body, if any (e.g. { result: false, error: '...' })
+}
+
+// What a promise-based caller is rejected with: a real Error (stack, instanceof) carrying the same status and body.
+export class SyncOperationFailure extends Error implements SyncOperationError {
+  public readonly status: number;
+  public readonly body: unknown;
+
+  public constructor(error: SyncOperationError) {
+    super(`Sync operation failed with status ${error.status}`);
+    this.name = 'SyncOperationFailure';
+    this.status = error.status;
+    this.body = error.body;
+  }
+}
+
+// The server's `error` text of a failed sync operation, or null when the failure carries none.
+export function syncFailureReason(error: unknown): string | null {
+  if (!(error instanceof SyncOperationFailure)) return null;
+  const body = error.body;
+  if (typeof body !== 'object' || body === null || !('error' in body)) return null;
+  return typeof body.error === 'string' ? body.error : null;
 }
 
 function normalizeSyncError(error: unknown): SyncOperationError {
@@ -67,29 +88,33 @@ export interface SyncOperationFeedback {
 interface SyncOperationRequest {
   type: SyncOperationType;
   endpoint: string;
-  data: any;
-  feedback?: SyncOperationFeedback;
+  data: object;
+  feedback?: SyncOperationFeedback | undefined;
 }
 
-export interface OptimisticSyncOperation extends SyncOperationRequest {
+// TResponse is the shape the caller expects the server to answer with; it is inferred from the
+// callback's parameter type. The response is untyped JSON, so the engine asserts it once, in addOperation.
+export interface OptimisticSyncOperation<TResponse = unknown> extends SyncOperationRequest {
   mode: typeof SyncOperationMode.Optimistic;
-  successCallback?: (response: any) => void;
+  successCallback?: (response: TResponse) => void;
   rollbackCallback?: (error: SyncOperationError) => void;
 }
 
-export interface NonOptimisticSyncOperation extends SyncOperationRequest {
+export interface NonOptimisticSyncOperation<TResponse = unknown> extends SyncOperationRequest {
   mode: typeof SyncOperationMode.NonOptimistic;
-  applyCallback?: (response: any) => void;
+  applyCallback?: (response: TResponse) => void;
   errorCallback?: (error: SyncOperationError) => void;
 }
 
-export type SyncOperationInput = OptimisticSyncOperation | NonOptimisticSyncOperation;
+export type SyncOperationInput<TResponse = unknown> =
+  | OptimisticSyncOperation<TResponse>
+  | NonOptimisticSyncOperation<TResponse>;
 
 interface QueuedOperation extends SyncOperationRequest {
   operationId: string;
   retryCount: number;
-  onSuccess?: (response: any) => void;
-  onFailure?: (error: SyncOperationError) => void;
+  onSuccess?: ((response: unknown) => void) | undefined;
+  onFailure?: ((error: SyncOperationError) => void) | undefined;
   pendingTimeoutId?: ReturnType<typeof setTimeout> | null;
   pendingNotificationId?: string | null;
 }
@@ -100,16 +125,14 @@ interface QueuedOperation extends SyncOperationRequest {
 interface PersistedOperation {
   type: SyncOperationType;
   endpoint: string;
-  data: any;
+  data: object;
   operationId: string;
 }
 
 const DEFAULT_PENDING_MESSAGE = 'Сохраняю...';
 const PENDING_OPERATION_STORAGE_KEY = 'sync_pending_operation';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class SyncEngineService {
   private readonly queue: QueuedOperation[] = [];
   private isProcessing = false;
@@ -129,11 +152,12 @@ export class SyncEngineService {
     this.clearPersistedOperation();
   }
 
-  public addOperation(operation: SyncOperationInput): void {
-    const { onSuccess, onFailure } =
+  public addOperation<TResponse>(operation: SyncOperationInput<TResponse>): void {
+    const { successCallback, onFailure } =
       operation.mode === SyncOperationMode.Optimistic
-        ? { onSuccess: operation.successCallback, onFailure: operation.rollbackCallback }
-        : { onSuccess: operation.applyCallback, onFailure: operation.errorCallback };
+        ? { successCallback: operation.successCallback, onFailure: operation.rollbackCallback }
+        : { successCallback: operation.applyCallback, onFailure: operation.errorCallback };
+    const onSuccess = successCallback && ((response: unknown) => successCallback(response as TResponse));
 
     const queuedOperation: QueuedOperation = {
       type: operation.type,
@@ -183,7 +207,7 @@ export class SyncEngineService {
 
   private enqueue(operation: QueuedOperation): void {
     this.queue.push(operation);
-    this.processQueue();
+    void this.processQueue();
   }
 
   private async processQueue(): Promise<void> {

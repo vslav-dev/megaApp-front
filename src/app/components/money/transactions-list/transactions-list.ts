@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   ElementRef,
   computed,
@@ -18,7 +17,7 @@ import { DefaultModal } from '@app/shared/components/default-modal/default-modal
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
 import { sumDayTotals } from '@app/shared/day-totals';
 import { SeriesChart, filterByEnabledSeries } from '@app/shared/money-series';
-import { areArraysShallowEqual, convertAmount } from '@app/shared/money-utils';
+import { areArraysShallowEqual, convertAmount, parseTransactionDetails } from '@app/shared/money-utils';
 import { groupNumberText } from '@app/shared/number-format';
 import {
   AccountKind,
@@ -58,7 +57,6 @@ interface GroupMeasurement {
   templateUrl: './transactions-list.html',
   styleUrl: './transactions-list.scss',
   imports: [DefaultModal, FormModal, TransactionForm, VButton, VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TransactionsList {
   protected readonly Icon = IconName;
@@ -165,8 +163,8 @@ export class TransactionsList {
 
   protected readonly totalScrollHeight$$ = computed(() => {
     const measurements = this.groupMeasurements$$();
-    if (!measurements.length) return 0;
-    const last = measurements[measurements.length - 1];
+    const last = measurements.at(-1);
+    if (!last) return 0;
     return last.startY + last.height;
   });
 
@@ -201,15 +199,14 @@ export class TransactionsList {
   });
 
   protected readonly paddingTop$$ = computed(() => {
-    const visible = this.visibleMeasurements$$();
-    return visible.length ? visible[0].startY : 0;
+    return this.visibleMeasurements$$()[0]?.startY ?? 0;
   });
 
   protected readonly paddingBottom$$ = computed(() => {
     const visible = this.visibleMeasurements$$();
     const total = this.totalScrollHeight$$();
-    if (!visible.length) return total;
-    const last = visible[visible.length - 1];
+    const last = visible.at(-1);
+    if (!last) return total;
     return total - (last.startY + last.height);
   });
 
@@ -311,7 +308,7 @@ export class TransactionsList {
   protected getInvestSharesLine(transaction: Transaction): string | null {
     if (!this.isInvestKind(transaction.kind)) return null;
 
-    const details = this.parseDetails(transaction.detailsJSON);
+    const details = parseTransactionDetails(transaction.detailsJSON);
     const assetId = this.toPositiveNumber(details?.assetId);
     if (assetId == null) return null;
 
@@ -398,24 +395,6 @@ export class TransactionsList {
   private getAssetTicker(assetId: number): string {
     const asset = this.assets$$().find((item: Asset) => item.id === assetId);
     return asset?.ticker ?? `asset #${assetId}`;
-  }
-
-  private parseDetails(detailsJSON: any): any {
-    if (!detailsJSON) return null;
-
-    if (typeof detailsJSON === 'object') {
-      return detailsJSON;
-    }
-
-    if (typeof detailsJSON === 'string') {
-      try {
-        return JSON.parse(detailsJSON);
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
   }
 
   private toPositiveNumber(value: unknown): number | null {

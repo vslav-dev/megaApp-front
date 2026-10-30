@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -11,19 +10,11 @@ import {
   viewChild,
   WritableSignal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import {
-  AbstractControl,
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  ValidationErrors,
-  ValidatorFn,
-} from '@angular/forms';
+import { form, FormField, FormRoot, validate } from '@angular/forms/signals';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
-import { evaluateWholeAmount } from '@app/shared/amount-expression';
+import { evaluateWholeAmount, isEmptyOrPositiveWholeAmount } from '@app/shared/amount-expression';
 import { DiaryEntry, HistoryEntry, HistoryEntryAction } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VExpand } from '@ui-kit/components/v-expand/v-expand';
@@ -35,10 +26,7 @@ import { UiProgressIcon } from '@ui-kit/progress-icon/progress-icon.component';
 import { DiaryEntryProductInfo } from '../diary-entry-product-info/diary-entry-product-info';
 import { NutritionSummary } from '../nutrition-summary/nutrition-summary';
 
-interface DiaryEntryFormModel {
-  foodWeightNew: FormControl<string | null>;
-  foodWeightChange: FormControl<string | null>;
-}
+const EMPTY_WEIGHTS = { foodWeightNew: '', foodWeightChange: '' };
 
 @Component({
   selector: 'diary-entry-edit-form',
@@ -46,9 +34,9 @@ interface DiaryEntryFormModel {
   host: {
     style: 'display: flex; flex-direction: column;',
   },
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    ReactiveFormsModule,
+    FormField,
+    FormRoot,
     UiProgressIcon,
     VButton,
     VIcon,
@@ -73,6 +61,7 @@ export class DiaryEntryEditForm implements OnDestroy {
   protected readonly historyPanelElem = viewChild.required<VExpand>('historyPanelElem');
 
   protected readonly isDeleteConfirmOpen$$ = signal(false);
+  protected readonly isDeleting$$ = signal(false);
   protected readonly disablePanelsAnimationTemporarily$$ = signal(false);
   private historyAction: HistoryEntryAction = HistoryEntryAction.SET;
 
@@ -115,46 +104,32 @@ export class DiaryEntryEditForm implements OnDestroy {
     );
   });
 
+  private readonly weights$$ = signal({ ...EMPTY_WEIGHTS });
+
   // Both inputs take a number or an expression like "80*2" (see evaluateWholeAmount); empty is valid.
-  private newWeightValidator(): ValidatorFn {
-    return (control: AbstractControl<string | null>): ValidationErrors | null => {
-      if (!control.value) return null;
+  protected readonly diaryEntryForm = form(
+    this.weights$$,
+    (path) => {
+      validate(path.foodWeightNew, ({ value }) =>
+        isEmptyOrPositiveWholeAmount(value()) ? undefined : { kind: 'weightExpression' },
+      );
+      validate(path.foodWeightChange, ({ value }) => {
+        if (!value()) return undefined;
 
-      const newWeight = evaluateWholeAmount(control.value);
-      return newWeight !== null && newWeight > 0 ? null : { weightExpression: true };
-    };
-  }
+        const changeValue = evaluateWholeAmount(value());
+        if (changeValue === null) return { kind: 'weightExpression' };
 
-  private changeWeightValidator(): ValidatorFn {
-    return (control: AbstractControl<string | null>): ValidationErrors | null => {
-      if (!control.value) return null;
+        return this.foodWeightInitial$$() + changeValue > 0 ? undefined : { kind: 'negativeResult' };
+      });
+    },
+    { submission: { action: () => this.onSubmit() } },
+  );
 
-      const changeValue = evaluateWholeAmount(control.value);
-      if (changeValue === null) return { weightExpression: true };
+  // The template shows the reset buttons and the "г." suffix while an input has text.
+  protected readonly hasNewWeight$$ = computed(() => this.diaryEntryForm.foodWeightNew().value() !== '');
+  protected readonly hasChangeWeight$$ = computed(() => this.diaryEntryForm.foodWeightChange().value() !== '');
 
-      return this.foodWeightInitial$$() + changeValue > 0 ? null : { negativeResult: true };
-    };
-  }
-
-  protected readonly diaryEntryForm = new FormGroup<DiaryEntryFormModel>({
-    foodWeightNew: new FormControl<string | null>(null, [this.newWeightValidator()]),
-    foodWeightChange: new FormControl<string | null>(null, [this.changeWeightValidator()]),
-  });
-
-  protected get foodWeightNewControl() {
-    return this.diaryEntryForm.controls.foodWeightNew;
-  }
-  protected get foodWeightChangeControl() {
-    return this.diaryEntryForm.controls.foodWeightChange;
-  }
-
-  // Control values are not signals; the template shows the reset buttons and the "г." suffix by them.
-  protected readonly foodWeightNewValue$$ = toSignal(this.foodWeightNewControl.valueChanges, { initialValue: null });
-  protected readonly foodWeightChangeValue$$ = toSignal(this.foodWeightChangeControl.valueChanges, {
-    initialValue: null,
-  });
-
-  private inputFocusEffect$$ = effect(() => {
+  private readonly inputFocusEffect$$ = effect(() => {
     const focusId = this.foodDiaryService.diaryEntryFocusId$$();
     if (focusId === this.diaryEntryId$$()) {
       setTimeout(() => {
@@ -163,7 +138,7 @@ export class DiaryEntryEditForm implements OnDestroy {
     }
   });
 
-  private formResetEffect$$ = effect(() => {
+  private readonly formResetEffect$$ = effect(() => {
     const resetId = this.foodDiaryService.diaryEntryResetId$$();
     setTimeout(() => {
       if (resetId === this.diaryEntryId$$()) {
@@ -186,10 +161,10 @@ export class DiaryEntryEditForm implements OnDestroy {
   }
 
   protected isFormValid(): boolean {
-    if (!this.diaryEntryForm.valid) return false;
+    if (this.diaryEntryForm().invalid() || this.diaryEntryForm().submitting() || this.isDeleting$$()) return false;
 
-    const nextWeightIfNew = evaluateWholeAmount(this.foodWeightNewControl.value);
-    const nextWeightIfChange = evaluateWholeAmount(this.foodWeightChangeControl.value);
+    const nextWeightIfNew = evaluateWholeAmount(this.diaryEntryForm.foodWeightNew().value());
+    const nextWeightIfChange = evaluateWholeAmount(this.diaryEntryForm.foodWeightChange().value());
 
     const hasValidChange =
       (nextWeightIfNew !== null && this.foodWeightInitial$$() !== nextWeightIfNew) ||
@@ -199,36 +174,37 @@ export class DiaryEntryEditForm implements OnDestroy {
   }
 
   protected onNewWeightInput() {
-    this.foodWeightChangeControl.setValue(null);
+    this.diaryEntryForm.foodWeightChange().value.set('');
     this.foodWeightDraftChange$$.set(null);
 
-    const newWeight = evaluateWholeAmount(this.foodWeightNewControl.value);
+    const newWeight = evaluateWholeAmount(this.diaryEntryForm.foodWeightNew().value());
     this.foodWeightDraftNew$$.set(newWeight !== null && newWeight > 0 ? newWeight : null);
     this.syncDraftWithService();
   }
 
   protected onWeightNewResetClick(): void {
-    this.foodWeightNewControl.setValue(null);
+    this.diaryEntryForm.foodWeightNew().value.set('');
     this.foodWeightDraftNew$$.set(null);
     this.syncDraftWithService();
   }
 
   protected onChangeWeightInput() {
-    this.diaryEntryForm.controls.foodWeightNew.setValue(null);
+    this.diaryEntryForm.foodWeightNew().value.set('');
     this.foodWeightDraftNew$$.set(null);
-    this.foodWeightDraftChange$$.set(evaluateWholeAmount(this.foodWeightChangeControl.value));
+    this.foodWeightDraftChange$$.set(evaluateWholeAmount(this.diaryEntryForm.foodWeightChange().value()));
     this.syncDraftWithService();
   }
 
   protected onWeightChangeResetClick(): void {
-    this.foodWeightChangeControl.setValue(null);
+    this.diaryEntryForm.foodWeightChange().value.set('');
     this.foodWeightDraftChange$$.set(null);
     this.syncDraftWithService();
   }
 
-  public async onSubmit(): Promise<void> {
-    const weightIfChange = evaluateWholeAmount(this.foodWeightChangeControl.value);
-    const weightIfSet = evaluateWholeAmount(this.foodWeightNewControl.value);
+  // The form's submission action.
+  private async onSubmit(): Promise<void> {
+    const weightIfChange = evaluateWholeAmount(this.diaryEntryForm.foodWeightChange().value());
+    const weightIfSet = evaluateWholeAmount(this.diaryEntryForm.foodWeightNew().value());
 
     const foodWeight = weightIfChange ?? (weightIfSet !== null ? weightIfSet - this.foodWeightInitial$$() : 0);
 
@@ -241,7 +217,6 @@ export class DiaryEntryEditForm implements OnDestroy {
     }
 
     const history: HistoryEntry = { action: this.historyAction, value: historyValue };
-    this.diaryEntryForm.disable();
     this.foodWeightNewElem().blur();
     this.foodWeightChangeElem().blur();
 
@@ -256,8 +231,7 @@ export class DiaryEntryEditForm implements OnDestroy {
 
     await this.foodDiaryService.editDiaryEntry(preppedFormValues);
     this.foodDiaryService.clearDraftEntryWeight(this.diaryEntryId$$());
-    this.diaryEntryForm.enable();
-    this.diaryEntryForm.reset();
+    this.diaryEntryForm().reset({ ...EMPTY_WEIGHTS });
     this.entryChangedOutput.emit();
   }
 
@@ -270,7 +244,7 @@ export class DiaryEntryEditForm implements OnDestroy {
   }
 
   protected onDeleteConfirmed(): void {
-    this.deleteDiaryEntry();
+    void this.deleteDiaryEntry();
     this.isDeleteConfirmOpen$$.set(false);
   }
 
@@ -334,11 +308,11 @@ export class DiaryEntryEditForm implements OnDestroy {
   }
 
   private async deleteDiaryEntry(): Promise<void> {
-    this.diaryEntryForm.disable();
+    this.isDeleting$$.set(true);
     this.foodDiaryService.clearDraftEntryWeight(this.diaryEntryId$$());
     await this.foodDiaryService.deleteDiaryEntry(this.diaryEntryId$$());
-    this.diaryEntryForm.enable();
-    this.diaryEntryForm.reset();
+    this.isDeleting$$.set(false);
+    this.diaryEntryForm().reset({ ...EMPTY_WEIGHTS });
     this.entryChangedOutput.emit();
   }
 
@@ -356,8 +330,7 @@ export class DiaryEntryEditForm implements OnDestroy {
   }
 
   private resetForm(): void {
-    this.foodWeightNewControl.setValue(null);
-    this.foodWeightChangeControl.setValue(null);
+    this.diaryEntryForm().reset({ ...EMPTY_WEIGHTS });
     this.foodWeightDraftNew$$.set(null);
     this.foodWeightDraftChange$$.set(null);
     this.syncDraftWithService();

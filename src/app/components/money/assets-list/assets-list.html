@@ -1,24 +1,12 @@
 <div>
 
-  @if (openedPositionGroups$$().length === 0) {
-    <div class="mb-4">
-      <v-card [borderRadius]="2"
-              [padding]="4">
-        <div class="mb-4 text-lg font-semibold">Opened Positions</div>
-        <div class="opacity-70 py-4 text-sm">
-          No opened positions.
-        </div>
-      </v-card>
-    </div>
-  }
-
   @for (group of openedPositionGroups$$(); track group.accountId) {
     <div class="mb-4">
       <v-card [borderRadius]="2"
               [padding]="4">
         <div class="mb-4 text-lg font-semibold">{{ group.accountTitle }}</div>
 
-        @for (position of group.positions; track position.accountId + '-' + position.assetId) {
+        @for (position of group.positions; track `${position.accountId}-${position.assetId}`) {
           <div class="last:border-b-0 py-3 border-b border-[color:var(--v-outline-color)]">
             <div class="flex items-baseline min-w-0 gap-2 mb-1">
               <span class="font-semibold truncate">{{ position.assetTitle }}</span>
@@ -34,6 +22,16 @@
             </div>
           </div>
         }
+      </v-card>
+    </div>
+  } @empty {
+    <div class="mb-4">
+      <v-card [borderRadius]="2"
+              [padding]="4">
+        <div class="mb-4 text-lg font-semibold">Opened Positions</div>
+        <div class="opacity-70 py-4 text-sm">
+          No opened positions.
+        </div>
       </v-card>
     </div>
   }
@@ -64,14 +62,12 @@
         <v-input class="flex-1"
                  label="Title"
                  placeholder="Sberbank"
-                 [ngModel]="title$$()"
-                 (ngModelChange)="title$$.set($event)" />
+                 [(value)]="title$$" />
 
         <v-input class="flex-1"
                  label="Ticker"
                  placeholder="SBER"
-                 [ngModel]="ticker$$()"
-                 (ngModelChange)="ticker$$.set($event)" />
+                 [(value)]="ticker$$" />
       </div>
 
       @if (isEditing()) {
@@ -86,15 +82,13 @@
               <v-input class="flex-1"
                        label="Suspended Since"
                        placeholder="YYYY-MM-DD"
-                       [ngModel]="suspendedSince$$()"
-                       (ngModelChange)="suspendedSince$$.set($event)" />
+                       [(value)]="suspendedSince$$" />
 
               <v-input class="flex-1"
                        label="Suspended Until"
                        placeholder="YYYY-MM-DD"
                        [isDisabled]="!suspendedSince$$()"
-                       [ngModel]="suspendedUntil$$()"
-                       (ngModelChange)="suspendedUntil$$.set($event)" />
+                       [(value)]="suspendedUntil$$" />
             </div>
           }
         </div>
@@ -103,12 +97,12 @@
       <div class="flex justify-end gap-2">
         <v-button class="v-primary"
                   [isDisabled]="!title$$() || !ticker$$() || !type$$() || selectedAccountIds$$().length === 0"
-                  (onClick)="saveAsset()">
+                  (clickOutput)="saveAsset()">
           {{ isEditing() ? 'Update' : 'Create' }}
         </v-button>
 
         <v-button surface="flat"
-                  (onClick)="onCancelled()">
+                  (clickOutput)="onCancelled()">
           Cancel
         </v-button>
       </div>
@@ -121,7 +115,7 @@
       <div class="text-lg font-semibold">Assets</div>
       <v-button surface="flat"
                 [paddingY]="1"
-                (onClick)="showCreateForm()">
+                (clickOutput)="showCreateForm()">
         <v-icon v-prefix
                 [name]="Icon.Add"
                 [size]="6"></v-icon>
@@ -157,7 +151,7 @@
               <v-button surface="flat"
                         [isLabelHidden]="true"
                         [padding]="iconButton.padding"
-                        (onClick)="editAsset(asset)">
+                        (clickOutput)="editAsset(asset)">
                 <v-icon v-prefix
                         [name]="Icon.Edit"
                         [size]="iconButton.size"></v-icon>
@@ -167,7 +161,7 @@
                         [isDisabled]="!canDeleteAsset(asset.id!)"
                         [isLabelHidden]="true"
                         [padding]="iconButton.padding"
-                        (onClick)="deleteAsset(asset.id!)">
+                        (clickOutput)="deleteAsset(asset.id!)">
                 <v-icon v-prefix
                         [name]="Icon.Delete"
                         [size]="iconButton.size"></v-icon>

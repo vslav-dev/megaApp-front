@@ -173,7 +173,7 @@ export class FoodDiaryService extends BaseFoodService {
     }
   });
 
-  constructor() {
+  public constructor() {
     super();
     this.loadDeletedDaySnapshotFromLocalStorage();
     this.subscribe();
@@ -317,6 +317,12 @@ export class FoodDiaryService extends BaseFoodService {
       return false;
     }
 
+    const historyAction = diaryEntry.history[0]?.action;
+    if (!historyAction) {
+      console.error('Cannot edit diary entry: no history action');
+      return false;
+    }
+
     const originalKcals = originalEntry.kcals;
     const newKcals = this.estimateEntryKcalsNow(diaryEntry.foodCatalogueId, diaryEntry.foodWeight);
     const kcalsDelta = newKcals - originalKcals;
@@ -363,7 +369,7 @@ export class FoodDiaryService extends BaseFoodService {
       id: diaryEntry.id,
       foodCatalogueId: diaryEntry.foodCatalogueId,
       foodWeight: diaryEntry.foodWeight,
-      historyAction: diaryEntry.history[0].action,
+      historyAction,
     };
 
     this.addSyncOperation({
@@ -582,6 +588,8 @@ export class FoodDiaryService extends BaseFoodService {
       return {
         ...diary,
         [dateISO]: {
+          food: {},
+          nutrients: DEFAULT_NUTRIENTS,
           ...diary[dateISO],
           bodyWeight: newWeight,
         },
@@ -630,7 +638,7 @@ export class FoodDiaryService extends BaseFoodService {
       const consumedKcals = Object.values(day.food).reduce((total, entry) => total + entry.kcals, 0);
       const kcalsPercent = this.calculatePercentage(consumedKcals, targetKcals);
 
-      for (const [id, entry] of Object.entries(day.food)) {
+      for (const entry of Object.values(day.food)) {
         const kcals = entry.kcals;
         const percentage = this.calculatePercentage(kcals, targetKcals);
 
@@ -787,34 +795,36 @@ export class FoodDiaryService extends BaseFoodService {
   }
 
   private updateDiaryEntryWithNewValues(updatedDiaryEntry: DiaryEntry): void {
-    this.diaryRaw$$.update((oldDiary) => {
-      const selectedDay = this.selectedDayIso$$();
-      const updatedDiary = { ...oldDiary };
-      const updatedDay = { ...updatedDiary[selectedDay] };
-      const updatedFood = { ...updatedDay.food };
-
-      if (!updatedFood[updatedDiaryEntry.id]) {
-        updatedFood[updatedDiaryEntry.id] = {
+    this.diaryRaw$$.update((oldDiary) =>
+      this.withSelectedDayFood(oldDiary, (food) => {
+        const existingEntry = food[updatedDiaryEntry.id] ?? {
           id: updatedDiaryEntry.id,
-          dateISO: selectedDay,
+          dateISO: this.selectedDayIso$$(),
           foodCatalogueId: updatedDiaryEntry.foodCatalogueId,
           foodWeight: updatedDiaryEntry.foodWeight,
           kcals: updatedDiaryEntry.kcals,
           history: [],
         };
-      }
 
-      updatedFood[updatedDiaryEntry.id] = {
-        ...updatedFood[updatedDiaryEntry.id],
-        foodWeight: updatedDiaryEntry.foodWeight,
-        kcals: updatedDiaryEntry.kcals,
-        history: [...updatedFood[updatedDiaryEntry.id].history, ...updatedDiaryEntry.history],
-      };
+        food[updatedDiaryEntry.id] = {
+          ...existingEntry,
+          foodWeight: updatedDiaryEntry.foodWeight,
+          kcals: updatedDiaryEntry.kcals,
+          history: [...existingEntry.history, ...updatedDiaryEntry.history],
+        };
+      }),
+    );
+  }
 
-      updatedDay.food = updatedFood;
-      updatedDiary[selectedDay] = updatedDay;
-      return updatedDiary;
-    });
+  // Applies a change to a copy of the selected day's food; a day that isn't loaded has nothing to change.
+  private withSelectedDayFood(oldDiary: Diary, change: (food: DiaryDay['food']) => void): Diary {
+    const selectedDay = this.selectedDayIso$$();
+    const day = oldDiary[selectedDay];
+    if (!day) return oldDiary;
+
+    const food = { ...day.food };
+    change(food);
+    return { ...oldDiary, [selectedDay]: { ...day, food } };
   }
 
   private addDiaryEntriesForDay(dateISO: string, diaryEntries: DiaryEntry[]): void {
@@ -844,18 +854,11 @@ export class FoodDiaryService extends BaseFoodService {
   }
 
   private removeDiaryEntry(diaryEntryId: number): void {
-    this.diaryRaw$$.update((oldDiary) => {
-      const selectedDay = this.selectedDayIso$$();
-      const updatedDiary = { ...oldDiary };
-      const updatedDay = { ...updatedDiary[selectedDay] };
-      const updatedFood = { ...updatedDay.food };
-
-      delete updatedFood[diaryEntryId];
-
-      updatedDay.food = updatedFood;
-      updatedDiary[selectedDay] = updatedDay;
-      return updatedDiary;
-    });
+    this.diaryRaw$$.update((oldDiary) =>
+      this.withSelectedDayFood(oldDiary, (food) => {
+        delete food[diaryEntryId];
+      }),
+    );
   }
 
   private replaceDiaryEntriesForDay(dateISO: string, tempEntries: DiaryEntry[], diaryEntries: DiaryEntry[]): void {
@@ -907,22 +910,15 @@ export class FoodDiaryService extends BaseFoodService {
   }
 
   private reconcileCreatedDiaryEntry(tempId: number, realId: number, kcals: number, version: number): void {
-    this.diaryRaw$$.update((oldDiary) => {
-      const selectedDay = this.selectedDayIso$$();
-      const updatedDiary = { ...oldDiary };
-      const updatedDay = { ...updatedDiary[selectedDay] };
-      const updatedFood = { ...updatedDay.food };
-
-      if (updatedFood[tempId]) {
-        const entry = { ...updatedFood[tempId], id: realId, kcals, version };
-        updatedFood[realId] = entry;
-        delete updatedFood[tempId];
-      }
-
-      updatedDay.food = updatedFood;
-      updatedDiary[selectedDay] = updatedDay;
-      return updatedDiary;
-    });
+    this.diaryRaw$$.update((oldDiary) =>
+      this.withSelectedDayFood(oldDiary, (food) => {
+        const tempEntry = food[tempId];
+        if (tempEntry) {
+          food[realId] = { ...tempEntry, id: realId, kcals, version };
+          delete food[tempId];
+        }
+      }),
+    );
     this.persistDay(this.selectedDayIso$$());
   }
 
@@ -933,28 +929,21 @@ export class FoodDiaryService extends BaseFoodService {
     optimisticHistoryIndex: number,
     appliedHistoryEntry: HistoryEntry | null,
   ): void {
-    this.diaryRaw$$.update((oldDiary) => {
-      const selectedDay = this.selectedDayIso$$();
-      const updatedDiary = { ...oldDiary };
-      const updatedDay = { ...updatedDiary[selectedDay] };
-      const updatedFood = { ...updatedDay.food };
-      const entry = updatedFood[diaryEntryId];
-
-      if (entry) {
-        const history = [
-          ...entry.history.slice(0, optimisticHistoryIndex),
-          ...entry.history.slice(optimisticHistoryIndex + 1),
-        ];
-        if (appliedHistoryEntry) {
-          history.splice(optimisticHistoryIndex, 0, appliedHistoryEntry);
+    this.diaryRaw$$.update((oldDiary) =>
+      this.withSelectedDayFood(oldDiary, (food) => {
+        const entry = food[diaryEntryId];
+        if (entry) {
+          const history = [
+            ...entry.history.slice(0, optimisticHistoryIndex),
+            ...entry.history.slice(optimisticHistoryIndex + 1),
+          ];
+          if (appliedHistoryEntry) {
+            history.splice(optimisticHistoryIndex, 0, appliedHistoryEntry);
+          }
+          food[diaryEntryId] = { ...entry, kcals, version, history };
         }
-        updatedFood[diaryEntryId] = { ...entry, kcals, version, history };
-      }
-
-      updatedDay.food = updatedFood;
-      updatedDiary[selectedDay] = updatedDay;
-      return updatedDiary;
-    });
+      }),
+    );
     this.persistDay(this.selectedDayIso$$());
   }
 
@@ -1131,7 +1120,10 @@ export class FoodDiaryService extends BaseFoodService {
       const currentDay = current[dateISO];
       if (!currentDay) continue;
 
-      const food = { ...response[dateISO].food };
+      const responseDay = response[dateISO];
+      if (!responseDay) continue;
+
+      const food = { ...responseDay.food };
       for (const pendingId of this.pendingDiaryEntryIds) {
         if (currentDay.food[pendingId]) {
           food[pendingId] = currentDay.food[pendingId];
@@ -1140,7 +1132,7 @@ export class FoodDiaryService extends BaseFoodService {
         }
       }
 
-      merged[dateISO] = { ...response[dateISO], food };
+      merged[dateISO] = { ...responseDay, food };
     }
 
     return merged;
@@ -1155,7 +1147,7 @@ export class FoodDiaryService extends BaseFoodService {
   private hydrateDayFromIndexedDb(dateISO: string): void {
     if (this.diaryRaw$$()[dateISO]) return;
 
-    this.indexedDbCache.getDay<DiaryDay>(dateISO).then((day) => {
+    void this.indexedDbCache.getDay<DiaryDay>(dateISO).then((day) => {
       if (!day) return;
       this.diaryRaw$$.update((diary) => (diary[dateISO] ? diary : { ...diary, [dateISO]: day }));
     });
@@ -1263,8 +1255,9 @@ export class FoodDiaryService extends BaseFoodService {
     let dateISO: string | null = null;
 
     for (const [date, dayData] of Object.entries(originalDiary)) {
-      if (dayData.food[updatedDiaryEntry.id]) {
-        originalEntry = dayData.food[updatedDiaryEntry.id];
+      const entry = dayData.food[updatedDiaryEntry.id];
+      if (entry) {
+        originalEntry = entry;
         dateISO = date;
         break;
       }
@@ -1293,10 +1286,10 @@ export class FoodDiaryService extends BaseFoodService {
 
     this.diaryRaw$$.update((diary) => {
       const updatedDiary = { ...diary };
-      const dayData = updatedDiary[dateISO!];
+      const dayData = updatedDiary[dateISO];
 
       if (dayData) {
-        updatedDiary[dateISO!] = {
+        updatedDiary[dateISO] = {
           ...dayData,
           food: {
             ...dayData.food,
@@ -1355,13 +1348,13 @@ export class FoodDiaryService extends BaseFoodService {
 
     this.diaryRaw$$.update((diary) => {
       const updatedDiary = { ...diary };
-      const dayData = updatedDiary[dateISO!];
+      const dayData = updatedDiary[dateISO];
 
       if (dayData) {
         const updatedFood = { ...dayData.food };
         delete updatedFood[deletedDiaryEntryId];
 
-        updatedDiary[dateISO!] = {
+        updatedDiary[dateISO] = {
           ...dayData,
           food: updatedFood,
         };

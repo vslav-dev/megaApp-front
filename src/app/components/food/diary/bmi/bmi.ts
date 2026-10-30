@@ -1,17 +1,17 @@
-import { ChangeDetectionStrategy, Component, computed, inject, Signal } from '@angular/core';
+import { Component, computed, inject, Signal } from '@angular/core';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { BMI_CATEGORIES, BMI_SCALE, bmiToKg } from '@app/shared/bmi-bands';
+import { itemAt } from '@app/shared/utils';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 
 interface BmiSegment {
   twSegmentClasses: string;
-  twLabelClasses?: string;
+  twLabelClasses?: string | undefined;
 }
 
 @Component({
   selector: 'bmi',
   templateUrl: './bmi.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VIcon],
 })
 export class BMI {
@@ -35,7 +35,7 @@ export class BMI {
 
   private readonly foodDiaryService = inject(FoodDiaryService);
 
-  protected bmiKgThresholdValue(idx: number): number {
+  protected bmiKgThresholdValue(idx: number): number | undefined {
     return this.bmiSegmentsThresholdsInKgs$$()[idx];
   }
 
@@ -50,18 +50,14 @@ export class BMI {
     const selectedDateISO = this.foodDiaryService.selectedDayIso$$();
     const weight = this.foodDiaryService.diary$$()?.[selectedDateISO]?.totals.bodyWeight ?? 0;
 
-    if (!this.isWeightWithinRange(weight)) return null;
-
     const bmiKgs = this.bmiSegmentsThresholdsInKgs$$();
-    if (bmiKgs.length === 0) return null;
+    const first = bmiKgs[0];
+    const last = bmiKgs.at(-1);
+    if (first === undefined || last === undefined) return null;
+    if (weight <= first || weight >= last) return null;
 
-    const percentShift = (weight - bmiKgs[0]) / (bmiKgs[bmiKgs.length - 1] - bmiKgs[0]);
+    const percentShift = (weight - first) / (last - first);
     return Math.max(0, Math.min(100, percentShift * 100));
-  }
-
-  private isWeightWithinRange(weight: number): boolean {
-    const bmiKgs = this.bmiSegmentsThresholdsInKgs$$();
-    return weight > bmiKgs[0] && weight < bmiKgs[bmiKgs.length - 1];
   }
 
   private prepBmiSegmentsThresholdsInKgs(): number[] {
@@ -72,14 +68,11 @@ export class BMI {
   }
 
   private calculateBmiSegmentsWidthFractions(): number[] {
-    const fractions: number[] = [];
-    const total = BMI_SCALE[BMI_SCALE.length - 1] - BMI_SCALE[0];
+    const first = BMI_SCALE[0];
+    const last = BMI_SCALE.at(-1);
+    if (first === undefined || last === undefined) return [];
+    const total = last - first;
 
-    for (let i = 0; i < BMI_SCALE.length - 1; i++) {
-      const segment = BMI_SCALE[i + 1] - BMI_SCALE[i];
-      fractions.push(segment / total);
-    }
-
-    return fractions;
+    return BMI_SCALE.slice(1).map((end, i) => (end - itemAt(BMI_SCALE, i)) / total);
   }
 }

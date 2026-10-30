@@ -7,7 +7,7 @@
       <v-toast [type]="notification.type"
                [message]="notification.message"
                [isPending]="notification.persistent"
-               (onClose)="dismiss(notification.id)" />
+               (closeOutput)="dismiss(notification.id)" />
     </div>
   }
 </div>

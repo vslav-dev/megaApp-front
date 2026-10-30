@@ -8,7 +8,17 @@ import {
 import { formatMetricUnitValue, MetricUnit } from '@app/shared/metric-units';
 import { formatMetricTickLabel } from '@app/shared/metrics-series';
 import { MetricGranularity, PaletteTuning } from '@app/shared/types';
-import { ChartConfiguration } from 'chart.js';
+import { ChartConfiguration, TooltipItem } from 'chart.js';
+
+// A balance dataset can carry the real values next to the plotted (stacked) ones.
+export interface DatasetWithRawValues {
+  _rawValues?: number[];
+}
+
+export function tooltipValue(item: TooltipItem<'line'>): number {
+  const raw = (item.dataset as DatasetWithRawValues)._rawValues;
+  return raw?.[item.dataIndex] ?? item.parsed.y ?? 0;
+}
 
 export interface ChartColors {
   main: string;
@@ -280,24 +290,15 @@ export function createBalanceChartConfig(colors: ChartColors): ChartConfiguratio
           mode: 'index',
           intersect: false,
           footerAlign: 'right',
-          filter: (item) => {
-            const raw = (item.dataset as any)['_rawValues'];
-            const value = raw ? raw[item.dataIndex] : item.parsed.y;
-            return Math.abs(value) >= 1;
-          },
+          filter: (item) => Math.abs(tooltipValue(item)) >= 1,
           callbacks: {
             label: (ctx) => {
-              const raw = (ctx.dataset as any)['_rawValues'];
-              const value = raw ? raw[ctx.dataIndex] : ctx.parsed.y;
+              const value = tooltipValue(ctx);
               return ` ${ctx.dataset.label}: ${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)} ₽`;
             },
             footer: (items) => {
               if (items.length < 2) return [];
-              const sum = items.reduce((acc, item) => {
-                const raw = (item.dataset as any)['_rawValues'];
-                const value = raw ? raw[item.dataIndex] : item.parsed.y;
-                return acc + value;
-              }, 0);
+              const sum = items.reduce((acc, item) => acc + tooltipValue(item), 0);
               return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(sum)} ₽`;
             },
           },

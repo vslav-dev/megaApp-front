@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, Signal } from '@angular/core';
+import { Component, inject, Signal } from '@angular/core';
 import { StatsHelpIcon } from '@app/components/food/stats/stats-help-icon/stats-help-icon';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
 import { FoodScreenMobileTab, FoodScreenModeService } from '@app/services/food/food-screen-mode.service';
@@ -13,7 +13,6 @@ import { VCard } from '@ui-kit/components/v-card/v-card';
   templateUrl: './milestones.html',
   styleUrl: './milestones.scss',
   imports: [VCard, StatsHelpIcon, VButton, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Milestones {
   private readonly insightsService = inject(FoodStatsInsightsService);

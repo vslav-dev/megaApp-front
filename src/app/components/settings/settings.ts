@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, linkedSignal, WritableSignal } from '@angular/core';
+import { Component, inject, linkedSignal, WritableSignal } from '@angular/core';
 
 import { AuthService } from '@app/services/auth.service';
 import { DeviceInfoService } from '@app/services/device-info.service';
@@ -13,7 +13,6 @@ type ChapterName = Exclude<SettingsChapterNames, ''>;
 @Component({
   selector: 'settings',
   templateUrl: './settings.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VButton, VCard, VCheckbox],
 })
 export class Settings {

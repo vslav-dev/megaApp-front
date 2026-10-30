@@ -1,3 +1,5 @@
+import { itemAt } from '@app/shared/utils';
+
 // BMI scale shared by the BMI widget (shows the whole 16–45 range) and the weight chart, where the
 // outermost categories are open-ended: everything below 18.5 is underweight, everything above 40
 // is class III obesity. Category i spans BMI_SCALE[i]..BMI_SCALE[i + 1].
@@ -37,8 +39,8 @@ export function buildBmiBands(heightCm: number, isDark: boolean): BmiBand[] {
   const lastIdx = BMI_CATEGORIES.length - 1;
 
   return BMI_CATEGORIES.map((category, idx) => ({
-    fromKg: idx === 0 ? -Infinity : bmiToKg(BMI_SCALE[idx], heightCm),
-    toKg: idx === lastIdx ? Infinity : bmiToKg(BMI_SCALE[idx + 1], heightCm),
+    fromKg: idx === 0 ? -Infinity : bmiToKg(itemAt(BMI_SCALE, idx), heightCm),
+    toKg: idx === lastIdx ? Infinity : bmiToKg(itemAt(BMI_SCALE, idx + 1), heightCm),
     color: isDark ? category.fillDark : category.fillLight,
   }));
 }

@@ -7,6 +7,7 @@ import { NetworkService } from '@app/services/network.service';
 import { SyncEngineService } from '@app/services/sync-engine.service';
 import { TelemetryService } from '@app/services/telemetry.service';
 import { DayStats, FoodStatsResponse, Stats } from '@app/shared/types';
+import { parseIsoParts } from '@app/shared/utils';
 import { createTelemetryFake } from '@app/testing/telemetry.fake';
 import { Subject } from 'rxjs';
 import { FoodDiaryService } from './food-diary.service';
@@ -20,7 +21,7 @@ function dayStats(overrides: Partial<DayStats> = {}): DayStats {
 
 // Builds `count` consecutive daily entries starting at startDateIso (UTC-safe, ISO date-only math).
 function buildDailyStats(count: number, startDateIso: string): Stats {
-  const [y, m, d] = startDateIso.split('-').map(Number);
+  const [y, m, d] = parseIsoParts(startDateIso);
   const stats: Stats = {};
   for (let i = 0; i < count; i++) {
     const date = new Date(Date.UTC(y, m - 1, d + i));

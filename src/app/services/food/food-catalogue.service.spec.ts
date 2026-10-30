@@ -9,11 +9,17 @@ import { NotificationService } from '@app/services/notification.service';
 import { SyncEngineService } from '@app/services/sync-engine.service';
 import { TelemetryService } from '@app/services/telemetry.service';
 import { FOOD_IMAGE_GENERATION_FALLBACK_MS, FOOD_SEARCH_SEND_DEBOUNCE_MS } from '@app/shared/const';
-import { CatalogueEntry, SearchScope, WebSocketMessageType } from '@app/shared/types';
+import { Catalogue, CatalogueEntry, SearchScope, WebSocketMessageType } from '@app/shared/types';
 import { Subject } from 'rxjs';
 import { FoodCatalogueService } from './food-catalogue.service';
 
 const SEARCH_CACHE_KEY = 'food_search_cache';
+
+function entryOf(catalogue: Catalogue, id: number): CatalogueEntry {
+  const found = catalogue[id];
+  if (!found) throw new Error(`Catalogue entry ${id} is missing`);
+  return found;
+}
 
 function entry(id: number, name: string, archived?: boolean): CatalogueEntry {
   return {
@@ -31,7 +37,7 @@ function entry(id: number, name: string, archived?: boolean): CatalogueEntry {
 }
 
 function setup(cachedSearches: Record<string, number[]> | null = null) {
-  const wsMessages$ = new Subject<any>();
+  const wsMessages$ = new Subject<unknown>();
   const connected$ = new Subject<void>();
   const sendMessage = vi.fn();
   const setUserScoped = vi.fn();
@@ -271,7 +277,7 @@ describe('FoodCatalogueService keyboard layout', () => {
 
     expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ query: 'яблоко' }));
     expect(searchCacheWrites()).toHaveLength(1);
-    expect(searchCacheWrites()[0][1]).toEqual({ яблоко: [1, 2] });
+    expect(searchCacheWrites()[0]?.[1]).toEqual({ яблоко: [1, 2] });
     expect(ids()).toEqual([1, 2]);
   });
 
@@ -410,7 +416,7 @@ describe('FoodCatalogueService image regeneration', () => {
 
   it('is generating from the request until a newer image arrives, which also shows the new picture', async () => {
     const { service, request, generated } = setupRegeneration();
-    service.catalogue$$.update((catalogue) => ({ ...catalogue, 1: { ...catalogue[1], imageVersion: 2 } }));
+    service.catalogue$$.update((catalogue) => ({ ...catalogue, 1: { ...entryOf(catalogue, 1), imageVersion: 2 } }));
 
     await request();
     expect(service.isImageGenerating(1)).toBe(true);
@@ -423,7 +429,7 @@ describe('FoodCatalogueService image regeneration', () => {
 
   it('keeps waiting when the arriving image is not newer than the one at the time of the request', async () => {
     const { service, request, generated } = setupRegeneration();
-    service.catalogue$$.update((catalogue) => ({ ...catalogue, 1: { ...catalogue[1], imageVersion: 2 } }));
+    service.catalogue$$.update((catalogue) => ({ ...catalogue, 1: { ...entryOf(catalogue, 1), imageVersion: 2 } }));
 
     await request();
     generated(1, 2);

@@ -6,7 +6,7 @@
       <div class="flex items-center gap-2">
         <v-button surface="flat"
                   [paddingY]="1"
-                  (onClick)="showNewTransactionForm()">
+                  (clickOutput)="showNewTransactionForm()">
           <v-icon v-prefix
                   [name]="Icon.Add"
                   [size]="5"></v-icon>
@@ -114,7 +114,7 @@
                   <v-button surface="flat"
                             [isLabelHidden]="true"
                             [padding]="1"
-                            (onClick)="showEditTransactionForm(transaction)">
+                            (clickOutput)="showEditTransactionForm(transaction)">
                     <v-icon v-prefix
                             [name]="Icon.Edit"
                             [size]="4"></v-icon>
@@ -122,7 +122,7 @@
                   <v-button class="v-danger"
                             [isLabelHidden]="true"
                             [padding]="1"
-                            (onClick)="deleteTransaction(transaction.id!)">
+                            (clickOutput)="deleteTransaction(transaction.id!)">
                     <v-icon v-prefix
                             [name]="Icon.Delete"
                             [size]="4"></v-icon>

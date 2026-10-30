@@ -1,4 +1,4 @@
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -37,7 +37,7 @@ function setup() {
 
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(withXhr()),
+      provideHttpClient(),
       provideHttpClientTesting(),
       { provide: LocalStorageService, useValue: localStorageFake },
       { provide: NetworkService, useValue: networkServiceFake },
@@ -87,7 +87,7 @@ describe('NamespaceSettingsStore.set — debounced auto-save', () => {
     vi.advanceTimersByTime(SETTINGS_AUTO_SAVE_DEBOUNCE_MS);
 
     const addOperationSpy = syncEngineFake.addOperation as ReturnType<typeof vi.fn>;
-    const { rollbackCallback } = addOperationSpy.mock.calls[0][0] as { rollbackCallback: () => void };
+    const { rollbackCallback } = addOperationSpy.mock.calls[0]?.[0] as { rollbackCallback: () => void };
     rollbackCallback();
 
     expect(store.value$$().a).toBe(0); // pre-burst value, not 1 (the first intermediate set())

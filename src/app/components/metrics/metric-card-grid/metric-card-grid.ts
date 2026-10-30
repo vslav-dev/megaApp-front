@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -74,7 +73,6 @@ const EMPTY_KEY_SET: ReadonlySet<string> = new Set();
     class: 'grid gap-3',
     '[style.grid-template-columns]': 'gridTemplateColumns$$()',
   },
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MetricCardGrid implements OnInit, OnDestroy {
   public readonly cardsInput = input.required<MetricChartCardData[]>();
@@ -160,16 +158,16 @@ export class MetricCardGrid implements OnInit, OnDestroy {
 
     const columns = this.columnCount$$();
     const items: RenderItem[] = [];
-    for (let index = 0; index < cards.length; index++) {
-      items.push({ card: cards[index], isExpanded: false });
+    for (const [index, card] of cards.entries()) {
+      items.push({ card, isExpanded: false });
 
       const isRowEnd = (index + 1) % columns === 0 || index === cards.length - 1;
       if (!isRowEnd) continue;
 
       const rowStart = index - (index % columns);
-      for (let rowCardIndex = rowStart; rowCardIndex <= index; rowCardIndex++) {
-        if (expandedKeys.has(cards[rowCardIndex].key)) {
-          items.push({ card: cards[rowCardIndex], isExpanded: true });
+      for (const rowCard of cards.slice(rowStart, index + 1)) {
+        if (expandedKeys.has(rowCard.key)) {
+          items.push({ card: rowCard, isExpanded: true });
         }
       }
     }
@@ -185,7 +183,7 @@ export class MetricCardGrid implements OnInit, OnDestroy {
     // width synchronously here (forces a layout, but only once, on init) closes that gap.
     this.containerWidthPx$$.set(this.hostElement.getBoundingClientRect().width);
     this.resizeObserver = new ResizeObserver(([entry]) => {
-      this.containerWidthPx$$.set(entry.contentRect.width);
+      if (entry) this.containerWidthPx$$.set(entry.contentRect.width);
     });
     this.resizeObserver.observe(this.hostElement);
   }

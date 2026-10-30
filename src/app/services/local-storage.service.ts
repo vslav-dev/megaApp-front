@@ -1,9 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Service } from '@angular/core';
 import { buildCacheKey, hasCacheUser } from '@app/shared/cache';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class LocalStorageService {
   public getUserScoped<T>(baseKey: string): T | null {
     if (!hasCacheUser()) return null;
@@ -23,7 +21,7 @@ export class LocalStorageService {
   public get<T>(key: string): T | null {
     try {
       const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
+      return item ? (JSON.parse(item) as T) : null;
     } catch (error) {
       console.error(`Error reading from localStorage for key "${key}":`, error);
       return null;

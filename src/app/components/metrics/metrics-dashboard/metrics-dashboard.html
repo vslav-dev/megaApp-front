@@ -7,7 +7,7 @@
       @let isDashboardExpanded = isServiceExpanded(dashboardPanelKey);
       <v-button [class.v-primary]="isDashboardExpanded"
                 [surface]="isDashboardExpanded ? 'raised' : 'flat'"
-                (onClick)="toggleServiceExpanded(dashboardPanelKey)">
+                (clickOutput)="toggleServiceExpanded(dashboardPanelKey)">
         Dashboard
       </v-button>
 
@@ -17,7 +17,7 @@
           @if (entry.isComposite) {
             <v-button [class.v-primary]="isEntryExpanded"
                       [surface]="isEntryExpanded ? 'raised' : 'flat'"
-                      (onClick)="toggleServiceExpanded(entry.service)">
+                      (clickOutput)="toggleServiceExpanded(entry.service)">
               @if (hasHoverExpandableServiceLabel(entry.service)) {<span
                       class="header-label-short">{{ resolvedServiceShortLabel(entry.service) }}</span><span
                       class="header-label-long">{{ resolvedServiceLabel(entry.service) }}</span>} @else {
@@ -28,7 +28,7 @@
             <v-button class="v-primary"
                       [surface]="isEntryExpanded ? 'raised' : 'flat'"
                       [color]="sectionButtonColor(entry.service)"
-                      (onClick)="toggleServiceExpanded(entry.service)">
+                      (clickOutput)="toggleServiceExpanded(entry.service)">
               @if (hasHoverExpandableServiceLabel(entry.service)) {<span
                       class="header-label-short">{{ resolvedServiceShortLabel(entry.service) }}</span><span
                       class="header-label-long">{{ resolvedServiceLabel(entry.service) }}</span>} @else {
@@ -49,7 +49,7 @@
                   [isDisabled]="isSavingSettings$$()"
                   [paddingX]="3"
                   color="#22c55e"
-                  (onClick)="saveSettings()">
+                  (clickOutput)="saveSettings()">
           <v-icon v-prefix
                   [name]="Icon.Check"
                   [size]="5" />
@@ -62,7 +62,7 @@
                   title="Свернуть все развёрнутые карточки"
                   [isLabelHidden]="true"
                   [padding]="2"
-                  (onClick)="metricCardExpansionService.collapseAll()">
+                  (clickOutput)="metricCardExpansionService.collapseAll()">
           <v-icon v-prefix
                   [name]="Icon.CollapseContent"
                   [size]="6" />
@@ -73,7 +73,7 @@
                 title="Настройки дашборда: размер карточек, коридор аномалий, список метрик"
                 [isLabelHidden]="true"
                 [padding]="2"
-                (onClick)="toggleServiceExpanded(settingsPanelKey)">
+                (clickOutput)="toggleServiceExpanded(settingsPanelKey)">
         <v-icon v-prefix
                 [name]="Icon.Settings"
                 [size]="6" />
@@ -84,7 +84,7 @@
                 title="Режим редактирования: выбрать метрики и задать их порядок на карточках"
                 [isLabelHidden]="true"
                 [padding]="2"
-                (onClick)="toggleCardEditMode()">
+                (clickOutput)="toggleCardEditMode()">
         <v-icon v-prefix
                 [name]="Icon.Edit"
                 [size]="6" />
@@ -110,7 +110,7 @@
                   title="Коридор аномалий: обрезает ось Y графика по проценту значений, скрывая редкие выбросы"
                   [isLabelHidden]="true"
                   [padding]="2"
-                  (onClick)="toggleAnomalyCorridorEnabled()">
+                  (clickOutput)="toggleAnomalyCorridorEnabled()">
           <v-icon v-prefix
                   [name]="Icon.DataThresholding"
                   [size]="6" />
@@ -121,7 +121,7 @@
                 title="Переключить размер карточек: широкие / узкие"
                 [isLabelHidden]="true"
                 [padding]="2"
-                (onClick)="cycleCardLayoutMode()">
+                (clickOutput)="cycleCardLayoutMode()">
         <v-icon v-prefix
                 class="rotate-90"
                 [name]="cardLayoutMode$$() === CardLayoutMode.Wide ? Icon.UnfoldLess : Icon.UnfoldMore"
@@ -133,7 +133,7 @@
                 title="Начинать ось Y графика с нуля"
                 [isLabelHidden]="true"
                 [padding]="2"
-                (onClick)="toggleForceZeroBaseline()">
+                (clickOutput)="toggleForceZeroBaseline()">
         <v-icon class="rotate-180"
                 v-prefix
                 [name]="Icon.ChevronLineUp"
@@ -144,7 +144,7 @@
                 title="Переключить подсказку на графике: по ближайшей точке / по вертикальной линии"
                 [isLabelHidden]="true"
                 [padding]="2"
-                (onClick)="cycleTooltipMode()">
+                (clickOutput)="cycleTooltipMode()">
         <v-icon v-prefix
                 [class]="activeTooltipMode$$() === TooltipMode.Nearest ? '' : 'rotate-[135deg]'"
                 [name]="activeTooltipMode$$() === TooltipMode.Vertical ? Icon.StepInto : Icon.HorizontalAlignCenter"
@@ -246,7 +246,7 @@
         <div class="flex flex-wrap items-end gap-3">
           <label class="flex items-center gap-2 text-sm">
             <v-checkbox [value]="syncCrosshairEnabled$$()"
-                        (onChanged)="onSyncCrosshairEnabledChange($event)"
+                        (changedOutput)="onSyncCrosshairEnabledChange($event)"
                         mode="switch"
                         [isDisabled]="isSavingSettings$$()" />
             <span>Синхролиния наведения</span>
@@ -255,7 +255,7 @@
           <v-button class="v-primary"
                     [isDisabled]="metricsService.isRefreshing$$()"
                     [paddingX]="3"
-                    (onClick)="clearMetricsCache()">
+                    (clickOutput)="clearMetricsCache()">
             <v-icon v-prefix
                     [name]="Icon.Delete"
                     [size]="5" />
@@ -265,7 +265,7 @@
           <v-button class="v-primary"
                     [isDisabled]="metricsService.isRefreshing$$()"
                     [paddingX]="3"
-                    (onClick)="forceRefreshMetrics()">
+                    (clickOutput)="forceRefreshMetrics()">
             Принудительно обновить метрики
           </v-button>
         </div>
@@ -278,7 +278,7 @@
               <span class="flex-1 min-w-0 font-semibold truncate">{{ resolvedServiceLabel(compositeServiceKey) }}</span>
               <label class="flex items-center gap-2 cursor-pointer">
                 <v-checkbox [value]="isDashboardServiceEnabled(compositeServiceKey)"
-                            (onChanged)="toggleDashboardService(compositeServiceKey, $event)"
+                            (changedOutput)="toggleDashboardService(compositeServiceKey, $event)"
                             [isDisabled]="isSavingSettings$$()"
                             [size]="4"
                             [gap]="1"
@@ -297,7 +297,7 @@
               }
               <label class="flex items-center gap-2 cursor-pointer">
                 <v-checkbox [value]="isServiceVisibleInHeader(compositeServiceKey)"
-                            (onChanged)="toggleServiceVisibleInHeader(compositeServiceKey, $event)"
+                            (changedOutput)="toggleServiceVisibleInHeader(compositeServiceKey, $event)"
                             [isDisabled]="isSavingSettings$$()"
                             [size]="4"
                             [gap]="1"
@@ -324,7 +324,7 @@
                 <span class="flex-1 min-w-0 font-mono font-semibold truncate">{{ service.service }}</span>
                 <label class="flex items-center gap-2 cursor-pointer">
                   <v-checkbox [value]="isDashboardServiceEnabled(service.service)"
-                              (onChanged)="toggleDashboardService(service.service, $event)"
+                              (changedOutput)="toggleDashboardService(service.service, $event)"
                               [isDisabled]="isSavingSettings$$()"
                               [size]="4"
                               [gap]="1"
@@ -343,7 +343,7 @@
                 }
                 <label class="flex items-center gap-2 cursor-pointer">
                   <v-checkbox [value]="isServiceVisibleInHeader(service.service)"
-                              (onChanged)="toggleServiceVisibleInHeader(service.service, $event)"
+                              (changedOutput)="toggleServiceVisibleInHeader(service.service, $event)"
                               [isDisabled]="isSavingSettings$$()"
                               [size]="4"
                               [gap]="1"

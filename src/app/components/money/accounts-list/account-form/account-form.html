@@ -5,15 +5,13 @@
     <v-input class="flex-1"
              label="Title"
              placeholder="My Bank Account"
-             [ngModel]="title$$()"
-             (ngModelChange)="title$$.set($event)" />
+             [(value)]="title$$" />
 
     <v-dropdown class="flex-1"
                 [label]="'Organization'"
                 [placeholder]="'None'"
                 [items]="organizationItems()"
-                [ngModel]="organizationId$$()"
-                (ngModelChange)="organizationId$$.set($event)"></v-dropdown>
+                [(value)]="organizationId$$"></v-dropdown>
   </div>
 
   <div class="flex gap-4">
@@ -22,16 +20,14 @@
                 [placeholder]="'Select currency'"
                 [items]="currencyItems()"
                 [isRequired]="true"
-                [ngModel]="currencyId$$()"
-                (ngModelChange)="currencyId$$.set($event)"></v-dropdown>
+                [(value)]="currencyId$$"></v-dropdown>
 
     <v-dropdown class="flex-1"
                 [label]="'Account Type'"
                 [placeholder]="'Select type'"
                 [items]="kindItems()"
                 [isRequired]="true"
-                [ngModel]="kind$$()"
-                (ngModelChange)="kind$$.set($event)"></v-dropdown>
+                [(value)]="kind$$"></v-dropdown>
   </div>
 
   <v-checkbox [value]="isInvest$$()"
@@ -47,12 +43,12 @@
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
               [isDisabled]="!isFormValid()"
-              (onClick)="save()">
+              (clickOutput)="save()">
       {{ isEditing() ? 'Update' : 'Create' }}
     </v-button>
 
     <v-button surface="flat"
-              (onClick)="cancel()">
+              (clickOutput)="cancel()">
       Cancel
     </v-button>
   </div>

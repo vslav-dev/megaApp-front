@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -13,12 +12,12 @@ import { AuthService } from '@app/services/auth.service';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { ANIMATION_CLASSES } from '@app/shared/animations';
-import { FlipAnimateDirective } from '@app/shared/directives/flip-animate.directive';
 import { CatalogueEntry, SearchScope } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { VInput } from '@ui-kit/components/v-input/v-input';
+import { FlipAnimateDirective } from '@ui-kit/directives/flip-animate.directive';
 
 export interface ProductPickerSelection {
   product: CatalogueEntry;
@@ -33,7 +32,6 @@ export interface ProductPickerSelection {
   selector: 'food-product-picker',
   templateUrl: './food-product-picker.html',
   styleUrl: './food-product-picker.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VInput, VButton, VIcon, VCard, FlipAnimateDirective],
 })
 export class FoodProductPicker {
@@ -140,7 +138,7 @@ export class FoodProductPicker {
     const weightMatch = lastWord?.match(/^(\d+)$/); // Digits only
 
     if (weightMatch && words.length > 1) {
-      const weight = parseInt(weightMatch[1], 10);
+      const weight = parseInt(weightMatch[0], 10);
 
       if (weight > 0) {
         const textWithoutWeight = words.slice(0, -1).join(' ').trim();

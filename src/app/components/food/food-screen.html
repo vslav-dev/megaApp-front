@@ -20,8 +20,9 @@
          desktopWidth="min(100vw, 577px)"
          [borderRadius]="3"
          [padding]="0"
-         (onClose)="closeAddFoodModal()">
-  @switch (foodAddModalService.currentState$$()) {
+         (closeOutput)="closeAddFoodModal()">
+  @let modalState = foodAddModalService.currentState$$();
+  @switch (modalState) {
     @case (ModalState.SEARCH) {
       <food-search />
     }
@@ -41,5 +42,9 @@
     @case (ModalState.EDIT_PRODUCT) {
       <catalogue-entry-edit-form />
     }
+
+    @case (ModalState.CLOSED) {}
+
+    @default never;
   }
 </v-modal>

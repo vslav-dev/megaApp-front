@@ -69,7 +69,7 @@ export class FoodProductHistoryStateService implements OnDestroy {
     }
   });
 
-  constructor() {
+  public constructor() {
     // A diary change (local, or an event from another device) can add or remove a tracked product's
     // entry: the chart's bar updates from the diary at once, so its tracked part has to follow.
     this.foodDiaryService.mutationApplied$.pipe(takeUntilDestroyed()).subscribe(() => {
@@ -102,6 +102,18 @@ export class FoodProductHistoryStateService implements OnDestroy {
     this.error$$.set(null);
   }
 
+  // [LOAD-BEARING]: do not rewrite this as a resource()/rxResource() (decided in plan 37, Angular 22.2).
+  // The required behaviour is the opposite of what a resource does:
+  //  - while a new request is in flight (add/remove a product) the previous entries must stay visible,
+  //    otherwise the tracked part of the calories chart blinks out and back; a resource drops its
+  //    value to undefined in the `loading` status;
+  //  - a failed background reload must keep the previous entries and show no error; a resource loses
+  //    its value in the `error` status;
+  //  - a failed foreground load clears the entries and shows the error — a resource has no notion of
+  //    foreground vs background, only the isBackground flag here tells them apart.
+  // Emulating this on top of a resource needs a separate last-good-value signal plus logic that derives
+  // the meaning of an error from the previous status — more code and harder to read than this method.
+  //
   // A background reload refreshes data already on screen: no loading overlay, and a failure keeps the
   // previous entries (the next diary change retries) instead of replacing the table with an error.
   private reload({ isBackground }: { isBackground: boolean }): void {

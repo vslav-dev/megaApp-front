@@ -15,7 +15,7 @@
 
 <v-accordion groupId="food-diary-section">
   <v-expand class="BMI mb-3"
-            (onOpened)="onBMIExpandOpened($event)">
+            (openedOutput)="onBMIExpandOpened($event)">
     <div v-header
          class="v-header v-theme-transition day-progress w-full p-2 text-center">
       <div class="day-progress-fill"
@@ -29,7 +29,7 @@
       }
 
       @if (selectedDaysConsumedPercentText$$(); as percentText) {
-        <span class="day-progress-label font-normal">Съедено <v-rolling-number [textInput]="percentText + '%'" /> от
+        <span class="day-progress-label font-normal">Съедено <v-rolling-number [textInput]="`${percentText}%`" /> от
           дневной нормы</span>
       }
     </div>
@@ -46,7 +46,7 @@
 <v-accordion groupId="food-diary-section">
   @for (food of selectedDayDiaryEntries$$(); track food.id) {
     <v-expand class="item"
-              (onOpened)="onVExpandOpened($event, food.id)">
+              (openedOutput)="onVExpandOpened($event, food.id)">
       <ng-container v-corner-pic>
         @if (foodCatalogueService.getCornerImageUrl(food.foodCatalogueId); as cornerImageUrl) {
           <img [src]="cornerImageUrl"
@@ -109,7 +109,7 @@
                 surface="flat"
                 [isLabelHidden]="true"
                 [padding]="2"
-                (onClick)="openDeleteDayConfirmationModal()">
+                (clickOutput)="openDeleteDayConfirmationModal()">
         <v-icon v-prefix
                 [name]="Icon.Delete"
                 [size]="6" />
@@ -121,7 +121,7 @@
                 surface="flat"
                 [isLabelHidden]="true"
                 [padding]="2"
-                (onClick)="onRestoreDayClicked()">
+                (clickOutput)="onRestoreDayClicked()">
         <v-icon v-prefix
                 [name]="Icon.Undo"
                 [size]="6" />
@@ -131,7 +131,7 @@
     @if (deviceInfoService.isDesktopScreen$$() && !isAnyAccordionOpen$$()) {
       <v-button class="v-primary grow"
                 width="100%"
-                (onClick)="openAddFoodModal()">
+                (clickOutput)="openAddFoodModal()">
         Добавить запись
       </v-button>
     }
@@ -148,7 +148,7 @@
          desktopWidth="320px"
          [borderRadius]="3"
          [padding]="4"
-         (onClose)="closeDeleteDayConfirmationModal()">
+         (closeOutput)="closeDeleteDayConfirmationModal()">
   <div class="flex flex-col gap-4">
     <div class="text-3xl font-extrabold leading-tight text-center text-red-600">
       Вы уверены, что хотите удалить все записи за этот день?
@@ -157,13 +157,13 @@
     <div class="flex gap-4">
       <v-button surface="flat"
                 width="100%"
-                (onClick)="closeDeleteDayConfirmationModal()">
+                (clickOutput)="closeDeleteDayConfirmationModal()">
         Нет
       </v-button>
 
       <v-button class="v-danger"
                 width="100%"
-                (onClick)="onDeleteDayConfirmed()">
+                (clickOutput)="onDeleteDayConfirmed()">
         Да
       </v-button>
     </div>

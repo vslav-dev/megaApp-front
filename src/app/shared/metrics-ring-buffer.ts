@@ -44,10 +44,10 @@ export class MetricRingBuffer {
 
     const maxAge = this.capacity * this.stepSeconds;
     const points: { bucket: number; value: number }[] = [];
-    for (let i = 0; i < this.capacity; i++) {
-      const bucket = this.buckets[i];
-      if (Number.isNaN(bucket) || this.latestBucket - bucket >= maxAge) continue;
-      points.push({ bucket, value: this.values[i] });
+    for (const [i, bucket] of this.buckets.entries()) {
+      const value = this.values[i];
+      if (value === undefined || Number.isNaN(bucket) || this.latestBucket - bucket >= maxAge) continue;
+      points.push({ bucket, value });
     }
     return points.sort((a, b) => a.bucket - b.bucket);
   }
@@ -59,8 +59,8 @@ export class MetricRingBuffer {
 
     const maxAge = this.capacity * this.stepSeconds;
     let count = 0;
-    for (let i = 0; i < this.capacity; i++) {
-      if (!Number.isNaN(this.buckets[i]) && this.latestBucket - this.buckets[i] < maxAge) count++;
+    for (const bucket of this.buckets) {
+      if (!Number.isNaN(bucket) && this.latestBucket - bucket < maxAge) count++;
     }
     return count;
   }

@@ -4,7 +4,7 @@
          desktopWidth="300px"
          [borderRadius]="3"
          [padding]="4"
-         (onClose)="onClose()">
+         (closeOutput)="onClose()">
   <div class="flex flex-col gap-4">
     @if (modalTitle()) {
       <div class="text-xl font-medium text-center">
@@ -21,13 +21,13 @@
     <div class="flex gap-4">
       <v-button surface="flat"
                 width="100%"
-                (onClick)="onCancel()">
+                (clickOutput)="onCancel()">
         {{ cancelButtonLabel() }}
       </v-button>
 
       <v-button class="v-danger"
                 width="100%"
-                (onClick)="onConfirm()">
+                (clickOutput)="onConfirm()">
         {{ confirmButtonLabel() }}
       </v-button>
     </div>

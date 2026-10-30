@@ -1,12 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
+import { Component, inject, input, output } from '@angular/core';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VModal } from '@ui-kit/components/v-modal/v-modal';
 
 @Component({
   selector: 'default-modal',
-  templateUrl: 'default-modal.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  templateUrl: './default-modal.html',
   imports: [VButton, VModal],
 })
 export class DefaultModal {

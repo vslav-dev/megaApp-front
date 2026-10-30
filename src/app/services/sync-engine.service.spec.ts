@@ -1,4 +1,4 @@
-import { provideHttpClient, withXhr } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { LocalStorageService } from '@app/services/local-storage.service';
@@ -8,8 +8,10 @@ import { createTelemetryFake } from '@app/testing/telemetry.fake';
 import {
   OptimisticSyncOperation,
   SyncEngineService,
+  SyncOperationFailure,
   SyncOperationMode,
   SyncOperationType,
+  syncFailureReason,
 } from './sync-engine.service';
 
 function setup() {
@@ -25,7 +27,7 @@ function setup() {
 
   TestBed.configureTestingModule({
     providers: [
-      provideHttpClient(withXhr()),
+      provideHttpClient(),
       provideHttpClientTesting(),
       { provide: LocalStorageService, useValue: localStorageFake },
       { provide: NotificationService, useValue: notificationServiceFake },
@@ -49,6 +51,26 @@ function optimisticOperation(overrides: Partial<OptimisticSyncOperation> = {}): 
     ...overrides,
   };
 }
+
+describe('SyncOperationFailure', () => {
+  it('is a real Error that carries the status and the response body', () => {
+    const failure = new SyncOperationFailure({ status: 409, body: { error: 'already exists' } });
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure.status).toBe(409);
+    expect(failure.body).toEqual({ error: 'already exists' });
+  });
+
+  it('syncFailureReason() returns the server error text, and null for anything else', () => {
+    expect(syncFailureReason(new SyncOperationFailure({ status: 409, body: { error: 'already exists' } }))).toBe(
+      'already exists',
+    );
+    expect(syncFailureReason(new SyncOperationFailure({ status: 0, body: null }))).toBeNull();
+    expect(syncFailureReason(new SyncOperationFailure({ status: 500, body: { error: 42 } }))).toBeNull();
+    expect(syncFailureReason(new Error('x'))).toBeNull();
+    expect(syncFailureReason(undefined)).toBeNull();
+  });
+});
 
 describe('SyncEngineService — retryability', () => {
   it('does not retry a 400 (terminal) error and calls rollbackCallback once', async () => {

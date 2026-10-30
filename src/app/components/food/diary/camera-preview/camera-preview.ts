@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   ElementRef,
   OnDestroy,
@@ -20,7 +19,6 @@ import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 @Component({
   selector: 'camera-preview',
   templateUrl: './camera-preview.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VIcon, VButton],
 })
 export class CameraPreview implements AfterViewInit, OnDestroy {
@@ -51,8 +49,8 @@ export class CameraPreview implements AfterViewInit, OnDestroy {
     }
   });
 
-  public async ngAfterViewInit(): Promise<void> {
-    await this.startCamera();
+  public ngAfterViewInit(): void {
+    void this.startCamera();
   }
 
   public ngOnDestroy(): void {
@@ -156,7 +154,7 @@ export class CameraPreview implements AfterViewInit, OnDestroy {
   public retakePhoto(): void {
     this.photoDataUrl$$.set('');
     this.capturedFile$$.set(null);
-    this.startCamera();
+    void this.startCamera();
   }
 
   public cancel(): void {

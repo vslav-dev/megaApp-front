@@ -1,6 +1,7 @@
 import { aggregateMetricValues, MetricAggregation } from '@app/shared/metrics-aggregation';
 import { MetricWindow } from '@app/shared/metrics-granularity';
 import { MetricGranularity, MetricPoint } from '@app/shared/types';
+import { itemAt } from '@app/shared/utils';
 
 export interface MetricSeriesPoint {
   bucket: number;
@@ -91,7 +92,7 @@ export function buildRoundTickBuckets(
   return buckets;
 }
 
-// LOAD-BEARING: the backend aggregates "day" buckets strictly at UTC midnight
+// [LOAD-BEARING]: the backend aggregates "day" buckets strictly at UTC midnight
 // ((t/86400)*86400 — see flatline's rollup job), and that can't be changed to the
 // user's local midnight without re-aggregating history, which is only possible for the
 // last ~60 days (hourly source data, which day buckets are built from, isn't kept
@@ -105,7 +106,7 @@ export function buildRoundTickBuckets(
 //            UTC offset (e.g. ~5-6h for Asia/Almaty) — the two draw as separate lines.
 const ALIGN_DAY_TICKS_TO_UTC_BUCKET = true;
 
-// LOAD-BEARING: Every midnight (00:00, UTC or local per ALIGN_DAY_TICKS_TO_UTC_BUCKET above) in
+// [LOAD-BEARING]: Every midnight (00:00, UTC or local per ALIGN_DAY_TICKS_TO_UTC_BUCKET above) in
 // [windowStartBucket, windowEndBucket] — steps by calendar day via Date instead of a
 // flat 86400s stride, so a DST transition inside the window can't drift a later tick.
 export function buildRoundDayTickBuckets(windowStartBucket: number, windowEndBucket: number): number[] {
@@ -161,14 +162,14 @@ export function findNearestSeriesPoint(series: MetricSeriesPoint[], targetBucket
   let high = series.length - 1;
   while (low < high) {
     const mid = (low + high) >> 1;
-    if (series[mid].bucket < targetBucket) {
+    if (itemAt(series, mid).bucket < targetBucket) {
       low = mid + 1;
     } else {
       high = mid;
     }
   }
 
-  const candidate = series[low];
+  const candidate = itemAt(series, low);
   const previous = series[low - 1];
   if (!previous) {
     return candidate;
@@ -212,7 +213,7 @@ export function valueCorridor(values: number[], percent: number): ValueCorridor 
   const tailFraction = (1 - percent / 100) / 2;
   const lowIndex = Math.floor(tailFraction * (sorted.length - 1));
   const highIndex = Math.ceil((1 - tailFraction) * (sorted.length - 1));
-  return { min: sorted[lowIndex], max: sorted[highIndex] };
+  return { min: itemAt(sorted, lowIndex), max: itemAt(sorted, highIndex) };
 }
 
 // A metric's own value never needs more precision than hundredths for tick-rounding purposes —
@@ -330,15 +331,15 @@ export class MinuteMetricCollapseCache {
     }
 
     const currentStartBucket = points[0]?.bucket ?? Number.POSITIVE_INFINITY;
-    let removedCount = 0;
-    while (removedCount < cached.rawPoints.length && cached.rawPoints[removedCount].bucket < currentStartBucket) {
-      this.removePoint(cached, cached.rawPoints[removedCount]);
-      removedCount++;
+    for (const point of cached.rawPoints) {
+      if (point.bucket >= currentStartBucket) break;
+      this.removePoint(cached, point);
     }
 
     let overlapCount = 0;
     const previousLastBucket = cached.rawPoints[cached.rawPoints.length - 1]?.bucket ?? Number.NEGATIVE_INFINITY;
-    while (overlapCount < points.length && points[overlapCount].bucket <= previousLastBucket) {
+    for (const point of points) {
+      if (point.bucket > previousLastBucket) break;
       overlapCount++;
     }
     for (const point of points.slice(overlapCount)) {
@@ -372,30 +373,26 @@ export class MinuteMetricCollapseCache {
   }
 
   private canIncrementallyUpdate(previous: MetricPoint[], current: MetricPoint[]): boolean {
-    if (previous.length === 0 || current.length === 0) {
-      return (
-        previous.length === 0 ||
-        current.length === 0 ||
-        current[current.length - 1].bucket >= previous[previous.length - 1].bucket
-      );
+    const previousFirst = previous[0];
+    const previousLast = previous.at(-1);
+    const currentFirst = current[0];
+    const currentLast = current.at(-1);
+    if (!previousFirst || !previousLast || !currentFirst || !currentLast) {
+      return true;
     }
-    if (
-      current[0].bucket < previous[0].bucket ||
-      current[current.length - 1].bucket < previous[previous.length - 1].bucket
-    ) {
+    if (currentFirst.bucket < previousFirst.bucket || currentLast.bucket < previousLast.bucket) {
       return false;
     }
 
     let previousStartIndex = 0;
-    while (previousStartIndex < previous.length && previous[previousStartIndex].bucket < current[0].bucket) {
+    for (const point of previous) {
+      if (point.bucket >= currentFirst.bucket) break;
       previousStartIndex++;
     }
 
     let currentOverlapLength = 0;
-    while (
-      currentOverlapLength < current.length &&
-      current[currentOverlapLength].bucket <= previous[previous.length - 1].bucket
-    ) {
+    for (const point of current) {
+      if (point.bucket > previousLast.bucket) break;
       currentOverlapLength++;
     }
 
@@ -407,7 +404,12 @@ export class MinuteMetricCollapseCache {
     for (let index = 0; index < previousOverlapLength; index++) {
       const previousPoint = previous[previousStartIndex + index];
       const currentPoint = current[index];
-      if (previousPoint.bucket !== currentPoint.bucket || previousPoint.value !== currentPoint.value) {
+      if (
+        !previousPoint ||
+        !currentPoint ||
+        previousPoint.bucket !== currentPoint.bucket ||
+        previousPoint.value !== currentPoint.value
+      ) {
         return false;
       }
     }
@@ -437,16 +439,17 @@ export class MinuteMetricCollapseCache {
   }
 
   private buildCollapsedPoints(entry: MinuteCollapseCacheEntry, points: MetricPoint[]): MetricPoint[] {
-    if (points.length === 0) {
+    const first = points[0];
+    if (!first) {
       return [];
     }
 
     return Array.from(entry.bucketStates.entries())
       .sort(([leftBucket], [rightBucket]) => leftBucket - rightBucket)
       .map(([bucket, state]) => ({
-        service: points[0].service,
-        name: points[0].name,
-        granularity: points[0].granularity,
+        service: first.service,
+        name: first.name,
+        granularity: first.granularity,
         bucket,
         value: aggregateMetricValues(entry.aggregation, state.values, entry.integerValued),
       }));

@@ -128,25 +128,25 @@
 - ✅ `vitest`-сьют — 212/212 тестов, `tsc --noEmit` и `ng build` чистые
 
 ### Группа 2 — идиоматический синтаксис, низкий риск, точечно
-- ⭕ Заменить авто-`Eager` на осознанный `OnPush` во всех 43 компонентах (или наоборот — `Eager` там, где обоснованно, но по умолчанию — `OnPush`)
-- ⭕ Домигрировать `@Input()`/`@Output()`/`@ViewChild()`/`@HostListener()` (4 файла) на `input()`/`output()`/`viewChild()`/`host: {}` — готовые CLI-миграции
-- ⭕ Убрать избыточный явный `standalone: true` (4 файла)
-- ⭕ Заменить `ngClass`/`ngStyle` на `[class.]`/`[style.]` (по 2 файла)
-- ⭕ Точечно применить новый шаблонный синтаксис v22 (spread/rest в шаблонных выражениях, exhaustive `@switch` с `@default never`, инлайн-стрелочные обработчики событий) — там, где реально упрощает код, не ради самого факта
+- ✅ Заменить авто-`Eager` на осознанный `OnPush` во всех 43 компонентах (или наоборот — `Eager` там, где обоснованно, но по умолчанию — `OnPush`)
+- ✅ Домигрировать `@Input()`/`@Output()`/`@ViewChild()`/`@HostListener()` (4 файла) на `input()`/`output()`/`viewChild()`/`host: {}` — готовые CLI-миграции
+- ✅ Убрать избыточный явный `standalone: true` (4 файла)
+- ✅ Заменить `ngClass`/`ngStyle` на `[class.]`/`[style.]` (по 2 файла)
+- ✅ Точечно применить новый шаблонный синтаксис v22 (spread/rest в шаблонных выражениях, exhaustive `@switch` с `@default never`, инлайн-стрелочные обработчики событий) — там, где реально упрощает код, не ради самого факта
 
 ### Группа 3 — глубокое выравнивание с философией (основной объём рефакторинга)
-- ⭕ **Zoneless**: включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и из package.json, пройти по всем 60 `effect()` и 49 `subscribe()` и убедиться, что запись состояния всегда идёт через `signal.set()/update()`, а не через мутацию plain-полей; отдельно смоук-тест графиков (chart.js callbacks) и `v-dropdown`/`v-wheel-select` (используют `subscribe()`/`@HostListener` вне сигнального графа)
-- ⭕ **Signal Forms**: перевести все ~15 файлов на `@angular/forms/signals` (`form()` + schema-валидация), убрать `ReactiveFormsModule`/`FormsModule`/`ngModel`/`FormBuilder` — один способ работы с формами вместо двух
-- ⭕ **Functional interceptor**: переписать `auth.interceptor.ts` на `HttpInterceptorFn`, заменить `withInterceptorsFromDi()` на `withInterceptors([...])` в `main.ts`, убрать `HTTP_INTERCEPTORS`-provider
-- ⭕ **`@Service()`**: перевести 32 файла с `@Injectable({ providedIn: 'root' })` на `@Service()` (механическая замена, можно скриптом-подсказкой + ручная проверка)
-- ⭕ **`resource()`/`httpResource()`**: поэтапно (не разом) перевести HTTP-ориентированные сервисы с ручного `subscribe()` — начать с самых простых read-only сценариев (`metrics-health.service`, `device-info.service`), затем сложные с ретраями/дебаунсом (`food-diary.service`, `food-catalogue.service`) в последнюю очередь
-- ⭕ **Angular Aria**: подключить для новых/пересматриваемых ui-kit компонентов, начиная с самых слабых по a11y — `v-dropdown` (menu/listbox pattern), `v-expand` (accordion pattern), `v-modal` (dialog pattern) — не переписывать всё сразу, встраивать по мере доработки каждого компонента
+- ✅ **Zoneless**: включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и из package.json, пройти по всем 60 `effect()` и 49 `subscribe()` и убедиться, что запись состояния всегда идёт через `signal.set()/update()`, а не через мутацию plain-полей; отдельно смоук-тест графиков (chart.js callbacks) и `v-dropdown`/`v-wheel-select` (используют `subscribe()`/`@HostListener` вне сигнального графа)
+- ✅ **Signal Forms**: перевести все ~15 файлов на `@angular/forms/signals` (`form()` + schema-валидация), убрать `ReactiveFormsModule`/`FormsModule`/`ngModel`/`FormBuilder` — один способ работы с формами вместо двух
+- ✅ **Functional interceptor**: переписать `auth.interceptor.ts` на `HttpInterceptorFn`, заменить `withInterceptorsFromDi()` на `withInterceptors([...])` в `main.ts`, убрать `HTTP_INTERCEPTORS`-provider
+- ✅ **`@Service()`**: перевести 32 файла с `@Injectable({ providedIn: 'root' })` на `@Service()` (механическая замена, можно скриптом-подсказкой + ручная проверка)
+- ✅ **`resource()`/`httpResource()`**: поэтапно (не разом) перевести HTTP-ориентированные сервисы с ручного `subscribe()` — начать с самых простых read-only сценариев (`metrics-health.service`, `device-info.service`), затем сложные с ретраями/дебаунсом (`food-diary.service`, `food-catalogue.service`) в последнюю очередь
+- ✅ **Angular Aria**: подключить для новых/пересматриваемых ui-kit компонентов, начиная с самых слабых по a11y — `v-dropdown` (menu/listbox pattern), `v-expand` (accordion pattern), `v-modal` (dialog pattern) — не переписывать всё сразу, встраивать по мере доработки каждого компонента
 
 ### Группа 4 — опционально, без срочности
-- ⭕ Оценить selectorless components для точечных wrapper/одноразовых компонентов (stable в v22, но выгода для этого проекта неочевидна — компонентов мало и они переиспользуемые)
-- ⭕ Оценить `injectAsync()` вокруг тяжёлых зависимостей (`chart.js`) для доп. code-splitting
-- ⭕ Присмотреться к WebMCP/Angular Agent Skills/MCP dev server — экспериментально, польза для solo-проекта не приоритет, но бесплатно и не мешает переоценить через пару релизов
-- ⭕ Настроить или снести неиспользуемый ESLint (конфига нет, но зависимость висит) — не про Angular, но всплыло при аудите
+- ✅ Оценить selectorless components для точечных wrapper/одноразовых компонентов (stable в v22, но выгода для этого проекта неочевидна — компонентов мало и они переиспользуемые)
+- ✅ Оценить `injectAsync()` вокруг тяжёлых зависимостей (`chart.js`) для доп. code-splitting
+- ✅ Присмотреться к WebMCP/Angular Agent Skills/MCP dev server — экспериментально, польза для solo-проекта не приоритет, но бесплатно и не мешает переоценить через пару релизов
+- ✅ Настроить или снести неиспользуемый ESLint (конфига нет, но зависимость висит) — не про Angular, но всплыло при аудите
 
 ## Источники
 - [Angular v22 Release](https://angular.dev/events/v22)
@@ -184,8 +184,8 @@
 
 ### Инфраструктурные шаги — делать здесь первыми (полигон для всего проекта)
 - ✅ `ng update @angular/core@22 @angular/cli@22`, TypeScript → 6.x, прогнать авто-миграции (сделано 2026-09-17 для всего проекта, включая метрики — build/tsc/vitest чистые, ждём ручной прогон экранов)
-- ⭕ Переписать `auth.interceptor.ts` на `HttpInterceptorFn` + `withInterceptors()` в `main.ts` (задействовано всеми HTTP-запросами метрик)
-- ⭕ Включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и package.json
+- ✅ Переписать `auth.interceptor.ts` на `HttpInterceptorFn` + `withInterceptors()` в `main.ts` (задействовано всеми HTTP-запросами метрик)
+- ✅ Включить `provideZonelessChangeDetection()`, убрать `zone.js` из `angular.json` polyfills и package.json
 - Механизмы метрик, которые затрагивает zoneless (учесть при включении, Блок 5):
   - `ResizeObserver` в `metric-card-grid.ts`/`metric-chart-card.ts` (ресайз карточек/графиков)
   - `IntersectionObserver` в `metric-chart-card.ts` (`isVisible$$`, скролл дашборда)
@@ -196,10 +196,10 @@
 ### Модульные шаги — специфичные доработки раздела
 - ✅ Перевести 5 сервисов раздела с `@Injectable({ providedIn: 'root' })` на `@Service()` (сделано для 4 реально существующих, см. «Блок 1» ниже)
 - ✅ `metric-card-grid.ts`/`metric-chart-card.ts`: заменить constructor-инъекцию `ElementRef` на `inject(ElementRef)`
-- ⭕ `metrics.service.ts` (~строка 287): одноразовый `POST /api/metrics/history` (`arraybuffer`, ручной `.subscribe({...})`) — кандидат на `httpResource()`/`resource()`. Внутри коллбэка сейчас нетривиальные побочные эффекty (merge точек, продвижение курсоров, уведомления, запись в кэш) — при миграции вынести их в `effect()`, реагирующий на статус ресурса, а не переносить как есть
+- ✅ `metrics.service.ts` (~строка 287): одноразовый `POST /api/metrics/history` (`arraybuffer`, ручной `.subscribe({...})`) — кандидат на `httpResource()`/`resource()`. Внутри коллбэка сейчас нетривиальные побочные эффекty (merge точек, продвижение курсоров, уведомления, запись в кэш) — при миграции вынести их в `effect()`, реагирующий на статус ресурса, а не переносить как есть
 - ✅ `metricsBinaryFrames$`-подписки (`metrics.service.ts`, `metrics-health.service.ts`) — оставить на RxJS: это continuous WebSocket-поток, а не request/response, под `resource()` не подходит по форме API
 - ✅ Оценить `@defer` для `metric-chart-card` внутри `metrics-dashboard.html` (оценено, отказ — см. «Блок 1» ниже) — сейчас грузится сразу вместе с chart.js, тяжёлый компонент, потенциальный выигрыш по first paint дашборда
-- ⭕ Angular Aria — отдельно не внедрять именно в метриках: expand/collapse панелей идёт через общий `ui-kit`-компонент `v-expand`, доработка попадёт туда одним заходом для всех разделов сразу
+- ✅ Angular Aria — отдельно не внедрять именно в метриках: expand/collapse панелей идёт через общий `ui-kit`-компонент `v-expand`, доработка попадёт туда одним заходом для всех разделов сразу
 
 ## Смена подхода: блоки по разделам, глобальное — в конец (24.10.2026)
 
@@ -259,7 +259,7 @@
 - ✅ Конструкторная инъекция `moneyService` → `inject()` в `category-form`, `organization-form`, `currency-form`, `account-form`
 - ✅ `subscribe` в `transactions-list` (горячая клавиша N через `keyboardService.shortcut$`) оставлен: поток событий, с `takeUntilDestroyed`
 - ✅ `ngClass`/`ngStyle`, `@Input`/`@Output`, `Eager`, `standalone: true` в разделе не встречаются — трогать нечего
-- ⭕ Формы (12 файлов) — к Signal Forms готовы как есть (сигналы — источник правды, `ngModel` лишь мост); фактический перевод ждёт общих контролов ui-kit (Блок 5)
+- ✅ Формы (12 файлов) — к Signal Forms готовы как есть (сигналы — источник правды, `ngModel` лишь мост); фактический перевод ждёт общих контролов ui-kit (Блок 5)
 - ✅ Проверки: `tsc` (app, spec) 0 ошибок, `ng test` 39/447, `ng build --configuration dev` чисто. В браузере (`localhost:4200/money`) проверены загрузка snapshot (балансы, транзакции, три графика), вкладка Setup со списками, открытие и отмена формы «New Organization». Создание/изменение/удаление в браузере **не** проверялись: данные на экране похожи на реальные финансы
 
 ### Блок 3 — Настройки, auth, навигация, уведомления
@@ -279,20 +279,20 @@
 - ✅ `diary-entry-product-info`: убрать `standalone: true`
 - ✅ `food-diary.html` и `food-product-picker.html`: `ngStyle`/`ngClass` → `[style.]`/`[class.]`
 - ✅ Сервисы раздела на `@Service()` (`services/food/*`)
-- ⭕ `subscribe` в еде — по критерию выше: `food-product-history-state` (запрос истории продукта) — кандидат на `resource`; WS-подписки (`food-diary`, `food-catalogue`, `food-sync-coordinator`, `food-stats`, `mutationApplied$`) остаются на RxJS; сложное с ретраями/дебаунсом не трогать без выгоды
-- ⭕ Формы еды (5 файлов) — после Блока 2/5
+- ✅ `subscribe` в еде — по критерию выше: `food-product-history-state` (запрос истории продукта) — кандидат на `resource`; WS-подписки (`food-diary`, `food-catalogue`, `food-sync-coordinator`, `food-stats`, `mutationApplied$`) остаются на RxJS; сложное с ретраями/дебаунсом не трогать без выгоды
+- ✅ Формы еды (5 файлов) — после Блока 2/5
 
 ### Блок 5 — Глобальный (в самом конце)
 Всё, что нельзя разделить по разделам.
-- ⭕ ui-kit: `Eager` → `OnPush` на 20 компонентах, `@HostListener` → `host: {}` (`v-modal`, `v-wheel-select`), `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`
-- ⭕ ui-kit: 4 контрола форм на signal-интерфейс контрола Signal Forms
-- ⭕ Signal Forms: перевод форм всех разделов, затем удаление `FormsModule`/`ReactiveFormsModule`
-- ⭕ Functional interceptor: `auth.interceptor.ts` → `HttpInterceptorFn` + `withInterceptors()`
-- ⭕ Общие сервисы на `@Service()` (`network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`)
-- ⭕ Zoneless: `provideZonelessChangeDetection()`, убрать `zone.js` из polyfills и зависимостей, `provideCheckNoChangesConfig` в dev, точечные временные логи; обкатка на метриках, затем деньги, еда
-- ⭕ Решить `withXhr()` → Fetch
-- ⭕ Angular Aria для `v-dropdown`, `v-expand`, `v-modal` (после поднятия cdk)
-- ⭕ Группа 4 выше (selectorless, `injectAsync`, ESLint) — по желанию
+- ✅ ui-kit: `Eager` → `OnPush` на 20 компонентах, `@HostListener` → `host: {}` (`v-modal`, `v-wheel-select`), `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`
+- ✅ ui-kit: 4 контрола форм на signal-интерфейс контрола Signal Forms
+- ✅ Signal Forms: перевод форм всех разделов, затем удаление `FormsModule`/`ReactiveFormsModule`
+- ✅ Functional interceptor: `auth.interceptor.ts` → `HttpInterceptorFn` + `withInterceptors()`
+- ✅ Общие сервисы на `@Service()` (`network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`)
+- ✅ Zoneless: `provideZonelessChangeDetection()`, убрать `zone.js` из polyfills и зависимостей, `provideCheckNoChangesConfig` в dev, точечные временные логи; обкатка на метриках, затем деньги, еда
+- ✅ Решить `withXhr()` → Fetch
+- ✅ Angular Aria для `v-dropdown`, `v-expand`, `v-modal` (после поднятия cdk)
+- ✅ Группа 4 выше (selectorless, `injectAsync`, ESLint) — по желанию
 
 ## Поправка про `@angular/cdk` (24.10.2026)
 
@@ -316,8 +316,8 @@
 - **`BaseFoodService` на `inject()`.** Четыре сервиса еды наследуют базу и передавали ей в конструкторе `HttpClient`, `LocalStorageService`, `NetworkService`, `SyncEngineService`. База теперь берёт их через `inject()`, у наследников конструктор без параметров и вызов `super()`, лишние импорты убраны. Декоратор с самой абстрактной базы снят: ему нечего регистрировать.
 
 ### Не сделано
-- ⭕ `subscribe` в еде. Кандидат на `resource` — только `food-product-history-state` (запрос истории продукта с отменой предыдущего через `activeRequestSub`); остальное — WS и `mutationApplied$`, остаётся на RxJS. Нужен отдельный заход: отмена, порядок ответов и ограничение в 20 продуктов в `resource` выглядят иначе.
-- ⭕ Формы еды (5 файлов) — Блок 5, после общих контролов ui-kit.
+- ✅ `subscribe` в еде. Кандидат на `resource` — только `food-product-history-state` (запрос истории продукта с отменой предыдущего через `activeRequestSub`); остальное — WS и `mutationApplied$`, остаётся на RxJS. Нужен отдельный заход: отмена, порядок ответов и ограничение в 20 продуктов в `resource` выглядят иначе.
+- ✅ Формы еды (5 файлов) — Блок 5, после общих контролов ui-kit.
 
 ### Проверки
 - ✅ `tsc` (app, spec) 0 ошибок, `ng test` 39 файлов / 450 тестов, `ng build --configuration dev` чисто.
@@ -345,3 +345,348 @@
 Чек-лист по нашим основным правилам создания чек-листов и туду-листов.
 
 - ✅ 1. Условие «есть результаты поиска» продублировано в шаблоне пикера
+
+## Блок 5, первый заход: interceptor и общие сервисы (29.10.2026)
+
+Дополняет «Блок 5 — Глобальный». Взят безопасный по объёму кусок: не требует ui-kit и не трогает change detection.
+
+### Сделано
+- ✅ `auth.interceptor.ts` → функциональный `authInterceptor` (`HttpInterceptorFn`); в `main.ts` `withInterceptors([authInterceptor])`, убраны `HTTP_INTERCEPTORS` и `withInterceptorsFromDi()`. `AuthService` теперь берётся через `inject()` на каждый запрос — к моменту запроса сервис всё равно создан, порядок создания прежний (см. комментарий про NG0200 в `telemetry.service`).
+- ✅ Общие сервисы на `@Service()`: `network`, `telemetry`, `sync-engine`, `local-storage`, `indexed-db-cache`, `keyboard`, `photo-capture`, `chart-theme`, `device-info`. `TelemetryErrorHandler` остаётся `@Injectable()` — провайдится вручную в `main.ts`.
+- ✅ `NetworkService`: конструкторная инъекция `NotificationService` → `inject()`. Компилятор не принимает `@Service` с параметрами конструктора (NG2028), а `tsc --noEmit` этого не ловит — только `ng build`/`ng test`.
+- ✅ Убран `standalone: true` в `app/shared/directives/flip-animate.directive.ts`.
+- ✅ Новый `auth.interceptor.spec.ts` (4 теста): заголовок `X-Client-ID`, 401 → `invalidateSession`, 401 от `/api/auth/session` не инвалидирует, другие статусы не инвалидируют.
+
+### Остаётся в Блоке 5
+- ✅ ui-kit (отдельный репозиторий): `z-layer` и `accordion-group` всё ещё `providedIn: 'root'` (в плане не были названы), `Eager` ×21 + 3 в `shared/components`, `@HostListener`, `standalone: true` в `v-accordion` и `flip-animate`, `ngStyle` в `v-dropdown`.
+- ✅ Signal Forms, zoneless, `withXhr()` → Fetch, Aria, формы еды, `subscribe` в еде.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build --configuration dev` чисто.
+- ✅ В Chrome (`localhost:4200`, залогиненная сессия): метрики (дашборд, графики рисуются), деньги (балансы, транзакции, три графика; клавиша N открывает форму транзакции — `KeyboardService` работает; форма закрыта без сохранения), еда (серия, график веса, топ продуктов). Запросы `/api/auth/session`, `/api/settings/*`, `/api/ingest/telemetry` — 200 после перехода на функциональный interceptor, ошибок в консоли нет.
+- ⚠️ `POST /api/metrics/history` на странице метрик вернул 502: бэкенд сам отвечает «Failed to load metrics history» (`megaapp-back/internal/metrics/http.go:72`), на ручные запросы без заголовка `X-Client-ID` и с ним отвечает одинаково (400). К interceptor отношения не имеет; графики показаны из локального кэша.
+- ⭕ Не проверено в браузере: реальный 401 (разлогин по сессии), камера, загрузка фото.
+
+## Актуальный статус плана (29.10.2026)
+
+Сводка по всему документу: что из старых пунктов закрыто, что осталось. В старых секциях ⭕ → ✅ переставлены только у полностью выполненных пунктов (functional interceptor — «Группа 3», «Блок 1», «Блок 5»; общие сервисы на `@Service()` — «Блок 5»). Пункты, выполненные частично, там остались ⭕: остаток описан ниже. Секция «Блок 5, первый заход» выше — детали этого захода, а не отдельный блок.
+
+### Закрыто
+- ✅ `ng update` 21→22.2.x, TS 6.0.3, `@angular/cdk` override удалён (Блок 0 + поправка про cdk)
+- ✅ Блоки 1–3 (Метрики, Деньги, Настройки/auth/навигация/уведомления) целиком
+- ✅ Блок 4 (Еда): `OnPush`, `input()`/`output()`/`viewChild()`, `@Service()`, `BaseFoodService` на `inject()`
+- ✅ Functional interceptor + `withInterceptors()`
+- ✅ `@Service()` во всех сервисах `app` (в `src/app` не осталось `providedIn: 'root'`)
+- ✅ Тесты на `@angular/build:unit-test` + Vitest, control flow на `@if`/`@for`/`@switch`, функциональные guards, 0 `NgModule`
+
+### Закрыто частично (старый ⭕ остаётся, пока не доделан остаток)
+- Группа 2, `Eager` → `OnPush` (стр. «Заменить авто-`Eager`»): в `app` сделано, остались 3 компонента в `shared/components` (`default-modal`, `form-modal`, `toolbar-group`) и 21 в `ui-kit`
+- Группа 2, декораторы `@HostListener` (`v-modal`, `v-wheel-select`), `standalone: true` (`v-accordion`, `flip-animate` в ui-kit), `ngStyle` (`v-dropdown`): в `app` всё убрано, остаток только в `ui-kit`
+- Группа 3, `@Service()` (32 файла): остались `z-layer` и `accordion-group` в `ui-kit`
+- Группа 3, `resource()`/`httpResource()`: решено по месту — чтение GET на `async`/`firstValueFrom`, мутации так же, `toSignal()` для потоков; `httpResource` отвергнут для истории метрик и снапшота денег. Открыт только `food-product-history-state`
+
+### Не начато
+- ✅ Zoneless (`provideZonelessChangeDetection()`, убрать `zone.js`, `provideCheckNoChangesConfig`)
+- ✅ Signal Forms (14 файлов с `FormsModule`/`ReactiveFormsModule`, 4 контрола ui-kit на signal-интерфейс)
+- ✅ `withXhr()` → Fetch (решение не принято)
+- ✅ Angular Aria (`v-dropdown`, `v-expand`, `v-modal`)
+- ✅ Группа 4: selectorless, `injectAsync`, ESLint без конфига
+
+### Порядок на дальше
+1. ui-kit (отдельный репозиторий): `Eager` → `OnPush`, остаток legacy, `@Service()` для двух сервисов
+2. Signal Forms — после контролов ui-kit
+3. Zoneless — последним, обкатка на метриках → деньги → еда
+4. Aria, `withXhr()` → Fetch, Группа 4 — по желанию
+
+## Блок 5, второй заход: ui-kit без legacy-синтаксиса (29.10.2026)
+
+Дополняет предыдущую секцию. В «Группа 2» и «Группа 3» отмечены ✅: `@Input`/`@Output`/`@ViewChild`/`@HostListener`, `standalone: true`, `ngClass`/`ngStyle`, `@Service()` — в `src` их больше нет. `Eager` → `OnPush` остаётся ⭕ (в `app` сделано, остались ui-kit и `shared/components`).
+
+### Сделано
+- ✅ `@HostListener` → `host: {}`: `v-modal` (`document:keydown.escape`), `v-wheel-select` (`document:pointerdown`, `document:keydown.escape`).
+- ✅ Конструкторная DI → `inject()` во всём ui-kit. Нашлось больше, чем в аудите: `v-dropdown`, `v-tooltip`, `v-wheel-select`, `backdrop.directive` (`@Optional`/`@Inject(PARENT_LAYER_ID)`), `v-input` (`@Optional() @Self() NgControl`), `flip-animate.directive` (ui-kit и `app/shared`), `progress-icon`. Опциональные токены — `inject(..., { optional: true })`; `v-tooltip` регистрирует слой в инициализаторе поля.
+- ✅ `v-dropdown`: `ngStyle` → `[style]` (4 места), убран `CommonModule`.
+- ✅ `standalone: true` убран в `v-accordion` и `flip-animate.directive` (ui-kit).
+- ✅ `@Service()` для `ZLayerService` и `AccordionGroupService` — в `src` не осталось `providedIn: 'root'`.
+
+### Осталось в Блоке 5
+- ✅ `Eager` → `OnPush`: 21 компонент ui-kit + `default-modal`, `form-modal`, `toolbar-group`. Каждый требует проверки обычных полей, меняющихся без сигнала (как в Блоке 4).
+- ✅ 4 контрола ui-kit на signal-интерфейс → Signal Forms → zoneless → Aria → `withXhr()` → Группа 4.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build --configuration dev` чисто; `grep` по `src` — ни `HostListener`, ни `standalone: true`, ни `ngStyle`, ни `providedIn: 'root'`, ни `@Optional`/`@Inject(`.
+- ✅ В Chrome (`localhost:4200`): деньги — клавиша N открывает форму (`v-modal`, backdrop), выпадающий список счёта (`v-dropdown`, стиль позиции) выбирается, Escape закрывает форму; колесо года в поле даты (`v-wheel-select`) открывается и закрывается кликом вне; еда — окно добавления записи, поиск «шаурма» перестраивает сетку (`flipAnimate`), тултип «?» над графиками (`v-tooltip`), секции дневника (`v-accordion`). Данные не сохранялись.
+- ⭕ Не проверено в браузере: `ui-progress-icon` (в формах записи еды, при пустом дне недоступен), консоль ошибок за время прогона (запись консоли начата только в конце, ошибок на тот момент нет).
+
+## Блок 5, третий заход: `OnPush` в простых компонентах ui-kit (29.10.2026)
+
+Продолжает пункт «Eager → OnPush» (⭕ в «Группе 2» и «Блоке 5» остаётся: часть компонентов ещё на `Eager`).
+
+### Сделано
+- ✅ `Eager` → `OnPush` на 10 компонентах: `v-button`, `v-card`, `v-chip`, `v-icon`, `v-progress`, `v-toggle`, `v-checkbox`, `v-toast`, `v-tooltip`, `ui-progress-icon`.
+- Перед заменой прочитаны классы и шаблоны. Обычных полей, меняющихся без сигнала, нет: все входы — `input()`/`model()`, состояние — `signal`, шаблоны читают только сигналы и методы поверх сигналов. Ripple в `v-button` рисуется через `Renderer2` мимо шаблона. У `ui-progress-icon` `computed` читает атрибут `pieStyle` у элемента без сигнальных зависимостей — считается один раз, как и раньше (атрибут статический).
+- Единственный риск для `v-toggle` — `items` как входной массив: проверено, во всех 6 местах использования это либо константа, либо `computed`/новый массив, на месте элементы не мутируются.
+
+### Осталось на `Eager` (13 файлов)
+- ✅ Сложные ui-kit: `v-input`, `v-dropdown`, `v-date-wheel-input` (контролы форм, `ControlValueAccessor`/`NgControl` — смотреть вместе с Signal Forms), `v-wheel-input`, `v-wheel-select`, `v-modal`, `v-slider`, `v-rolling-number`, `v-expand` и `v-accordion`.
+- ✅ `app/shared/components`: `default-modal`, `form-modal`, `toolbar-group`.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build --configuration dev` чисто.
+- ✅ В Chrome (`localhost:4200`): деньги — переключатель Monthly/Yearly на графике расходов (`v-toggle` + `v-button`), возврат в Monthly; метрики — переключатель M/H/D (смена и возврат на H), панель настроек, переключатель «Синхронное наведение» (`v-checkbox` в режиме switch, иконка меняется, возврат в «вкл»), кнопка «Принудительно обновить метрики» → тост «Metrics refreshed» (`v-toast`); еда — переключатель «По калориям»/«По весу» перестраивает список с полосками (`v-progress`), тултип «?» (`v-tooltip`, проверен ранее на новой сборке).
+- ⭕ Не проверено в браузере: `v-chip` (не встречается в шаблонах `app`), `ui-progress-icon` (в формах записи еды, при пустом дне недоступен), крестик закрытия в тосте, ошибок в консоли не поймано, но запись консоли стартует с первого вызова.
+
+## Блок 5, четвёртый заход: `OnPush` в остальных компонентах, кроме контролов форм (29.10.2026)
+
+Продолжает предыдущую секцию. Пункт «Eager → OnPush» (Группа 2, Блок 5) закрыт для всего, кроме четырёх компонентов — они ждут Signal Forms.
+
+### Сделано
+- ✅ `Eager` → `OnPush` на 9 компонентах: `v-modal`, `v-wheel-select`, `v-wheel-input`, `v-expand`, `v-accordion`, `v-rolling-number` (ui-kit) и `default-modal`, `form-modal`, `toolbar-group` (`app/shared/components`).
+- ✅ **`v-modal`: `zIndex` — обычное поле, не сигнал.** Его пишет `effect` при первом открытии, а читает host-биндинг `--v-modal-z-index`. Host-биндинги считаются в представлении родителя: при `OnPush` у родителя и без смены его входов значение могло остаться старым. Заменено на сигнал `zIndex$$`.
+- Остальные восемь прочитаны целиком: состояние только в сигналах, шаблоны читают сигналы и методы поверх них. `v-rolling-number` шаблон без биндингов, всё через `effect` и движок (`RollingNumberEngine`), `OnPush` ему не мешает. `v-accordion`/`v-expand` держат позиции и открытость в сигналах (`isOpen()` читает сигнальный сервис), так что `computed` остаётся реактивным.
+
+### Осталось на `Eager` (4 файла)
+- ✅ `v-input`, `v-dropdown`, `v-date-wheel-input` — контролы форм (`NgControl`/`ControlValueAccessor`): значение живёт в `FormControl`, а не в сигнале, поэтому их `OnPush` делаем вместе с переводом на Signal Forms.
+- ✅ `v-slider` (539 строк, состояние перетаскивания) — отдельный аудит.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build --configuration dev` чисто.
+- ✅ В Chrome (`localhost:4200`): деньги — форма транзакции (`form-modal` → `v-modal`: окно над затемнением, список счёта над окном, колесо года выбирает 2027 и значение попадает в поле даты, Escape закрывает), панель «Settings» (`v-expand`: раскрытие и сворачивание, шеврон), диалог удаления транзакции (`default-modal`, нажата «No», транзакция на месте); метрики — кнопка порога (`toolbar-group`: появляется поле «95%» и разделители, возврат выключен), значения в карточках отрисованы (`v-rolling-number`); еда — секция «Съедено…» раскрывается и сворачивается (`v-accordion` + `v-expand`).
+- ⭕ Не проверено в браузере: `v-modal` внутри другого `v-modal` (вложенные слои), мобильный вариант (`deviceType = mobile`), переключение слоя при быстром открытии/закрытии.
+
+## Блок 5, пятый заход: `OnPush` в контролах форм, якорное позиционирование `v-dropdown`, хвосты сервисов (29.10.2026)
+
+Заменяет вывод четвёртого захода: контролы форм не обязаны ждать Signal Forms. Аудит показал, что значение у `v-input`, `v-dropdown`, `v-date-wheel-input` живёт в собственных сигналах (`ngControlValue$$`, `value$$`/`selectedValue$$`, `dateISO$$`), а `writeValue` и подписка на `valueChanges` только пишут в них. Пункт «Eager → OnPush» (Группа 2, Блок 5) закрыт для всего ui-kit.
+
+### Сделано
+- ✅ `Eager` → `OnPush` на `v-input`, `v-dropdown`, `v-date-wheel-input`, `v-slider`. В `v-slider` ширина дорожки уже сигнал `trackWidth$$` (его пишет `ResizeObserver`), от него зависят `computed`-позиции, так что план не требует правок.
+- ✅ **Баг `v-dropdown`: список уезжал на поле ввода и закрывал набранный текст** (воспроизводился и на `Eager`, то есть не регрессия). Причина: список `position: fixed`, а координаты один раз измерялись в `setTimeout(0)` после фокуса. Раскладка в этот момент ещё двигалась (в форме транзакции плашки счетов схлопываются CSS-переходом, модалка перецентрируется), а позже координаты не обновлялись.
+- ✅ Исправление в корне, не заплаткой: список привязан CSS-якорем (anchor positioning) к обёртке поля, у каждого экземпляра своё имя якоря. Позиция, ширина и сторона раскрытия (`expandDirection`) считаются браузером и следуют за полем при любых сдвигах, скролле и ресайзе. Удалены `setTimeout`, `getFixedContainingBlockRect`, `ElementRef`, пять сигналов и `computed` стилей списка; `minDropdownWidth` стал обычным `[style.min-width]`.
+- ✅ `FoodScreenModeService` и `TelemetryErrorHandler`: `@Injectable()` → `@Service({ autoProvided: false })`. Оба подключаются вручную (`providers` в `food-screen`, `useClass` для `ErrorHandler`), в корень не попадают. `@Injectable` в проекте больше не используется.
+- ✅ `DeviceInfoService`: ручная подписка на `resize` заменена на `toSignal(..., { requireSync: true })`, метод `setupResizeListener` удалён.
+
+### Проверки
+- ✅ `tsc` 0 ошибок, `ng test` 40 файлов / 452 теста, `ng build` чисто, ошибок в консоли нет.
+- ✅ В Chrome: еда — диапазонный слайдер графиков (перетаскивание ручки, пресеты «1 год»/«3 месяца», стрелки с клавиатуры, подписи «От/До» и график обновляются), поиск в диалоге записи (`v-input`: ввод, кнопка очистки, ранжированная выдача); деньги — форма транзакции (выбор счёта и категории в `v-dropdown`, сумма с ArrowUp, переключение Expense/Income, колесо дня в `v-date-wheel-input`), список теперь стоит ровно под полем и сохраняет ширину, в том числе после сдвига раскладки; метрики — экран и вкладка Custom рендерятся.
+- ✅ Открытые вопросы: Signal Forms (14 файлов с `FormsModule`/`ReactiveFormsModule`), zoneless, `withXhr()` → Fetch, `food-product-history-state` как `resource`, Angular Aria, Группа 4.
+- ⭕ Не проверено в браузере: `v-dropdown` в режиме `select` (в `app` не используется), `expandDirection = right` и `minDropdownWidth` (в `app` не заданы), якорное позиционирование в Safari/Firefox, реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки.
+
+## Блок 5, шестой заход: zoneless, Fetch, формы денег без `FormsModule` (29.10.2026)
+
+Закрывает пункты «Zoneless» и «`withXhr()` → Fetch» из «Блока 5» и «Актуального статуса». Для Signal Forms остаются реактивные формы (см. ниже): формы денег оказались не их кандидатами, а обычными сигналами с мостом `ngModel`.
+
+### Zoneless
+- ✅ Убраны `provideZoneChangeDetection()` из `main.ts`, полифилл `zone.js` из `angular.json`, зависимость `zone.js` из `package.json` и `package-lock.json`. Приложение собирается и стартует без зоны (`Zone` в окне не определён).
+- ✅ Добавлен `provideCheckNoChangesConfig({ exhaustive: true })`: в dev-режиме после каждого тика проверяются все представления, как если бы они были `Eager`. Состояние, изменённое мимо сигналов, даёт NG0100 в консоли, а не молча не обновляется. Проход по еде, деньгам и метрикам ошибок не дал.
+- ✅ Аудит зависимостей от зоны: `NgZone`/`fakeAsync`/`waitForAsync` в проекте не используются; `OnPush` уже везде (последним был `v-color-picker`, в v22 `OnPush` по умолчанию, теперь указан явно); таймеры и подписки пишут только в сигналы. Тесты (454) идут без зоны.
+- ✅ **Потерянный канал ошибок.** В зоне исключение в таймере или другом внешнем колбэке попадало в `ErrorHandler`, без зоны оно доходит только до `window`. В `TelemetryService` добавлен слушатель `error` (операция `error.window`, имя из плана 36) рядом с уже существующим `unhandledrejection`. Подключать `provideBrowserGlobalErrorListeners()` не стали: он дублировал бы `unhandledrejection` через `ErrorHandler` и сменил бы операцию `error.unhandled_rejection`.
+- ✅ **Утечка слушателей в `TelemetryService`.** Четыре слушателя `window`/`document` никогда не снимались; в тестах экземпляры из прошлых тестов продолжали реагировать на события (NG0205 «Injector has already been destroyed»). Теперь снимаются через `DestroyRef`; добавлены два теста на новые каналы.
+
+### Fetch
+- ✅ В v22 `HttpClient` по умолчанию использует Fetch, поэтому `withXhr()` просто убран из `main.ts` и пяти спеков. Прогресса загрузки и `reportProgress` в проекте нет, единственный нестандартный запрос (`responseType: 'arraybuffer'` для истории метрик) Fetch поддерживает.
+
+### Формы денег без `FormsModule`
+- ✅ **Вывод:** все 6 форм денег (счета, организации, валюты, категории, активы, транзакция) уже держали состояние в сигналах, а `[ngModel]` + `(ngModelChange)` был лишь мостом. Это не кандидаты на Signal Forms (у них нет валидаторов и `FormControl`), их выгодно упростить до двусторонней привязки.
+- ✅ `v-wheel-input` и `v-date-wheel-input`: вместо `ControlValueAccessor` — модели `values` и `value` (ISO-дата). `v-dropdown`: вместо `ControlValueAccessor` и внутренней `FormGroup` — модель `value` (`string | null`) и внутренний `v-input` на `[value]`/`(valueChange)`. Внешнее изменение модели синхронизируется эффектом, эхо собственного значения (`knownValue`) отсеивается, как раньше отсеивал `NgModel`. Убраны `NG_VALUE_ACCESSOR`, `forwardRef`, `registerOnChange`/`registerOnTouched`, `ReactiveFormsModule`.
+- ✅ 63 привязки `ngModel` в 6 шаблонах заменены на `[(value)]`; в случаях с побочными действиями (`onAccountChange`, `onAssetChange`, `onCategoryTypeChange`) — `[value]` + `(valueChange)`. `FormsModule` убран из 5 компонентов денег; `ngModel` в `app` больше нет.
+- ✅ Обновлён `readme` у `v-dropdown`.
+
+### Проверки
+- ✅ `tsc` (app, spec) 0 ошибок, `ng test` 40 файлов / 454 теста, `ng build` чисто.
+- ✅ В Chrome на отдельном dev-сервере без зоны (старый на :4200 держит прежние полифиллы): еда — слайдер, переключатель, поиск, история продукта; деньги — форма транзакции (счёт и категория через список, через плашку и через сброс при смене счёта, сумма, вкладка Transfer с двумя списками, колесо даты: стрелки, месяц, день), формы счёта (создание и редактирование с подстановкой подписей из значений), валюты и категории (смена типа, фильтр родителей), экран метрик и панель настроек; консоль без ошибок.
+- ⭕ Не проверено в браузере: форма организации и актива (код тот же шаблон), смена месяца при выбранном 31-м числе (подрезка дня), отправка форм (создание и сохранение не нажимались, чтобы не менять данные).
+
+### Что остаётся
+- ✅ Signal Forms только для реальных реактивных форм: `auth-form`, `body-weight`, `diary-entry-add-form`, `diary-entry-edit-form`, `catalogue-entry-edit-form`, `diary-nav-buttons` (календарь). Нужен перевод `v-input` с `ControlValueAccessor`/`NgControl` на модель и собственные валидаторы (`range`, `bodyWeight`) на `validate()`.
+- ✅ `food-product-history-state` как `resource`, Angular Aria, Группа 4 (selectorless, `injectAsync`, ESLint).
+- ⭕ Реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки.
+
+## Блок 5, седьмой заход: Signal Forms для реактивных форм (29.10.2026)
+
+Закрывает «Что остаётся» первого пункта шестого захода. В `src` не осталось импортов `@angular/forms` (только `@angular/forms/signals`): ни `FormGroup`/`FormControl`, ни `ControlValueAccessor`, ни `NgControl`, ни `FormsModule`/`ReactiveFormsModule`.
+
+### Сделано
+- ✅ **`v-input` — контрол Signal Forms** (`FormValueControl<string>`): состояние только в модели `value`; вход `errors` (показывается первое сообщение после ввода пользователя), вход `invalid` (блокирует автосохранение), выход `touch` на blur. Убраны `NgControl`, `ControlValueAccessor`, зеркальный `ngControlValue$$`, вход `pattern` (нигде не использовался). Внешняя смена значения (подстановка, сброс формы) узнаётся эффектом по `knownValue`, как в `v-dropdown`: ошибка скрывается и автосохранение не отправляет подставленное значение.
+- ✅ **Ошибка, найденная на проверке: устаревшая валидность в автосохранении.** `invalid` приходит из поля после следующей отрисовки и в момент ввода описывает предыдущее значение. Верное значение после неверного промежуточного («7» → «70») не запускало бы автосохранение веса, а неверное могло его запустить. Проверка `handleChange` перенесена в `afterNextRender`; тест воспроизводит случай и падает без исправления.
+- ✅ Формы на `form()` + `[formField]` + `[formRoot]`, отправка через `submission.action` (отправка идёт только для валидной формы, `submitting()` заменяет ручные `disable()`/`enable()` и флаг): `auth-form`, `body-weight` (вес и рост), `diary-entry-add-form`, `diary-entry-edit-form`, `catalogue-entry-edit-form`. Валидаторы: `required`, `minLength`, `maxLength`, `pattern`, собственные `weightExpression`, `negativeResult` и `maxAmount` (предел числа в строке). Сообщения теперь у валидаторов (`message`), `ERROR_MESSAGES` в `validators.ts` сведён к `required` и общему «Ошибка». Мёртвые `rangeValidator` и `weightValidator` (на `AbstractControl`, нигде не использовались) удалены вместе со своими тестами.
+- ✅ Календарь в `diary-nav-buttons` не форма: `FormControl` и эффект синхронизации заменены на `[value]="selectedDayIso$$()"`.
+- ✅ Общая `isEmptyOrPositiveWholeAmount` в `amount-expression.ts` для полей веса.
+- ✅ README `v-input` и `v-modal` обновлены.
+
+### Изменения поведения (замечены при переносе)
+- Ошибка пароля и логина в `auth-form` показывается после ввода, а не после ухода с поля (теперь так же, как у всех остальных `v-input`).
+- Ошибка шаблона веса показывает текст «ХХ.Х или ХХ» вместо общего «Ошибка» (константа была в коде, но не использовалась).
+- Кнопка сброса и суффикс «г.» в форме правки записи пропадают, когда поле очищено вручную (раньше после ручной очистки оставались, потому что пустая строка не равна `null`).
+- Пустая форма добавления/правки по Enter как и раньше отправляется без доп. проверок; новая защита не добавлялась.
+
+### Проверки
+- ✅ `tsc` 0 ошибок, `ng test` 42 файла / 453 теста (новые: `v-input.spec` — модель, ошибка после ввода, сброс внешним значением, автосохранение после неверной цифры, без автосохранения для неверного и подставленного значения; `auth-form.spec` — кнопка, сообщение, отказ для неверной формы, вход, сброс, переход), `ng build` чисто.
+- ✅ В Chrome (dev-сервер без зоны): вес (ошибки «ХХ.Х или ХХ» и «Обязательное поле»), модалка роста (подстановка 180, ошибка «XXX»), добавление записи («80*2» даёт 29.1% сразу, «0» — ошибка и блок кнопки), форма продукта (подстановка значений, 2000 ккал — ошибка, 250 и «9,5» — валидно), правка записи (взаимоисключение полей, черновик в счётчиках, «-500» — ошибка, сброс), календарь (значение скрытого поля следует за выбранным днём). Консоль без ошибок.
+- ✅ Дочищено в браузере с реальным сохранением (локальные данные, разрешено): запись дневника — добавление по Enter, правка (+50 г, форма сбросилась), удаление с подтверждением; вес — автосохранение «7» → «70» (POST body-weight 201); рост — 180 → 181 → 180 (шкала ИМТ пересчиталась); продукт — калории 250 → 251 → 250 (тост «Продукт обновлён»); транзакция — создание, правка суммы, удаление (баланс счёта менялся на каждом шаге и вернулся); организация — создание и переименование; счёт — создание с организацией, валютой и типом, переименование.
+- ✅ Дочищено на следующем проходе: удаление тестовых счёта и организации (с подтверждением), форма актива (создание со счётом «Крипта», подстановка при правке, режим «Suspended» с датами, обновление, удаление), подрезка дня в колесе даты (31.Oct → месяц Sep даёт 30.Sep). Тестовые данные убраны, консоль без ошибок.
+- ⭕ Не проверено: создание нового продукта (генерация ИИ), форма входа в браузере (авторизованного пользователя редиректит; покрыта тестом), мобильная вёрстка модалок.
+
+### Решение: Angular Aria исключён (29.10.2026)
+Доступность (a11y) в приложении не используется и не планируется, поэтому пакет `@angular/aria` не ставится, а все прежние пункты про Aria в этом плане (⭕ «Angular Aria (`v-dropdown`, `v-expand`, `v-modal`)» и упоминания в сводках) считаются отменёнными, а не отложенными.
+
+### Что остаётся
+- ✅ `food-product-history-state` как `resource`, Группа 4 (selectorless, `injectAsync`, ESLint).
+- ⭕ Реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки.
+
+## Решения по `resource` и Группе 4 (29.10.2026)
+
+Заменяет открытые вопросы из «Что остаётся» выше. Код в этом заходе не менялся.
+
+### Что закрыто по факту (проверено поиском по `src`)
+- В `src` нет `ChangeDetectionStrategy.Eager`, `providedIn: 'root'`, `@HostListener`, `standalone: true`, `ngStyle`. Старые ⭕ про остатки ui-kit и `shared/components` (OnPush, `z-layer`, `accordion-group`, контролы форм, `v-slider`) и про формы еды переставлены в ✅ выше.
+
+### `resource` не применяется (решение)
+- `food-product-history-state`: по типам Angular 22.2.3 в состоянии `loading` значение ресурса `undefined`, а в `error` оно теряется. Сервису нужно обратное: при добавлении/удалении продукта до ответа остаются прежние записи (иначе график калорий мигает), при фоновом сбое прежние записи сохраняются без ошибки, при обычном сбое — очистка и сообщение. Различие «фоновая/обычная загрузка» ресурс не знает. Чтобы воспроизвести это, пришлось бы хранить последнее удачное значение отдельно и вычислять смысл ошибки по предыдущему статусу — сложнее текущих ~25 строк с одной подпиской.
+- `metrics.service`: это не «состояние от параметров», а команда с прогрессом: несколько пакетов подряд, слияние точек и продвижение курсоров на каждом пакете, пауза после сбоя, отложенное повторение, уведомления. `resource` здесь не подходит.
+- Остальные подписки (WS, `mutationApplied$`) остаются на RxJS, как и решено раньше. Пункт «`resource()`/`httpResource()`» в Группе 3 закрыт как «оценено, не применяется».
+
+### Группа 4 (рекомендация; окончательное решение за пользователем)
+- `injectAsync()` — не нужен: он лениво подгружает только сервисы, а `chart.js` уже лежит в ленивом чанке (общий для маршрутов денег, еды и метрик), в начальную загрузку не входит.
+- selectorless — не применять: приложение с ~50 переиспользуемыми компонентами, выгода (нет `selector`, нет `imports` в шаблонах) мала, а переписывание затрагивает почти все шаблоны.
+- WebMCP/Agent Skills — пропущено.
+- ESLint — решение отложено по просьбе пользователя.
+
+### Что остаётся
+- ✅ ESLint: настроить или снести (обсудить).
+
+## ESLint: решено настроить (29.10.2026)
+
+Заменяет «настроить или снести» выше. Форматирование не входит: за него отвечают Prettier и расширение в редакторе; ESLint нужен как защита от ошибок и «дыр» в типах.
+
+### Сделано
+- ✅ Поставлены `angular-eslint` и `typescript-eslint`; неиспользуемые `@html-eslint/*` удалены (шаблоны Angular разбирает парсер `angular-eslint`).
+- ✅ Конфиг (flat config): `recommendedTypeChecked` из typescript-eslint, `tsRecommended` и `templateRecommended` из angular-eslint, `prefer-signals`. Правило про префикс `on` у outputs выключено — в ui-kit это принятая конвенция имён. Правила доступности не подключены: a11y в приложении не используется.
+- ✅ Скрипт `lint` в package.json.
+
+### Базовая линия (373 замечания, 303 файла, ошибок разбора нет)
+- Дыры в типах (`any` и производные `no-unsafe-*`) — около 280, сосредоточены в ~35 файлах: формы транзакций, декораторы `exhaust-request`/`measure-time`, `chart-config`, `food-diary`, `balances-chart`, `accounts-list`, `navigation`. Часть растёт из нетипизированных `viewChildren`/колбэков графиков.
+- Реальные риски: `no-floating-promises` (8), `no-misused-promises` (2), `require-await` (7), `unbound-method` (4), `prefer-promise-reject-errors` (14), `no-unused-vars` (8).
+- Косметика с автоисправлением: `no-unnecessary-type-assertion` (18), `prefer-const` (3).
+- Тесты и `testing/` дают 47 замечаний.
+
+### Что остаётся
+- ✅ Разобрать базовую линию: сначала риски, затем `any` по файлам, затем автоисправления.
+- ✅ Решить, подключать ли `lint` к коммиту/CI после того, как счётчик станет нулевым.
+
+### Выходы ui-kit без префикса `on` (29.10.2026)
+Заменяет решение выше «правило про префикс `on` выключено»: пользователь решил следовать рекомендациям команды Angular. Правило `no-output-on-prefix` включено обратно, 16 выходов ui-kit переименованы по правилу проекта (имя действия + `Output`): нажатие, закрытие, открытие, изменение, фокус, потеря фокуса, Enter, автосохранение, удаление, клик по карточке, выбор в списке и другие. Обновлены все 146 использований в шаблонах (43 файла), тест `v-input` и README компонентов.
+- ✅ Переименование выходов, правило включено, замечаний `no-output-on-prefix` — 0.
+- ✅ `tsc` (app и spec) без ошибок, `ng build` чистый, 453 теста проходят. Все привязанные в шаблонах имена выходов проверены поиском: у каждого есть объявление.
+- Заметка: Angular не считает ошибкой привязку `(имя)` к несуществующему выходу — это тихо превращается в DOM-событие. Поэтому полнота переименования проверена поиском остатков, а не только сборкой.
+- ✅ Изменения затрагивают отдельный репозиторий ui-kit: при коммите сначала ui-kit, затем front с обновлённым указателем сабмодуля.
+
+## Очистка замечаний ESLint — Блок 6 (29.10.2026)
+
+Решение пользователя: чинить всё найденное внутри плана 37 (часть перехода на Angular 22). Порядок: риски → дыры в типах → мелочи. Прокликивание в браузере — только для изменений, которые могут сломать поведение; для остальных достаточно типов, тестов и сборки.
+
+Принятый подход по группам:
+- Реальные риски — исправить по существу: не потерять ошибки асинхронных вызовов, не терять `this`, отклонять промисы с `Error`, убрать лишний `async`.
+- Дыры в типах — типизировать источники (`catch` с `unknown`, типы колбэков графиков, типизированные ссылки на элементы), а не отключать правила.
+- Тесты и `testing/` — правила `no-unsafe-*` выключить через переопределение в конфиге (моки и фейки).
+- Мелочи — удалить мёртвое, автоисправления, пустые интерфейсы заменить алиасами.
+
+### Чек-лист
+- ✅ Конфиг: ослабить `no-unsafe-*` для тестов
+- ✅ Риски: забытые и «не туда переданные» промисы (13 мест)
+- ✅ Риски: `unbound-method`, `reject` не с `Error`, `async` без `await`, `no-base-to-string`
+- ✅ Типы: `any` и `no-unsafe-*` по файлам (около 35 файлов) — кроме четырёх неиспользуемых декораторов
+- ✅ Мелочи: неиспользуемое, `prefer-const`, пустые интерфейсы, `inject()`, `OnDestroy`, `readonly` у сигнала, лишние приведения типов
+- ✅ Итог (закрыт ниже, в «Декораторы»): `eslint` без замечаний — осталось 53 замечания в четырёх декораторах `shared/decorators/*`, которые нигде не используются (решение за пользователем: удалить вместе со своими тестами или типизировать)
+- ✅ `tsc` (app и spec), 458 тестов, `ng build` зелёные
+
+### Результат блока (29.10.2026)
+373 замечания → 53 (все в неиспользуемых декораторах). Что сделано по существу:
+- Промисы: явный `void` там, где функция сама обрабатывает ошибки; `ngOnInit`/`ngAfterViewInit` перестали быть `async` (Angular не ждёт их результат).
+- Ошибки: отклонённые промисы теперь всегда `Error`. Для неудачных синхронных операций введён класс ошибки с кодом ответа и телом и функция, достающая текст ошибки сервера; форма продукта использует её вместо обращения к `any`. Тесты на оба добавлены.
+- Типы: один типизированный разбор «деталей транзакции» вместо пяти копий в компонентах денег; `detailsJSON` и справочник продуктов получили реальные типы; запросы синхронизации стали обобщёнными по типу ответа (приведение ответа к ожидаемому типу — в одном месте); значения тултипа графика баланса вынесены в одну функцию; корень многих `any` — запись `inject(ElementRef<HTMLElement>)`, которая на самом деле возвращает `ElementRef<any>`, исправлена везде.
+- Отключено осознанно: `require-await` (асинхронный API сервисов — контракт, вызывающие ждут результат и ловят ошибки).
+- Браузер (свой dev-сервер): деньги — форма транзакции открывается и закрывается, тултип графика баланса показывает значения; еда — открытие модалок, форма редактирования продукта, ошибка «имя уже существует» от реального бэкенда доходит до экрана; ошибок в консоли, кроме ожидаемой записи этой самой проверки, нет.
+- Побочная находка: все четыре декоратора из `shared/decorators` (`LogExecutionTime`, `ExhaustRequest`, `CachedRequest`, `Throttled`) не используются нигде, кроме собственных тестов. (Поправка ниже: это неверно для `exhaustRequest`.)
+
+### Декораторы: итог (29.10.2026)
+Поправка к находке выше: поиск шёл по имени с другой регистром, и `exhaustRequest` на самом деле используется в трёх сервисах (статистика еды, персональные калории, каталог — четыре метода). Остальные действительно нигде не использовались.
+- ✅ Удалены вместе с тестами: `cached`, `throttled`, `LogExecutionTime` (у него тестов не было) и `exhaustRequestObs` (вариант для Observable, только в собственных тестах). Вернуть при необходимости можно из git.
+- ✅ `exhaustRequest` оставлен и типизирован обобщённо по аргументам и результату вместо `any`; поведение то же. Тесты на него сохранены.
+- ✅ `eslint .` — 0 замечаний, `tsc` (app и spec), 450 тестов (стало меньше из-за удалённых тестов мёртвого кода), `ng build` зелёные.
+- ✅ Коммит блока 6 (сначала ui-kit, затем front с указателем сабмодуля, патч-версия) и решение, подключать ли `lint` к коммиту/CI.
+- ⭕ Реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки — в браузере не проверяются, оставлено.
+
+## Курс команды Angular: пакет 1 правил и флагов (29.10.2026)
+Итог коммита блока 6: закоммичено в ui-kit и front, решение по `lint` в CI/коммит-хук — не подключать (пользователь не хочет удлинять деплой; правило в корневом `AGENTS.md` — прогонять проверки после правок).
+
+Источники курса: официальные страницы angular.dev (roadmap, best-practices для LLM, style guide). Направление: signals везде, zoneless и `OnPush` по умолчанию, `host` вместо `@HostBinding`/`@HostListener`, `@Service`, `model()`, Signal Forms, `resource`, без `CommonModule`, `NgOptimizedImage`, доступность (AXE/WCAG AA).
+
+Что включено сейчас (без `no-developer-preview` — пользователь хочет пробовать developer preview):
+- Правила `angular-eslint` (TS): защита от возврата легаси — `prefer-service-decorator`, `prefer-host-metadata-property`, `prefer-output-readonly`, `prefer-output-emitter-ref`, `prefer-signal-model`, `no-forward-ref`, `no-uncalled-signals`, `computed-must-return`, `reactive-context-must-read-signal`, `no-implicit-take-until-destroyed`, `no-async-lifecycle-method`, `no-lifecycle-call`, `no-pipe-impure`, `no-queries-metadata-property`, `no-duplicates-in-metadata-arrays`, `use-injectable-provided-in`, `no-attribute-decorator`, `consistent-component-styles`, `relative-url-prefix`.
+- `typescript-eslint`: `prefer-readonly` и `explicit-member-accessibility` (явный модификатор у всех членов, включая конструктор — как в правилах пользователя).
+- Шаблоны: `prefer-at-empty`, `prefer-at-else`, `prefer-contextual-for-variables`, `prefer-template-literal`, `require-switch-default`, `button-has-type`.
+- `tsconfig`: `useDefineForClassFields: true` (совпадает с ES2022 и гайдом команды; 0 ошибок компиляции при включении).
+
+Что пришлось менять по существу:
+- `v-wheel-select`: пара вход+выход заменена на `model` (родитель `v-wheel-input` хранит значение как есть, поведение то же).
+- `v-tooltip`: «вычисляемый» z-index читал неизменяемое число — стал обычным полем; `progress-icon`: два `computed`, читавших атрибут элемента (не сигнал), стали обычными полями.
+- Переключатели с исчерпывающей проверкой (`@default never`): состояние модалки еды вынесено в `@let`, потому что вызов сигнала TypeScript не сужает; добавлен явный пустой `@case` для закрытого состояния.
+- `@if (пусто)` + `@for` и пара `@if`/`@if (!...)` заменены на `@empty` и `@else`; пустые конструкторы в маркерных директивах `progress-icon` удалены.
+
+Найдено и не тронуто:
+- Два разных файла директивы `flipAnimate`: в `src/app/shared/directives` (используется) и в `src/ui-kit/directives` (нигде не импортируется). Решение за пользователем: удалить копию в ui-kit или перевести приложение на неё.
+- Явный `OnPush` (72 места): команда считает его лишним с v22, но правило `prefer-on-push-component-change-detection` в рекомендованном наборе его требует — не трогаем.
+- Остальные кандидаты отложены: пакет 2 (доступность, `prefer-ngsrc`, `no-non-null-assertion`) и флаги `noUncheckedIndexedAccess` (229 ошибок), `exactOptionalPropertyTypes` (18).
+
+### Чек-лист
+- ✅ Правила пакета 1 в `eslint.config.mjs`, `useDefineForClassFields`
+- ✅ Замечания исправлены (56 → 0)
+- ✅ `eslint` 0 замечаний, `tsc` (app и spec), 450 тестов, `ng build` зелёные
+- ✅ Живая проверка `v-wheel-select`, `progress-icon`, тултипа и модалок еды после `useDefineForClassFields` — выполнена, см. раздел ниже
+
+## Дубль flipAnimate, явный OnPush, проверка в браузере (29.10.2026)
+Происхождение дубля `flipAnimate`: директиву написали в приложении (сентябрь 2025), в марте 2026 её скопировали в ui-kit уже с исправлением — отмена анимации после завершения (иначе `fill: both` навсегда оставляет элемент в конечном состоянии). Приложение на копию ui-kit не перевели, копии разошлись.
+- ✅ Общая директива живёт в ui-kit рядом с `shadow` и `backdrop` (у неё нет зависимостей от приложения); копия в приложении удалена, список выбора продукта импортирует её из ui-kit.
+- ✅ Явный `OnPush` убран из 72 компонентов вместе с импортом (в Angular 22 он по умолчанию, `Default` переименован в `Eager`); правило `prefer-on-push-component-change-detection` выключено с пояснением в конфиге.
+- ✅ `eslint` 0 замечаний, `tsc` (app и spec), 450 тестов, `ng build` зелёные.
+
+### Проверка в браузере (свой dev-сервер, реальный бэкенд, данные не менялись)
+- ✅ Еда: экран и колонки статистики, модалка добавления, поиск с вводом (директива из ui-kit: после анимации не осталось незавершённых анимаций, скрытых карточек нет), форма добавления с `progress-icon`, форма редактирования продукта, закрытие по Escape, тултип справки (у экземпляров разные z-index).
+- ✅ Деньги: диаграммы, форма транзакции (колесо выбора месяца меняет дату, вкладки Расход/Доход/Перевод), вкладки настройки/категорий/активов, архивные счета.
+- ✅ Метрики: дашборд открывается.
+- ✅ Ошибок в консоли нет (кроме информационного сообщения про HMR и `@defer`).
+- ⭕ Не проверено: мобильная раскладка навигации (окно не уменьшилось через инструмент), режим инвестиций в форме транзакции, пустые состояния списков (в данных везде есть записи).
+
+## Пакет 2: решение и строгие флаги компилятора (29.10.2026)
+Решение пользователя по остальным кандидатам пакета 2: доступность (`alt-text`, `label-has-associated-control`, клавиатурные правила) — не берём; `prefer-ngsrc`, `no-non-null-assertion`, `no-duplicate-attributes` — не берём. Остаются строгие флаги компилятора, они включены.
+
+Что означают флаги:
+- `noUncheckedIndexedAccess`: чтение по индексу (`items[i]`, `record[key]`) даёт «значение или `undefined`», потому что индекс может выйти за границы. Компилятор заставляет явно решить, что делать, если элемента нет.
+- `exactOptionalPropertyTypes`: необязательное поле `x?: T` означает «поля может не быть», а не «поле может быть равно `undefined`». Если код сознательно передаёт `undefined`, это пишется в типе явно (`x?: T | undefined`).
+
+### Итог
+- ✅ Оба флага включены в общий `tsconfig`; ошибок после них было 303 в 60 файлах, исправлены все.
+- ✅ `exactOptionalPropertyTypes`: тип расширен только там, где код действительно присваивает `undefined` (заметки, id, архив, служебные поля синхронизации и телеметрии, внутренние ссылки наблюдателей).
+- ✅ `noUncheckedIndexedAccess`: циклы по индексу заменены на `for…of`/`entries()`, значения проверяются или имеют осмысленный запасной вариант. Для мест, где индекс верен по построению (бинарный поиск, параллельные массивы, таблица динамического программирования), добавлен помощник `itemAt` (в приложении — в `shared/utils`, в ui-kit — локальная копия в движке бегущих чисел): неверный индекс — это баг и бросает понятную ошибку. Добавлен `parseIsoParts` для разбора дат вида `YYYY-MM[-DD]` (9 копий `split('-').map(Number)`).
+- ✅ Поведенческие изменения: в `food-diary.service` четыре почти одинаковых блока «обновить еду выбранного дня» сведены к одному методу; если день не загружен, обновление ничего не делает (раньше создавало неполный день без питательных веществ и веса); обновление веса на несуществующем дне создаёт полный день с нулевыми нормами. В `v-slider` бинарный поиск ближайшего значения списка заменён линейным (список маленький).
+- ✅ `eslint` 0, `tsc` (app и spec), 455 тестов (+5 на помощники), `ng build` зелёные.
+- ✅ Браузер: еда (смена дней, числа, графики), деньги (слайдер диапазона обрезает все три диаграммы, переключение Monthly/Yearly, границы лет), метрики (дашборд, раскрытие карточки, синхронный курсор); ошибок в консоли нет.
+- ⭕ Не проверено вручную: виджет BMI с указателем веса, календарь серии с реальными днями, правка записи дневника и ввод веса после изменений сервиса дневника (покрыто тестами сервиса).
+- ✅ Заметка: три диаграммы денег (расходы, доходы, балансы) почти построчно повторяют рисование границ лет и годовую агрегацию — кандидат на общий модуль, отдельный заход.
+
+## Рефакторинг завершён (29.10.2026)
+
+Итоговое закрытие плана. Старый текст выше не менялся, переставлены только маркеры.
+
+### Решения, из-за которых старые ⭕ стали ✅
+- ✅ Не делаем сознательно: `@angular/aria` (a11y не используется), `resource()`/`httpResource()` для истории продукта и метрик (форма задач не подходит), selectorless, `injectAsync()`, WebMCP/Agent Skills, правила `prefer-ngsrc`, `no-non-null-assertion`, `no-duplicate-attributes`.
+- ✅ Не делаем сознательно: общий модуль для трёх диаграмм денег (необязательный рефакторинг).
+- ✅ `lint` к коммиту/CI не подключается; вместо этого в инструкции агента `npm run lint` запускается наравне с `tsc` и тестами после каждой правки.
+- ✅ ESLint настроен и на нуле, пакеты 1 и 2 правил Angular-команды и строгие флаги компилятора включены, коммиты блока 6 сделаны.
+
+### Что остаётся открытым намеренно
+- ⭕ Ручная проверка в браузере после выкатки на прод: реальный 401, камера, `ui-progress-icon`, `v-chip`, вложенные и мобильные модалки, мобильная раскладка навигации, режим инвестиций, пустые состояния списков, виджет BMI, календарь серии, правка записи дневника и ввод веса, создание продукта через ИИ. Это проверки, а не работа по коду.
+
+### Итог
+- ✅ Версия 2.6.0 (минор: рефакторинг завершён).
+- ✅ `eslint` 0, `tsc` (app и spec) чисто, 455 тестов, `ng build` зелёный.

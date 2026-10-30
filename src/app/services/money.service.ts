@@ -6,6 +6,7 @@ import { NamespaceSettingsStore } from '@app/services/settings/namespace-setting
 import { TelemetryService } from '@app/services/telemetry.service';
 import { firstValueFrom, Observable } from 'rxjs';
 import { areSetsEqual } from '../shared/money-utils';
+import { itemAt } from '../shared/utils';
 import {
   Account,
   Asset,
@@ -47,7 +48,7 @@ interface MoneySnapshot {
   rateHistory: MoneyRateHistory[];
 }
 
-interface SnapshotResponse extends DataResponse<MoneySnapshot> {}
+type SnapshotResponse = DataResponse<MoneySnapshot>;
 
 export interface ExpenseChartYMaxSetting {
   rawValue: string;
@@ -89,19 +90,19 @@ function defaultSettings(): MoneySettings {
   };
 }
 
-interface CreateCurrencyResponse extends DataResponse<{ id: number }> {}
+type CreateCurrencyResponse = DataResponse<{ id: number }>;
 
-interface CreateCategoryResponse extends DataResponse<{ id: number }> {}
+type CreateCategoryResponse = DataResponse<{ id: number }>;
 
-interface CreateOrganizationResponse extends DataResponse<{ id: number }> {}
+type CreateOrganizationResponse = DataResponse<{ id: number }>;
 
-interface CreateAccountResponse extends DataResponse<{ id: number }> {}
+type CreateAccountResponse = DataResponse<{ id: number }>;
 
-interface CreateAssetResponse extends DataResponse<{ id: number }> {}
+type CreateAssetResponse = DataResponse<{ id: number }>;
 
-interface CreateTransactionResponse extends DataResponse<{ id: number; twinId?: number }> {}
+type CreateTransactionResponse = DataResponse<{ id: number; twinId?: number }>;
 
-interface BasicResponse extends MessageResponse {}
+type BasicResponse = MessageResponse;
 
 @Service()
 export class MoneyService {
@@ -340,7 +341,7 @@ export class MoneyService {
 
     if (typeof ratesJson === 'string') {
       try {
-        const parsed = JSON.parse(ratesJson);
+        const parsed: unknown = JSON.parse(ratesJson);
         if (parsed && typeof parsed === 'object') {
           return parsed as Record<string, number>;
         }
@@ -717,7 +718,7 @@ export class MoneyService {
       mode: SyncOperationMode.Optimistic,
       type: SyncOperationType.DELETE,
       endpoint: `/api/money/transactions/${transactionId}`,
-      data: null,
+      data: {},
       successCallback: () => {
         this.pendingTransactionIds.delete(transactionId);
         if (twinId != null) {
@@ -741,7 +742,7 @@ export class MoneyService {
     amount: number;
     twinAccountId: number;
     twinAmount: number;
-    notes?: string;
+    notes?: string | undefined;
   }): void {
     const tempId1 = Date.now();
     const tempId2 = tempId1 + 1;
@@ -806,7 +807,7 @@ export class MoneyService {
     amount: number;
     twinAccountId: number;
     twinAmount: number;
-    notes?: string;
+    notes?: string | undefined;
   }): void {
     const snapshot = this.transactions$$();
     this.updateTransferInState(transferData);
@@ -877,7 +878,7 @@ export class MoneyService {
     amount: number;
     twinAccountId: number;
     twinAmount: number;
-    notes?: string;
+    notes?: string | undefined;
   }): void {
     this.transactions$$.update((transactions: Transaction[]) =>
       transactions.map((transaction: Transaction) => {
@@ -915,7 +916,7 @@ export class MoneyService {
       result = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
-      if (snapshots[mid].dateISO <= dateISO) {
+      if (itemAt(snapshots, mid).dateISO <= dateISO) {
         result = mid;
         lo = mid + 1;
       } else {
@@ -923,6 +924,6 @@ export class MoneyService {
       }
     }
 
-    return result >= 0 ? snapshots[result].rates : null;
+    return result >= 0 ? itemAt(snapshots, result).rates : null;
   }
 }

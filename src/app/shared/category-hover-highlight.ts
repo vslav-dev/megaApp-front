@@ -16,7 +16,8 @@ export function createCategoryHoverHighlight(hoveredCategory$$: WritableSignal<s
     id: 'categoryHoverHighlight',
     afterEvent(chart: Chart) {
       const active = chart.getActiveElements();
-      const label = active.length ? (chart.data.datasets[active[0].datasetIndex]?.label ?? null) : null;
+      const first = active[0];
+      const label = first ? (chart.data.datasets[first.datasetIndex]?.label ?? null) : null;
       hoveredCategory$$.set(label);
     },
   };

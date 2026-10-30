@@ -11,7 +11,7 @@
                 surface="flat"
                 width="100%"
                 [padding]="1"
-                (onClick)="toggleAll()">
+                (clickOutput)="toggleAll()">
         {{ allNoneLabel$$() }}
       </v-button>
     </div>
@@ -23,7 +23,7 @@
                     [checkIconSize]="3"
                     (mouseenter)="onCategoryMouseEnter(series.categoryName)"
                     (mouseleave)="onCategoryMouseLeave()"
-                    (onChanged)="toggleCategory(series.categoryId, $event)">
+                    (changedOutput)="toggleCategory(series.categoryId, $event)">
           <span class="inline-flex items-center gap-1 text-xs">
             <span class="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
                   [style.background]="getCategoryColor(series.categoryId)"></span>

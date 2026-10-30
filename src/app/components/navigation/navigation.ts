@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -22,12 +21,11 @@ import { DarkSwitch } from '../settings/dark-switch/dark-switch';
   selector: 'navigation',
   templateUrl: './navigation.html',
   styleUrl: './navigation.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VButton, VIcon, DarkSwitch, MetricsHealthDot],
 })
 export class Navigation {
-  protected readonly desktopNav = viewChild<ElementRef>('desktopNav');
-  protected readonly fader = viewChild.required<ElementRef>('fader');
+  protected readonly desktopNav = viewChild<ElementRef<HTMLElement>>('desktopNav');
+  protected readonly fader = viewChild.required<ElementRef<HTMLElement>>('fader');
 
   protected readonly Icon = IconName;
 
@@ -102,9 +100,9 @@ export class Navigation {
 
   protected navigateToLink(link: string | string[]): void {
     if (Array.isArray(link)) {
-      this.router.navigate(link);
+      void this.router.navigate(link);
     } else if (link) {
-      this.router.navigate([link]);
+      void this.router.navigate([link]);
     }
   }
 

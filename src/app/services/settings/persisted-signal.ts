@@ -26,7 +26,9 @@ export function persistedSignal<T>(
   };
 
   const state = signal<T>(read() ?? defaultValue);
-  const applySet = state.set;
+  // The original set(), kept before the persisting set() below replaces it on the same object:
+  // calling state.set() instead would hit the replacement and recurse forever.
+  const applySet = state.set.bind(state);
 
   // user-scoped storage is keyed by the logged-in user, but this can be created before the
   // session is known (e.g. root-level services constructed at app boot, while still a guest) —

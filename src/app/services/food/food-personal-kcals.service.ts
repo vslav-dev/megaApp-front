@@ -23,7 +23,7 @@ export class FoodPersonalKcalsService extends BaseFoodService {
     }
   });
 
-  constructor() {
+  public constructor() {
     super();
     this.loadPersonalKcalsFromLocalStorage();
   }

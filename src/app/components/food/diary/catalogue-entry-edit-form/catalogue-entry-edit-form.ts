@@ -1,10 +1,21 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import {
+  form,
+  FormField,
+  FormRoot,
+  maxError,
+  maxLength,
+  pattern,
+  required,
+  SchemaPath,
+  validate,
+} from '@angular/forms/signals';
 import { AuthService } from '@app/services/auth.service';
 import { FoodAddModalService } from '@app/services/food/food-add-modal.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { NotificationService } from '@app/services/notification.service';
+import { syncFailureReason } from '@app/services/sync-engine.service';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { CatalogueEntry, ProductPreviewData, ProductSaveRequest } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -22,11 +33,17 @@ type FormMode = (typeof FormMode)[keyof typeof FormMode];
 const POSITIVE_INTEGER_PATTERN = /^\d+$/;
 const POSITIVE_DECIMAL_PATTERN = /^\d*[.,]?\d*$/;
 
+const EMPTY_PRODUCT = { name: '', kcals: '', protein: '', fat: '', carbs: '', fiber: '', description: '' };
+
+// The text has already passed the digits-only pattern, so only the upper bound is left (a lone "." counts as no number).
+function maxAmount(path: SchemaPath<string>, max: number): void {
+  validate(path, ({ value }) => (parseFloat(value().replace(',', '.')) > max ? maxError(max) : undefined));
+}
+
 @Component({
   selector: 'catalogue-entry-edit-form',
   templateUrl: './catalogue-entry-edit-form.html',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DefaultModal, ReactiveFormsModule, VButton, VCheckbox, VIcon, VInput],
+  imports: [DefaultModal, FormField, FormRoot, VButton, VCheckbox, VIcon, VInput],
 })
 export class CatalogueEntryEditForm implements OnInit {
   protected readonly Icon = IconName;
@@ -79,52 +96,41 @@ export class CatalogueEntryEditForm implements OnInit {
   });
   protected readonly isRegenerateConfirmOpen$$ = signal(false);
 
-  protected catalogueEditForm: FormGroup = new FormGroup({
-    name: new FormControl<string>('', [Validators.required, Validators.minLength(1), Validators.maxLength(100)]),
-    kcals: new FormControl<string | null>(null, [
-      Validators.required,
-      Validators.pattern(POSITIVE_INTEGER_PATTERN),
-      Validators.min(0),
-      Validators.max(1000),
-    ]),
-    protein: new FormControl<string | null>(null, [
-      Validators.required,
-      Validators.pattern(POSITIVE_DECIMAL_PATTERN),
-      Validators.min(0),
-      Validators.max(100),
-    ]),
-    fat: new FormControl<string | null>(null, [
-      Validators.required,
-      Validators.pattern(POSITIVE_DECIMAL_PATTERN),
-      Validators.min(0),
-      Validators.max(100),
-    ]),
-    carbs: new FormControl<string | null>(null, [
-      Validators.required,
-      Validators.pattern(POSITIVE_DECIMAL_PATTERN),
-      Validators.min(0),
-      Validators.max(100),
-    ]),
-    fiber: new FormControl<string | null>(null, [
-      Validators.required,
-      Validators.pattern(POSITIVE_DECIMAL_PATTERN),
-      Validators.min(0),
-      Validators.max(50),
-    ]),
-    description: new FormControl<string>('', [
-      Validators.required,
-      Validators.minLength(1),
-      Validators.maxLength(2000),
-    ]),
-  });
+  private readonly product$$ = signal({ ...EMPTY_PRODUCT });
 
-  public async ngOnInit(): Promise<void> {
+  protected readonly catalogueEditForm = form(
+    this.product$$,
+    (path) => {
+      required(path.name);
+      maxLength(path.name, 100);
+
+      required(path.kcals);
+      pattern(path.kcals, POSITIVE_INTEGER_PATTERN);
+      maxAmount(path.kcals, 1000);
+
+      for (const macro of [path.protein, path.fat, path.carbs]) {
+        required(macro);
+        pattern(macro, POSITIVE_DECIMAL_PATTERN);
+        maxAmount(macro, 100);
+      }
+
+      required(path.fiber);
+      pattern(path.fiber, POSITIVE_DECIMAL_PATTERN);
+      maxAmount(path.fiber, 50);
+
+      required(path.description);
+      maxLength(path.description, 2000);
+    },
+    { submission: { action: () => this.submitForm() } },
+  );
+
+  public ngOnInit(): void {
     const mode = this.mode$$();
 
     if (mode === this.formMode.Edit) {
-      await this.loadExistingProductData();
+      void this.loadExistingProductData();
     } else {
-      await this.loadProductPreview();
+      void this.loadProductPreview();
     }
   }
 
@@ -150,7 +156,7 @@ export class CatalogueEntryEditForm implements OnInit {
   }
 
   private patchFormWithProduct(product: CatalogueEntry): void {
-    this.catalogueEditForm.patchValue({
+    this.product$$.set({
       name: product.name,
       kcals: String(product.kcals),
       protein: String(product.protein),
@@ -161,7 +167,7 @@ export class CatalogueEntryEditForm implements OnInit {
     });
     this.isArchived$$.set(Boolean(product.archived));
 
-    console.log('[CatalogueEditForm] Form values after patching:', this.catalogueEditForm.value);
+    console.log('[CatalogueEditForm] Form values after patching:', this.product$$());
   }
 
   private async loadProductPreview(): Promise<void> {
@@ -178,7 +184,7 @@ export class CatalogueEntryEditForm implements OnInit {
     try {
       const previewData = await this.foodCatalogueService.generateProductPreview(query);
       this.fillFormWithPreviewData(previewData);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to load product preview:', error);
       this.error$$.set('Failed to generate product data. Please try again.');
     } finally {
@@ -187,7 +193,7 @@ export class CatalogueEntryEditForm implements OnInit {
   }
 
   private fillFormWithPreviewData(data: ProductPreviewData): void {
-    this.catalogueEditForm.patchValue({
+    this.product$$.set({
       name: data.generalizedName,
       kcals: String(data.kcals),
       protein: String(data.protein),
@@ -199,10 +205,11 @@ export class CatalogueEntryEditForm implements OnInit {
   }
 
   protected isFormValid(): boolean {
-    return this.catalogueEditForm.valid;
+    return this.catalogueEditForm().valid();
   }
 
-  protected async submitForm(): Promise<void> {
+  // The form's submission action.
+  private async submitForm(): Promise<void> {
     if (!this.isFormValid() || this.isSaving$$() || this.isDeleting$$()) {
       return;
     }
@@ -211,7 +218,7 @@ export class CatalogueEntryEditForm implements OnInit {
     this.error$$.set(null);
 
     try {
-      const formValue = this.catalogueEditForm.value;
+      const formValue = this.product$$();
       const mode = this.mode$$();
       const productToEdit = this.productToEdit$$();
 
@@ -251,10 +258,10 @@ export class CatalogueEntryEditForm implements OnInit {
         mode === this.formMode.Create ? 'Продукт добавлен' : 'Продукт обновлён',
       );
       this.foodAddModalService.submitSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to save product:', error);
 
-      if (error?.body?.error?.includes('already exists')) {
+      if (syncFailureReason(error)?.includes('already exists')) {
         this.error$$.set('Product with this name already exists. Please use a different name.');
       } else {
         this.error$$.set('Failed to save product. Please try again.');
@@ -357,16 +364,17 @@ export class CatalogueEntryEditForm implements OnInit {
       await this.foodCatalogueService.deleteProduct(product.id);
       this.notificationService.addNotification('success', 'Продукт удалён');
       this.foodAddModalService.deletedProduct();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to delete product:', error);
+      const reason = syncFailureReason(error);
 
-      if (error?.body?.error === 'product is used in diary entries') {
+      if (reason === 'product is used in diary entries') {
         this.error$$.set('Продукт уже используется в дневнике и не может быть удалён.');
         this.foodAddModalService.selectedProduct$$.set({
           ...product,
           canDelete: false,
         });
-      } else if (error?.body?.error === 'product not found') {
+      } else if (reason === 'product not found') {
         this.foodAddModalService.deletedProduct();
       } else {
         this.error$$.set('Не удалось удалить продукт. Попробуйте ещё раз.');

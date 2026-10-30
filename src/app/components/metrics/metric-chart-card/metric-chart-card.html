@@ -17,7 +17,7 @@
       <div class="flex items-center flex-1 min-w-0 gap-2"
            (click)="$event.stopPropagation()">
         <v-checkbox [value]="isDashboardEnabledInput()"
-                    (onChanged)="onDashboardEnabledChange($event)"
+                    (changedOutput)="onDashboardEnabledChange($event)"
                     [isDisabled]="isSelectionDisabledInput()"
                     [size]="4"
                     [gap]="1"
@@ -27,7 +27,7 @@
                   [padding]="1"
                   [isDisabled]="isSelectionDisabledInput()"
                   class="shrink-0"
-                  (onClick)="toggleChartMode()">
+                  (clickOutput)="toggleChartMode()">
           <v-icon v-prefix
                   [name]="chartModeInput() === 'bar' ? Icon.BarChart : Icon.Timeline"
                   [size]="4" />

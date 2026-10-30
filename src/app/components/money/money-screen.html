@@ -9,7 +9,7 @@
                   [isLinkStatic]="activeTab$$() !== MoneyTab.Setup"
                   [isLabelHidden]="activeTab$$() !== MoneyTab.Setup"
                   [padding]="2"
-                  (onClick)="setActiveTab(MoneyTab.Setup)">
+                  (clickOutput)="setActiveTab(MoneyTab.Setup)">
           <v-icon v-prefix
                   [name]="Icon.Settings"
                   [size]="7"></v-icon>
@@ -21,7 +21,7 @@
                   [isLinkStatic]="activeTab$$() !== MoneyTab.Categories"
                   [isLabelHidden]="activeTab$$() !== MoneyTab.Categories"
                   [padding]="2"
-                  (onClick)="setActiveTab(MoneyTab.Categories)">
+                  (clickOutput)="setActiveTab(MoneyTab.Categories)">
           <v-icon v-prefix
                   [name]="Icon.Category"
                   [size]="7"></v-icon>
@@ -33,7 +33,7 @@
                   [isLinkStatic]="activeTab$$() !== MoneyTab.Assets"
                   [isLabelHidden]="activeTab$$() !== MoneyTab.Assets"
                   [padding]="2"
-                  (onClick)="setActiveTab(MoneyTab.Assets)">
+                  (clickOutput)="setActiveTab(MoneyTab.Assets)">
           <v-icon v-prefix
                   [name]="Icon.Enterprise"
                   [size]="7"></v-icon>
@@ -45,7 +45,7 @@
                   [isLinkStatic]="activeTab$$() !== MoneyTab.Transactions"
                   [isLabelHidden]="activeTab$$() !== MoneyTab.Transactions"
                   [padding]="2"
-                  (onClick)="setActiveTab(MoneyTab.Transactions)">
+                  (clickOutput)="setActiveTab(MoneyTab.Transactions)">
           <v-icon v-prefix
                   [name]="Icon.List"
                   [size]="7"></v-icon>
@@ -86,7 +86,7 @@
                   <v-button surface="flat"
                             [class.v-primary]="displayCurrency$$() === item.id"
                             [padding]="1"
-                            (onClick)="setDisplayCurrency(item.id)">{{ item.label }}</v-button>
+                            (clickOutput)="setDisplayCurrency(item.id)">{{ item.label }}</v-button>
                 }
               </div>
 
@@ -96,7 +96,7 @@
                         [class.v-primary]="convertToUnifiedCurrency$$()"
                         [isLabelHidden]="true"
                         [padding]="2"
-                        (onClick)="toggleConvertToUnifiedCurrency()">
+                        (clickOutput)="toggleConvertToUnifiedCurrency()">
                 <v-icon v-prefix
                         [name]="Icon.CurrencyExchange"
                         [size]="4"></v-icon>
@@ -109,7 +109,7 @@
                       [class.v-primary]="linkTransactionsToCharts$$()"
                       [isLabelHidden]="true"
                       [padding]="2"
-                      (onClick)="toggleLinkTransactionsToCharts()">
+                      (clickOutput)="toggleLinkTransactionsToCharts()">
               <v-icon v-prefix
                       [name]="Icon.FilterList"
                       [size]="4"></v-icon>

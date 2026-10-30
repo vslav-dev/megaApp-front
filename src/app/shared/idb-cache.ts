@@ -5,6 +5,11 @@ const DB_NAME = 'megaapp-idb-cache';
 const DB_VERSION = 3;
 const STORE_NAME = 'kv';
 
+// request.error and tx.error are typed nullable, a rejection must be an Error.
+function idbError(error: DOMException | null): Error {
+  return error ?? new Error('IndexedDB request failed');
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -25,7 +30,7 @@ function openDb(): Promise<IDBDatabase> {
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => reject(idbError(request.error));
   });
 }
 
@@ -36,7 +41,7 @@ export async function idbGet<T>(key: string): Promise<T | null> {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const request = tx.objectStore(STORE_NAME).get(key);
       request.onsuccess = () => resolve((request.result as T) ?? null);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(idbError(request.error));
     });
   } catch (error) {
     console.error(`Error reading from IndexedDB for key "${key}":`, error);
@@ -51,7 +56,7 @@ export async function idbSet<T>(key: string, value: T): Promise<void> {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.objectStore(STORE_NAME).put(value, key);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(idbError(tx.error));
     });
   } catch (error) {
     console.error(`Error writing to IndexedDB for key "${key}":`, error);
@@ -65,7 +70,7 @@ export async function idbRemove(key: string): Promise<void> {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.objectStore(STORE_NAME).delete(key);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(idbError(tx.error));
     });
   } catch (error) {
     console.error(`Error removing from IndexedDB for key "${key}":`, error);
@@ -79,7 +84,7 @@ async function collectKvKeys(): Promise<string[]> {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const request = tx.objectStore(STORE_NAME).getAllKeys();
       request.onsuccess = () => resolve(request.result as string[]);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(idbError(request.error));
     });
   } catch (error) {
     console.error('Error listing IndexedDB kv keys:', error);
@@ -97,7 +102,7 @@ async function removeKvKeys(keys: string[]): Promise<void> {
       const store = tx.objectStore(STORE_NAME);
       for (const key of keys) store.delete(key);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(idbError(tx.error));
     });
   } catch (error) {
     console.error('Error removing IndexedDB kv keys:', error);
@@ -128,7 +133,7 @@ export async function idbSetDay<T>(dateISO: string, value: T): Promise<void> {
       const tx = db.transaction(DIARY_DAYS_STORE_NAME, 'readwrite');
       tx.objectStore(DIARY_DAYS_STORE_NAME).put(value, dateISO);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(idbError(tx.error));
     });
   } catch (error) {
     console.error(`Error writing diary day "${dateISO}" to IndexedDB:`, error);
@@ -142,7 +147,7 @@ export async function idbGetDay<T>(dateISO: string): Promise<T | null> {
       const tx = db.transaction(DIARY_DAYS_STORE_NAME, 'readonly');
       const request = tx.objectStore(DIARY_DAYS_STORE_NAME).get(dateISO);
       request.onsuccess = () => resolve((request.result as T) ?? null);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(idbError(request.error));
     });
   } catch (error) {
     console.error(`Error reading diary day "${dateISO}" from IndexedDB:`, error);
@@ -157,7 +162,7 @@ export async function idbClearDays(): Promise<void> {
       const tx = db.transaction(DIARY_DAYS_STORE_NAME, 'readwrite');
       tx.objectStore(DIARY_DAYS_STORE_NAME).clear();
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(idbError(tx.error));
     });
   } catch (error) {
     console.error('Error clearing diary days from IndexedDB:', error);
@@ -176,7 +181,7 @@ export async function idbSetMetricSeries<T>(seriesKey: string, value: T): Promis
       const tx = db.transaction(METRIC_SERIES_STORE_NAME, 'readwrite');
       tx.objectStore(METRIC_SERIES_STORE_NAME).put(value, seriesKey);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(idbError(tx.error));
     });
   } catch (error) {
     console.error(`Error writing metric series "${seriesKey}" to IndexedDB:`, error);
@@ -190,7 +195,7 @@ export async function idbGetAllMetricSeries<T>(): Promise<T[]> {
       const tx = db.transaction(METRIC_SERIES_STORE_NAME, 'readonly');
       const request = tx.objectStore(METRIC_SERIES_STORE_NAME).getAll();
       request.onsuccess = () => resolve(request.result as T[]);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(idbError(request.error));
     });
   } catch (error) {
     console.error('Error reading metric series from IndexedDB:', error);
@@ -205,7 +210,7 @@ export async function idbClearMetricSeries(): Promise<void> {
       const tx = db.transaction(METRIC_SERIES_STORE_NAME, 'readwrite');
       tx.objectStore(METRIC_SERIES_STORE_NAME).clear();
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => reject(idbError(tx.error));
     });
   } catch (error) {
     console.error('Error clearing metric series from IndexedDB:', error);

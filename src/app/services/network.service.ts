@@ -1,4 +1,4 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Service, computed, inject, signal } from '@angular/core';
 import { IncomingWsMessage, OutgoingWsMessage, PongWsMessage, WebSocketMessageType } from '@app/shared/types';
 import { Subject } from 'rxjs';
 import { NotificationService } from './notification.service';
@@ -35,7 +35,7 @@ const FIRST_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const STABLE_CONNECTION_MS = 10_000;
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class NetworkService {
   public readonly isOnline$$ = signal(navigator.onLine);
   public readonly isConnected$$ = signal(false);
@@ -53,8 +53,9 @@ export class NetworkService {
   private sessionProbeInFlight = false;
   private sessionInvalidationHandler: (() => void) | null = null;
   private readonly clientId = this.getOrCreateClientId();
+  private readonly notifications = inject(NotificationService);
 
-  public constructor(private readonly notifications: NotificationService) {
+  public constructor() {
     window.addEventListener('online', () => this.updateOnlineStatus(true));
     window.addEventListener('offline', () => this.updateOnlineStatus(false));
     document.addEventListener('visibilitychange', () => this.onVisibilityChange());

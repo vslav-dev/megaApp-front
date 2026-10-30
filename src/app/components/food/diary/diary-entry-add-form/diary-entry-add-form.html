@@ -6,8 +6,7 @@
   }
 }
 
-<form [formGroup]="diaryEntryForm"
-      (ngSubmit)="submitForm()">
+<form [formRoot]="diaryEntryForm">
   <div class="flex flex-col items-end gap-0 p-4">
     <div class="flex items-center justify-center mb-2">
       <div class="text-end flex-grow mr-2 text-xl font-medium">
@@ -43,13 +42,13 @@
 
     <div class="w-[114.45px] mb-4"> <!-- 114.45px is width of a button below -->
       <div class="relative">
-        <v-input [formControl]="foodWeightControl"
+        <v-input [formField]="diaryEntryForm.foodWeight"
                  inputmode="numeric"
                  label="Вес"
                  fontSize="20px"
                  [fontWeight]="500"
                  textAlign="right"
-                 (onInputChanged)="onFoodWeightInput()">
+                 (inputChangedOutput)="onFoodWeightInput()">
           <span v-postfix
                 class="ml-1 mr-3">г.</span>
         </v-input>
@@ -68,7 +67,7 @@
 
       <v-button class="v-primary"
                 type="submit"
-                [isDisabled]="!isFormValid() || isProductArchived$$()">
+                [isDisabled]="diaryEntryForm().invalid() || diaryEntryForm().submitting() || isProductArchived$$()">
         Добавить
       </v-button>
     </div>

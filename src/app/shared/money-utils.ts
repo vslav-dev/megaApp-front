@@ -1,3 +1,6 @@
+import { Transaction, TransactionDetails } from '@app/shared/types';
+import { parseIsoParts } from '@app/shared/utils';
+
 export function convertAmount(
   amount: number,
   fromTicker: string,
@@ -22,11 +25,11 @@ export function convertAmount(
   return usdAmount / toRate;
 }
 
-export function parseTransactionDetails(detailsJSON: unknown): any {
+export function parseTransactionDetails(detailsJSON: Transaction['detailsJSON']): TransactionDetails | null {
   if (!detailsJSON) return null;
   if (typeof detailsJSON === 'object') return detailsJSON;
   try {
-    return JSON.parse(detailsJSON as string);
+    return JSON.parse(detailsJSON) as TransactionDetails;
   } catch {
     return null;
   }
@@ -39,8 +42,8 @@ export function toPositiveNumber(value: unknown): number | null {
 
 export function generateMonthRange(fromMonthISO: string, toMonthISO: string): string[] {
   const months: string[] = [];
-  const [fromYear, fromMonth] = fromMonthISO.split('-').map(Number);
-  const [toYear, toMonth] = toMonthISO.split('-').map(Number);
+  const [fromYear, fromMonth] = parseIsoParts(fromMonthISO);
+  const [toYear, toMonth] = parseIsoParts(toMonthISO);
   let y = fromYear,
     m = fromMonth;
   while (y < toYear || (y === toYear && m <= toMonth)) {

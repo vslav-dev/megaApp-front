@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { inject, Service } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { TelemetryService } from './telemetry.service';
 
@@ -18,9 +18,7 @@ interface PhotoAnalysisResult {
   error?: string;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class PhotoCaptureService {
   private readonly http: HttpClient = inject(HttpClient);
   private readonly telemetry = inject(TelemetryService);

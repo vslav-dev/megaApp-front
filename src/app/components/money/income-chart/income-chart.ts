@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -39,12 +38,11 @@ Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, L
   selector: 'income-chart',
   templateUrl: './income-chart.html',
   imports: [VButton, VCheckbox],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class IncomeChart implements AfterViewInit, OnDestroy {
-  readonly dataInput = input.required<IncomeChartData>();
-  readonly currencySymbolInput = input<string>('₽');
-  readonly monthRangeInput = input<[string, string] | null>(null);
+  public readonly dataInput = input.required<IncomeChartData>();
+  public readonly currencySymbolInput = input<string>('₽');
+  public readonly monthRangeInput = input<[string, string] | null>(null);
 
   protected readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   protected readonly chart$$ = signal<Chart | null>(null);
@@ -123,13 +121,12 @@ export class IncomeChart implements AfterViewInit, OnDestroy {
       // unlike Chart.js's own scale rendering, this plugin paints the canvas directly).
       ctx.strokeStyle = Chart.defaults.borderColor as string;
       ctx.lineWidth = 1;
-      for (let i = 1; i < this.yearBoundaries.length; i++) {
+      for (const [i, boundary] of this.yearBoundaries.entries()) {
+        const previous = this.yearBoundaries[i - 1];
+        if (!previous) continue;
         const x =
-          Math.round(
-            (xScale.getPixelForValue(this.yearBoundaries[i - 1].endIdx) +
-              xScale.getPixelForValue(this.yearBoundaries[i].startIdx)) /
-              2,
-          ) + 0.5;
+          Math.round((xScale.getPixelForValue(previous.endIdx) + xScale.getPixelForValue(boundary.startIdx)) / 2) +
+          0.5;
         ctx.beginPath();
         ctx.moveTo(x, chartArea.top);
         ctx.lineTo(x, chartArea.bottom);
@@ -248,16 +245,15 @@ export class IncomeChart implements AfterViewInit, OnDestroy {
       !yearly && monthRange !== null
         ? (() => {
             const [start, end] = monthRange;
-            const indices: number[] = [];
-            data.months.forEach((m, i) => {
+            const isInRange = data.months.map((m) => {
               const ym = m.substring(0, 7);
-              if (ym >= start && ym <= end) indices.push(i);
+              return ym >= start && ym <= end;
             });
             return {
-              months: indices.map((i) => data.months[i]),
+              months: data.months.filter((_, i) => isInRange[i]),
               categorySeries: data.categorySeries.map((s) => ({
                 ...s,
-                values: indices.map((i) => s.values[i]),
+                values: s.values.filter((_, i) => isInRange[i]),
               })),
             };
           })()
@@ -278,10 +274,11 @@ export class IncomeChart implements AfterViewInit, OnDestroy {
       labels = yearLabels;
       yearlyValues = new Map();
       activeSeries.forEach((s) => {
-        const yearVals = new Array(yearLabels.length).fill(0);
+        const yearVals = new Array<number>(yearLabels.length).fill(0);
         data.months.forEach((m, i) => {
           const year = m.substring(0, 4);
-          yearVals[yearIndexMap.get(year)!] += s.values[i];
+          const yearIndex = yearIndexMap.get(year);
+          if (yearIndex !== undefined) yearVals[yearIndex] = (yearVals[yearIndex] ?? 0) + (s.values[i] ?? 0);
         });
         yearlyValues!.set(s.categoryId, yearVals);
       });
@@ -301,7 +298,7 @@ export class IncomeChart implements AfterViewInit, OnDestroy {
       labels = effectiveData.months.map((m) => formatMonthYearLabel(m));
     }
 
-    (chart.options.scales!['x']!.ticks as any).callback = yearly
+    chart.options.scales!['x']!.ticks!.callback = yearly
       ? (value: unknown, index: number) => labels[index]
       : () => '';
 

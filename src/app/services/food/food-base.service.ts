@@ -24,7 +24,7 @@ export abstract class BaseFoodService {
     return this.networkService.isNetworkAvailable$$();
   }
 
-  protected addSyncOperation(operation: SyncOperationInput): void {
+  protected addSyncOperation<TResponse>(operation: SyncOperationInput<TResponse>): void {
     this.syncEngine.addOperation(operation);
   }
 }

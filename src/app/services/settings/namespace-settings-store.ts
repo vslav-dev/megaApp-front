@@ -216,7 +216,7 @@ export class NamespaceSettingsStore<T extends object> {
       // reached the server yet (still sitting in the debounce buffer), so the server's answer for
       // those specific keys is stale by definition — keep the newer local value, let the pending
       // flush reconcile it with the server for real once it fires.
-      const merged = { ...this.defaults, ...response, ...this.pendingFields } as T;
+      const merged = { ...this.defaults, ...response, ...this.pendingFields };
       this.state$$.set(merged);
       this.writeCache(merged);
       this.confirmed$$.set(merged);

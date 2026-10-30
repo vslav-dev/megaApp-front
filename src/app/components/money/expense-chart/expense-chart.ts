@@ -1,6 +1,5 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   ElementRef,
   OnDestroy,
@@ -55,13 +54,12 @@ interface ExpenseChartSeries {
   selector: 'expense-chart',
   templateUrl: './expense-chart.html',
   imports: [VButton, VCheckbox, VInput, VToggle],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExpenseChart implements AfterViewInit, OnDestroy {
-  readonly dataInput = input.required<ExpenseChartData>();
-  readonly currencySymbolInput = input<string>('₽');
-  readonly currencyTickerInput = input<string>('RUB');
-  readonly monthRangeInput = input<[string, string] | null>(null);
+  public readonly dataInput = input.required<ExpenseChartData>();
+  public readonly currencySymbolInput = input<string>('₽');
+  public readonly currencyTickerInput = input<string>('RUB');
+  public readonly monthRangeInput = input<[string, string] | null>(null);
 
   protected readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   protected readonly yMaxElem = viewChild.required<VInput>('yMaxElem');
@@ -185,13 +183,12 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       // unlike Chart.js's own scale rendering, this plugin paints the canvas directly).
       ctx.strokeStyle = Chart.defaults.borderColor as string;
       ctx.lineWidth = 1;
-      for (let i = 1; i < this.yearBoundaries.length; i++) {
+      for (const [i, boundary] of this.yearBoundaries.entries()) {
+        const previous = this.yearBoundaries[i - 1];
+        if (!previous) continue;
         const x =
-          Math.round(
-            (xScale.getPixelForValue(this.yearBoundaries[i - 1].endIdx) +
-              xScale.getPixelForValue(this.yearBoundaries[i].startIdx)) /
-              2,
-          ) + 0.5;
+          Math.round((xScale.getPixelForValue(previous.endIdx) + xScale.getPixelForValue(boundary.startIdx)) / 2) +
+          0.5;
         ctx.beginPath();
         ctx.moveTo(x, chartArea.top);
         ctx.lineTo(x, chartArea.bottom);
@@ -349,14 +346,16 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       labels = yearLabels;
       yearlyValues = new Map();
       activeSeries.forEach((s) => {
-        const yearVals = new Array(yearLabels.length).fill(0);
+        const yearVals = new Array<number>(yearLabels.length).fill(0);
         months.forEach((m, i) => {
           const year = m.substring(0, 4);
+          const row = effectiveData.monthRows[i];
           const val =
             s.categoryId === EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED
-              ? effectiveData.monthRows[i].uncategorizedAmount
-              : (effectiveData.monthRows[i].categoryAmounts[s.categoryId] ?? 0);
-          yearVals[yearIndexMap.get(year)!] += val;
+              ? (row?.uncategorizedAmount ?? 0)
+              : (row?.categoryAmounts[s.categoryId] ?? 0);
+          const yearIndex = yearIndexMap.get(year);
+          if (yearIndex !== undefined) yearVals[yearIndex] = (yearVals[yearIndex] ?? 0) + val;
         });
         yearlyValues!.set(s.categoryId, yearVals);
       });
@@ -376,7 +375,7 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       labels = months.map((m) => formatMonthYearLabel(m));
     }
 
-    (chart.options.scales!['x']!.ticks as any).callback = yearly
+    chart.options.scales!['x']!.ticks!.callback = yearly
       ? (value: unknown, index: number) => labels[index]
       : () => '';
 
@@ -389,11 +388,12 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
       };
       const seriesValues: number[] = yearly
         ? yearlyValues!.get(series.categoryId)!
-        : months.map((_, i) =>
-            series.categoryId === EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED
-              ? effectiveData.monthRows[i].uncategorizedAmount
-              : (effectiveData.monthRows[i].categoryAmounts[series.categoryId] ?? 0),
-          );
+        : months.map((_, i) => {
+            const row = effectiveData.monthRows[i];
+            return series.categoryId === EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED
+              ? (row?.uncategorizedAmount ?? 0)
+              : (row?.categoryAmounts[series.categoryId] ?? 0);
+          });
       return {
         label: series.categoryName,
         data: seriesValues,

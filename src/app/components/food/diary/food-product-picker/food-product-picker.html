@@ -1,7 +1,7 @@
 <div [class.mb-4]="!hasSearchResults$$()"
      class="flex justify-center gap-4 px-4 pt-4">
   <v-input class="catalogue-entry-name-input w-full"
-           (onEnterPressed)="onEnterPressed($event)"
+           (enterPressedOutput)="onEnterPressed($event)"
            [(value)]="query">
     @if (isLegacySearch$$()) {
       <v-button class="v-primary mx-2"
@@ -93,7 +93,7 @@
     <div flipAnimate
          class="contents">
       @for (catalogueEntry of searchResults$$(); track catalogueEntry.id) {
-        <v-card [attr.data-flip-key]="'catalogue-' + catalogueEntry.id"
+        <v-card [attr.data-flip-key]="`catalogue-${catalogueEntry.id}`"
                 class="w-full cursor-pointer"
                 [padding]="1"
                 minHeight="104px"

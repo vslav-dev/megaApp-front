@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { StatsHelpIcon } from '@app/components/food/stats/stats-help-icon/stats-help-icon';
 import { FoodAddModalService } from '@app/services/food/food-add-modal.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
@@ -30,7 +30,6 @@ interface ProductHistoryRow {
   selector: 'food-stats-product-history',
   templateUrl: './product-history.html',
   styleUrl: './product-history.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [VCard, VButton, VIcon, VChip, StatsHelpIcon],
 })
 export class ProductHistory {

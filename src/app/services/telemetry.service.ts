@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { afterNextRender, ErrorHandler, Injectable, Injector, inject, untracked } from '@angular/core';
+import { afterNextRender, DestroyRef, ErrorHandler, inject, Injector, Service, untracked } from '@angular/core';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { LocalStorageService } from '@app/services/local-storage.service';
@@ -34,7 +34,7 @@ const REQUEST_OVERHEAD_BYTES = 64;
 const FALLBACK_STREAM = 'misc';
 const STREAM_PATTERN = /^[a-z0-9._-]{1,64}$/;
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class TelemetryService {
   private readonly http = inject(HttpClient);
   private readonly deviceInfoService = inject(DeviceInfoService);
@@ -42,13 +42,13 @@ export class TelemetryService {
   // Lazy, not `inject(Router)`: eager here re-enters this ctor via the initial route's guards (NG0200).
   private readonly injector = inject(Injector);
 
-  private queue: TelemetryQueue = this.readQueue();
+  private readonly queue: TelemetryQueue = this.readQueue();
   private readonly sessionId = crypto.randomUUID();
   private persistTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private cycleTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private nextCycleAllowedAt = 0;
   private sending = false;
-  private routeStarts = new Map<number, number>();
+  private readonly routeStarts = new Map<number, number>();
   private readonly suppressedErrorCounts = new Map<string, number>();
   private readonly errorSignatureLastSentAt = new Map<string, number>();
 
@@ -56,8 +56,16 @@ export class TelemetryService {
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     window.addEventListener('pagehide', this.flushOnUnload);
     window.addEventListener('unhandledrejection', this.onUnhandledRejection);
+    // Zoneless: an error thrown in a timer or other non-Angular callback no longer reaches ErrorHandler through the zone.
+    window.addEventListener('error', this.onWindowError);
+    inject(DestroyRef).onDestroy(() => {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+      window.removeEventListener('pagehide', this.flushOnUnload);
+      window.removeEventListener('unhandledrejection', this.onUnhandledRejection);
+      window.removeEventListener('error', this.onWindowError);
+    });
 
-    // Deferred: enqueue/maybeStartCycle can send synchronously, and AuthInterceptor -> AuthService is not safe to construct this early (NG0200).
+    // Deferred: enqueue/maybeStartCycle can send synchronously, and authInterceptor -> AuthService is not safe to construct this early (NG0200).
     afterNextRender(() => {
       this.router.events.subscribe((event) => this.handleRouterEvent(event));
       this.observeBrowserPerformance();
@@ -314,6 +322,10 @@ export class TelemetryService {
     this.recordError('error.unhandled_rejection', event.reason);
   };
 
+  private readonly onWindowError = (event: ErrorEvent): void => {
+    this.recordError('error.window', event.error ?? event.message);
+  };
+
   private trimQueue(): void {
     while (this.queue.events.length > 0 && JSON.stringify(this.queue).length > MAX_QUEUE_BYTES) {
       this.queue.events.shift();
@@ -392,7 +404,7 @@ export class TelemetryService {
   }
 }
 
-@Injectable()
+@Service({ autoProvided: false })
 export class TelemetryErrorHandler implements ErrorHandler {
   // Lazy, not `inject(TelemetryService)`: ErrorHandler resolves before the component tree exists.
   private readonly injector = inject(Injector);
@@ -425,7 +437,7 @@ function isClientErrorStatus(error: unknown): boolean {
 /** The stream is the operation's namespace (`app`, `money`, `error`, `log`, ...): the same convention the
  *  operations already follow, and a label the intake can filter by without opening the data. */
 function streamOf(operation: string): string {
-  const namespace = operation.split('.')[0];
+  const namespace = operation.split('.')[0] ?? '';
   return STREAM_PATTERN.test(namespace) ? namespace : FALLBACK_STREAM;
 }
 

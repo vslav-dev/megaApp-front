@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Service } from '@angular/core';
 import { buildCacheKey, hasCacheUser } from '@app/shared/cache';
 import {
   idbClearAllUserScopedKvEntries,
@@ -13,9 +13,7 @@ import {
   idbSetMetricSeries,
 } from '@app/shared/idb-cache';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class IndexedDbCacheService {
   public get<T>(baseKey: string): Promise<T | null> {
     if (!hasCacheUser()) return Promise.resolve(null);

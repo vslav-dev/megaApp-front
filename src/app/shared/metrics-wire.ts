@@ -81,7 +81,7 @@ export function decodeMetricsWireSeries(buffer: ArrayBuffer): WireSeries[] {
   const series: WireSeries[] = [];
   let pointIndex = 0;
   for (const header of headers) {
-    const points: { bucket: number; value: number }[] = new Array(header.pointCount);
+    const points = new Array<{ bucket: number; value: number }>(header.pointCount);
     for (let i = 0; i < header.pointCount; i++) {
       const bucket = Number(view.getBigInt64(bucketsStart + pointIndex * 8, true));
       const value = view.getFloat64(valuesStart + pointIndex * 8, true);

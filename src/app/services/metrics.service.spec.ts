@@ -239,7 +239,7 @@ describe('MetricsService.forceRefresh — batched history requests', () => {
       req.flush(encodeMetricsWireFixture([]));
     }
 
-    expect(requested).toEqual(bigScope[0].metricNames);
+    expect(requested).toEqual(bigScope[0]?.metricNames);
     httpMock.expectNone('/api/metrics/history');
     expect(service.isRefreshing$$()).toBe(false);
   });

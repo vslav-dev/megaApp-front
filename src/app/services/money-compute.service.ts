@@ -34,6 +34,7 @@ import {
   Transaction,
   TransactionKind,
 } from '../shared/types';
+import { itemAt, parseIsoParts } from '../shared/utils';
 import { MoneyService } from './money.service';
 import { TelemetryService } from './telemetry.service';
 
@@ -327,10 +328,12 @@ export class MoneyComputeService {
       ...Object.keys(buckets.fxInvestDelta),
       ...Object.keys(buckets.brokerDelta),
     ]);
-    if (!allMonthsSet.size) return { dates: [], totals: [], accountSeries: [] };
-
     const sortedMonths = Array.from(allMonthsSet).sort();
-    const months = generateMonthRange(sortedMonths[0], sortedMonths[sortedMonths.length - 1]);
+    const firstMonth = sortedMonths[0];
+    const lastMonth = sortedMonths.at(-1);
+    if (firstMonth === undefined || lastMonth === undefined) return { dates: [], totals: [], accountSeries: [] };
+
+    const months = generateMonthRange(firstMonth, lastMonth);
 
     const cumulativeBalance = new Map<number, number>();
     const cumulativeFxInvest = new Map<number, number>();
@@ -348,7 +351,7 @@ export class MoneyComputeService {
     const totals: number[] = [];
 
     for (const monthKey of months) {
-      const [yr, mo] = monthKey.split('-').map(Number);
+      const [yr, mo] = parseIsoParts(monthKey);
       const eomDay = new Date(yr, mo, 0).getDate();
       const eomISO = `${yr}-${String(mo).padStart(2, '0')}-${String(eomDay).padStart(2, '0')}`;
 
@@ -484,7 +487,7 @@ export class MoneyComputeService {
     if (!allMonthsSet.size) return { months: [], categorySeries: [] };
 
     const sortedMonths = Array.from(allMonthsSet).sort();
-    const months = this.generateEomDates(sortedMonths[0], sortedMonths[sortedMonths.length - 1]);
+    const months = this.generateEomDates(itemAt(sortedMonths, 0), itemAt(sortedMonths, sortedMonths.length - 1));
     const monthIndexMap = new Map<string, number>(months.map((m, i) => [m.substring(0, 7), i]));
 
     // Monthly values per income series id: categories and dividends from the buckets, ЦБ/Крипта from the lots.
@@ -502,7 +505,7 @@ export class MoneyComputeService {
     for (const [monthKey, accountMap] of Object.entries(buckets.income)) {
       const monthIdx = monthIndexMap.get(monthKey);
       if (monthIdx === undefined) continue;
-      const rates = this.moneyService.getRatesForDate(months[monthIdx]);
+      const rates = this.moneyService.getRatesForDate(itemAt(months, monthIdx));
 
       for (const [accountIdStr, seriesMap] of Object.entries(accountMap)) {
         const currencyTicker = accountTickers.get(Number(accountIdStr));
@@ -510,7 +513,8 @@ export class MoneyComputeService {
         for (const [seriesIdStr, nativeAmt] of Object.entries(seriesMap)) {
           const converted =
             currencyTicker && rates ? convertAmount(nativeAmt, currencyTicker, targetTicker, rates) : nativeAmt;
-          valuesOf(Number(seriesIdStr))[monthIdx] += converted;
+          const values = valuesOf(Number(seriesIdStr));
+          values[monthIdx] = (values[monthIdx] ?? 0) + converted;
         }
       }
     }
@@ -521,7 +525,7 @@ export class MoneyComputeService {
       const perMonth = lot.pnl / lot.openMonths.length;
       for (const monthKey of lot.openMonths) {
         const idx = monthIndexMap.get(monthKey);
-        if (idx !== undefined) values[idx] += perMonth;
+        if (idx !== undefined) values[idx] = (values[idx] ?? 0) + perMonth;
       }
     }
 
@@ -626,7 +630,7 @@ export class MoneyComputeService {
   }
 
   private toEomISO(monthKey: string): string {
-    const [yr, mo] = monthKey.split('-').map(Number);
+    const [yr, mo] = parseIsoParts(monthKey);
     const eomDay = new Date(yr, mo, 0).getDate();
     return `${yr}-${String(mo).padStart(2, '0')}-${String(eomDay).padStart(2, '0')}`;
   }
@@ -676,10 +680,11 @@ export class MoneyComputeService {
     // Rows exist only for months with expenses, so the window is counted in calendar months from the
     // latest one, not in rows.
     const monthNumber = (period: string): number => {
-      const [year, month] = period.split('-').map(Number);
+      const [year, month] = parseIsoParts(period);
       return year * 12 + month;
     };
-    const latestMonth = monthRows.length ? monthNumber(monthRows[monthRows.length - 1].period) : 0;
+    const latestRow = monthRows.at(-1);
+    const latestMonth = latestRow ? monthNumber(latestRow.period) : 0;
     for (const row of monthRows.filter((item) => monthNumber(item.period) > latestMonth - SHARE_WINDOW_MONTHS)) {
       for (const [seriesId, amount] of Object.entries(row.categoryAmounts)) addToTotal(Number(seriesId), amount);
       addToTotal(EXPENSE_VIRTUAL_SERIES.UNCATEGORIZED, row.uncategorizedAmount);

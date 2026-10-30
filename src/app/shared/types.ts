@@ -57,7 +57,7 @@ export interface SyncStatusWsMessage {
   payload: UserDataLastModifiedTs;
 }
 
-export interface DiaryEntryToCreate extends DiaryEntry {}
+export type DiaryEntryToCreate = DiaryEntry;
 
 export interface DiaryEntryCreatedWsMessage {
   type: typeof WebSocketMessageType.DIARY_ENTRY_CREATED;
@@ -266,7 +266,7 @@ export interface TelemetryEvent {
   trigger?: string;
   outcome?: 'success' | 'error' | 'cancelled';
   message?: string;
-  stack?: string;
+  stack?: string | undefined;
   attributes?: Record<string, string | number | boolean>;
   device: {
     platform: 'mobile' | 'tablet' | 'desktop';
@@ -539,13 +539,14 @@ export interface CatalogueEntry {
   fiber: number;
   description: string;
   // Absent in a catalogue cached before the archive feature — treated as not archived.
-  archived?: boolean;
+  archived?: boolean | undefined;
   imageVersion?: number;
   canDelete?: boolean;
 }
 
+// Keyed by catalogue id; a string index (numeric keys are strings at runtime) keeps Object.values()/entries() typed.
 export interface Catalogue {
-  [id: number]: CatalogueEntry;
+  [id: string]: CatalogueEntry;
 }
 
 // GET /api/food/catalogue response — version is a cheap "did anything change" signal for
@@ -716,7 +717,7 @@ export interface Organization {
 }
 
 export interface Account {
-  id?: number;
+  id?: number | undefined;
   title: string;
   currencyId: number;
   isInvest: boolean;
@@ -754,17 +755,28 @@ export const TransactionKind = {
 
 export type TransactionKind = (typeof TransactionKind)[keyof typeof TransactionKind];
 
+// Per-kind extras of a transaction: a transfer leg's direction, or the trade it records.
+export interface TransactionDetails {
+  direction?: 'in' | 'out';
+  assetId?: number;
+  quantity?: number;
+  price?: number;
+  commissionAmount?: number;
+  accruedInterestAmount?: number;
+}
+
 export interface Transaction {
-  id?: number;
+  id?: number | undefined;
   dateISO: string;
   accountId: number;
   amount: number;
   categoryId?: number | null;
   kind: TransactionKind;
   isGift: boolean;
-  notes?: string;
-  detailsJSON?: any;
-  twinId?: number | null;
+  notes?: string | undefined;
+  // An object, or the same object as a JSON string (the server stores and returns either).
+  detailsJSON?: TransactionDetails | string;
+  twinId?: number | null | undefined;
   version?: number;
 }
 

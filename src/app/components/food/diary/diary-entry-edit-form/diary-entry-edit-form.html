@@ -91,19 +91,18 @@
 </div>
 
 <form class="flex flex-col gap-4"
-      [formGroup]="diaryEntryForm"
-      (submit)="onSubmit()">
+      [formRoot]="diaryEntryForm">
   <div class="flex gap-4">
     <v-input #foodWeightNewElem
-             [formControl]="diaryEntryForm.controls.foodWeightNew"
+             [formField]="diaryEntryForm.foodWeightNew"
              class="readable-text-bg flex-1"
              inputmode="numeric"
              label="Новый вес"
              fontSize="20px"
              [fontWeight]="500"
              textAlign="right"
-             (onInputChanged)="onNewWeightInput()">
-      @if (foodWeightNewValue$$() !== null) {
+             (inputChangedOutput)="onNewWeightInput()">
+      @if (hasNewWeight$$()) {
         <v-button surface="link"
                   [isLinkStatic]="true"
                   v-prefix
@@ -120,22 +119,22 @@
         </v-button>
       }
 
-      @if (foodWeightNewValue$$() !== null) {
+      @if (hasNewWeight$$()) {
         <span v-postfix
               class="ml-1 mr-3"> г. </span>
       }
     </v-input>
 
     <v-input #foodWeightChangeElem
-             [formControl]="diaryEntryForm.controls.foodWeightChange"
+             [formField]="diaryEntryForm.foodWeightChange"
              class="readable-text-bg flex-1"
              inputmode="numeric"
              label="Изменить на"
              fontSize="20px"
              [fontWeight]="500"
              textAlign="right"
-             (onInputChanged)="onChangeWeightInput()">
-      @if (foodWeightChangeValue$$() !== null) {
+             (inputChangedOutput)="onChangeWeightInput()">
+      @if (hasChangeWeight$$()) {
         <v-button surface="link"
                   [isLinkStatic]="true"
                   v-prefix
@@ -152,7 +151,7 @@
         </v-button>
       }
 
-      @if (foodWeightChangeValue$$() !== null) {
+      @if (hasChangeWeight$$()) {
         <span v-postfix
               class="ml-1 mr-3"> г. </span>
       }
@@ -179,7 +178,7 @@
          desktopWidth="300px"
          [borderRadius]="3"
          [padding]="4"
-         (onClose)="closeConfirmationModal()">
+         (closeOutput)="closeConfirmationModal()">
   <div class="flex flex-col gap-4">
     <div class="text-xl font-medium text-center">
       Вы уверены, что хотите удалить эту запись?
@@ -188,13 +187,13 @@
     <div class="flex gap-4">
       <v-button surface="flat"
                 width="100%"
-                (onClick)="closeConfirmationModal()">
+                (clickOutput)="closeConfirmationModal()">
         Нет
       </v-button>
 
       <v-button class="v-danger"
                 width="100%"
-                (onClick)="onDeleteConfirmed()">
+                (clickOutput)="onDeleteConfirmed()">
         Да
       </v-button>
     </div>

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { Component, computed, input } from '@angular/core';
 import { FoodStatsBlock, getFoodStatsColumns } from '@app/components/food/stats/food-stats-block';
 import { FoodStatsCharts } from '@app/components/food/stats/food-stats-charts/food-stats-charts';
 import { Milestones } from '@app/components/food/stats/milestones/milestones';
@@ -13,7 +13,6 @@ import { TopProducts } from '@app/components/food/stats/top-products/top-product
   host: {
     class: 'contents',
   },
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FoodStatsColumns {
   public readonly columnCountInput = input.required<number>();

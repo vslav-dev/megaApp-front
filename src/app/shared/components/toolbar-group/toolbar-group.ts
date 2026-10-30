@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { Component, input } from '@angular/core';
 
 // Wraps a toolbar control (e.g. a v-button) that can grow extra companion
 // controls (an input, a toggle, ...) when its own state is active. When
@@ -8,7 +8,6 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   selector: 'toolbar-group',
   templateUrl: './toolbar-group.html',
   styleUrl: './toolbar-group.css',
-  changeDetection: ChangeDetectionStrategy.Eager,
   host: {
     '[class.active]': 'isActive()',
   },

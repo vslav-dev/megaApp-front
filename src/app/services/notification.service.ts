@@ -16,7 +16,7 @@ export interface AddNotificationOptions {
 
 @Service()
 export class NotificationService {
-  public notifications$$: WritableSignal<NotificationMessage[]> = signal([]);
+  public readonly notifications$$: WritableSignal<NotificationMessage[]> = signal([]);
 
   public showSyncError(message: string): void {
     this.addNotification('error', `Sync error: ${message}`);

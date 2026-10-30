@@ -9,6 +9,8 @@ export interface MetricSyncCrosshairOptions {
 }
 
 declare module 'chart.js' {
+  // [LOAD-BEARING] The type parameter must mirror chart.js's own declaration for the augmentation to merge.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface PluginOptionsByType<TType extends ChartType> {
     metricSyncCrosshair?: MetricSyncCrosshairOptions;
   }
@@ -130,7 +132,7 @@ export const metricSyncCrosshairPlugin: Plugin<'line' | 'bar'> = {
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (entry?.isIntersecting) {
           visibleCharts.add(chart);
         } else {
           visibleCharts.delete(chart);
