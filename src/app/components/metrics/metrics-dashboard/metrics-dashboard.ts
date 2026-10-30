@@ -68,7 +68,7 @@ import {
   MetricCardGrid,
   MetricChartCardData,
   MetricChartCardSeriesDisplay,
-} from '../metric-card-grid/metric-card-grid';
+} from '@app/components/metrics/metric-card-grid/metric-card-grid';
 
 const NOW_TICK_INTERVAL_MS = 30_000;
 const STICKY_LABEL_GAP_PX = 8;

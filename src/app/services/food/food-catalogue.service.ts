@@ -24,8 +24,8 @@ import {
 } from '@app/shared/types';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { SyncOperationError, SyncOperationFailure, SyncOperationMode, SyncOperationType } from '../sync-engine.service';
-import { TelemetryService } from '../telemetry.service';
+import { SyncOperationError, SyncOperationFailure, SyncOperationMode, SyncOperationType } from '@app/services/sync-engine.service';
+import { TelemetryService } from '@app/services/telemetry.service';
 import { BaseFoodService } from './food-base.service';
 
 @Service()

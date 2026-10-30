@@ -10,7 +10,7 @@ import { VCheckbox } from '@ui-kit/components/v-checkbox/v-checkbox';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { VInput } from '@ui-kit/components/v-input/v-input';
 import { VToggle } from '@ui-kit/components/v-toggle/v-toggle';
-import { ICON_BUTTON } from '../money.const';
+import { ICON_BUTTON } from '@app/components/money/money.const';
 
 interface OpenedPosition {
   accountId: number;

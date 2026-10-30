@@ -10,8 +10,8 @@ import {
 } from '@angular/core';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VInput } from '@ui-kit/components/v-input/v-input';
-import { MoneyService } from '../../../../services/money.service';
-import { Organization } from '../../../../shared/types';
+import { MoneyService } from '@app/services/money.service';
+import { Organization } from '@app/shared/types';
 
 @Component({
   selector: 'organization-form',

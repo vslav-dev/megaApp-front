@@ -3,8 +3,8 @@ import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCheckbox } from '@ui-kit/components/v-checkbox/v-checkbox';
 import { DropdownItem, VDropdown } from '@ui-kit/components/v-dropdown/v-dropdown';
 import { VInput } from '@ui-kit/components/v-input/v-input';
-import { MoneyService } from '../../../../services/money.service';
-import { Currency, SymbolPosition } from '../../../../shared/types';
+import { MoneyService } from '@app/services/money.service';
+import { Currency, SymbolPosition } from '@app/shared/types';
 
 @Component({
   selector: 'currency-form',

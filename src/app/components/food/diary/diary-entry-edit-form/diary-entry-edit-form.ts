@@ -23,8 +23,8 @@ import { VInput } from '@ui-kit/components/v-input/v-input';
 import { VModal } from '@ui-kit/components/v-modal/v-modal';
 import { VRollingNumber } from '@ui-kit/components/v-rolling-number/v-rolling-number';
 import { UiProgressIcon } from '@ui-kit/progress-icon/progress-icon.component';
-import { DiaryEntryProductInfo } from '../diary-entry-product-info/diary-entry-product-info';
-import { NutritionSummary } from '../nutrition-summary/nutrition-summary';
+import { DiaryEntryProductInfo } from '@app/components/food/diary/diary-entry-product-info/diary-entry-product-info';
+import { NutritionSummary } from '@app/components/food/diary/nutrition-summary/nutrition-summary';
 
 const EMPTY_WEIGHTS = { foodWeightNew: '', foodWeightChange: '' };
 

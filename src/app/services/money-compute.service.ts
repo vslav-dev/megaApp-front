@@ -1,6 +1,6 @@
 import { Service, Signal, computed, inject, signal } from '@angular/core';
-import { SeriesColor, SeriesColorInput, assignSeriesColors } from '../shared/categorical-palette';
-import { EXPENSE_SERIES_ORDER, INCOME_SERIES_ORDER, seriesOrderIndex } from '../shared/chart-config';
+import { SeriesColor, SeriesColorInput, assignSeriesColors } from '@app/shared/categorical-palette';
+import { EXPENSE_SERIES_ORDER, INCOME_SERIES_ORDER, seriesOrderIndex } from '@app/shared/chart-config';
 import {
   EXPENSE_VIRTUAL_SERIES,
   EXPENSE_VIRTUAL_SERIES_NAMES,
@@ -9,15 +9,15 @@ import {
   SeriesChart,
   SeriesResolver,
   createSeriesResolver,
-} from '../shared/money-series';
+} from '@app/shared/money-series';
 import {
   areArraysShallowEqual,
   convertAmount,
   generateMonthRange,
   parseTransactionDetails,
   toPositiveNumber,
-} from '../shared/money-utils';
-import { buildPositionLots, buildTradeSeriesIndex } from '../shared/position-lots';
+} from '@app/shared/money-utils';
+import { buildPositionLots, buildTradeSeriesIndex } from '@app/shared/position-lots';
 import {
   Account,
   Asset,
@@ -33,8 +33,8 @@ import {
   SeriesShare,
   Transaction,
   TransactionKind,
-} from '../shared/types';
-import { itemAt, parseIsoParts } from '../shared/utils';
+} from '@app/shared/types';
+import { itemAt, parseIsoParts } from '@app/shared/utils';
 import { MoneyService } from './money.service';
 import { TelemetryService } from './telemetry.service';
 

@@ -18,7 +18,7 @@ import { MetricChartMode } from '@app/shared/metrics-chart-mode';
 import { MetricSeriesPoint } from '@app/shared/metrics-series';
 import { MetricGranularity } from '@app/shared/types';
 import { fitColumnsToWidth } from '@app/shared/utils';
-import { MetricChartCard } from '../metric-chart-card/metric-chart-card';
+import { MetricChartCard } from '@app/components/metrics/metric-chart-card/metric-chart-card';
 
 export interface MetricChartCardSeriesDisplay {
   series: MetricSeriesPoint[];

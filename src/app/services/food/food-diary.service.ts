@@ -29,9 +29,9 @@ import {
 import { foodTodayIso } from '@app/shared/food-day';
 import { dateToIsoNoTimeNoTZ } from '@app/shared/utils';
 import { firstValueFrom, Subject } from 'rxjs';
-import { NotificationService } from '../notification.service';
-import { SyncOperationMode, SyncOperationType } from '../sync-engine.service';
-import { TelemetryService } from '../telemetry.service';
+import { NotificationService } from '@app/services/notification.service';
+import { SyncOperationMode, SyncOperationType } from '@app/services/sync-engine.service';
+import { TelemetryService } from '@app/services/telemetry.service';
 import { BaseFoodService } from './food-base.service';
 import { FoodCatalogueService } from './food-catalogue.service';
 import { FoodPersonalKcalsService } from './food-personal-kcals.service';

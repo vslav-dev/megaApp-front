@@ -11,8 +11,8 @@ import {
 import { FoodStatsResponse, FoodStatsSummary, FoodStatsTopProduct, Stats, StatsChartData } from '@app/shared/types';
 import { firstValueFrom } from 'rxjs';
 import { foodTodayIso } from '@app/shared/food-day';
-import { formatDateTicks, isoDaysBefore } from '../../shared/utils';
-import { TelemetryService } from '../telemetry.service';
+import { formatDateTicks, isoDaysBefore } from '@app/shared/utils';
+import { TelemetryService } from '@app/services/telemetry.service';
 import { BaseFoodService } from './food-base.service';
 import { FoodDiaryService } from './food-diary.service';
 import { FoodProductHistoryStateService } from './food-product-history-state.service';

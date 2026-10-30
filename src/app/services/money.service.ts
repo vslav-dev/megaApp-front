@@ -5,8 +5,8 @@ import { LocalStorageService } from '@app/services/local-storage.service';
 import { NamespaceSettingsStore } from '@app/services/settings/namespace-settings-store';
 import { TelemetryService } from '@app/services/telemetry.service';
 import { firstValueFrom, Observable } from 'rxjs';
-import { areSetsEqual } from '../shared/money-utils';
-import { itemAt } from '../shared/utils';
+import { areSetsEqual } from '@app/shared/money-utils';
+import { itemAt } from '@app/shared/utils';
 import {
   Account,
   Asset,
@@ -16,7 +16,7 @@ import {
   Organization,
   Transaction,
   TransactionKind,
-} from '../shared/types';
+} from '@app/shared/types';
 import { SyncEngineService, SyncOperationMode, SyncOperationType } from './sync-engine.service';
 
 export type SuspensionFilter = 'all' | 'exclude' | 'only';

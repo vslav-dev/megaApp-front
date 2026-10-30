@@ -37,6 +37,11 @@ export default tseslint.config(
       '@angular-eslint/no-duplicates-in-metadata-arrays': 'error',
       '@angular-eslint/consistent-component-styles': 'error',
       '@angular-eslint/relative-url-prefix': 'error',
+      // Going above the current folder uses the @app/* and @ui-kit/* aliases; './' stays for files of the same folder.
+      'no-restricted-imports': [
+        'error',
+        { patterns: [{ group: ['../*'], message: 'Use the @app/* or @ui-kit/* alias instead of a parent-relative import.' }] },
+      ],
       '@typescript-eslint/prefer-readonly': 'error',
       '@typescript-eslint/explicit-member-accessibility': ['error', { accessibility: 'explicit' }],
       // [LOAD-BEARING] OnPush is the default since Angular 22 (Default was renamed to Eager); the team says not to set it explicitly.

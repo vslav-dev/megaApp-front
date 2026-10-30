@@ -7,7 +7,7 @@ import { Account, AccountKind, Currency, SymbolPosition, Transaction, Transactio
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
-import { ICON_BUTTON } from '../money.const';
+import { ICON_BUTTON } from '@app/components/money/money.const';
 import { AccountForm } from './account-form/account-form';
 
 interface AccountBalance {

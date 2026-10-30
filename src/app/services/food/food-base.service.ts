@@ -1,8 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { LocalStorageService } from '../local-storage.service';
-import { NetworkService } from '../network.service';
-import { SyncEngineService, SyncOperationInput } from '../sync-engine.service';
+import { LocalStorageService } from '@app/services/local-storage.service';
+import { NetworkService } from '@app/services/network.service';
+import { SyncEngineService, SyncOperationInput } from '@app/services/sync-engine.service';
 
 export abstract class BaseFoodService {
   protected readonly http = inject(HttpClient);
