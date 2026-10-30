@@ -1,5 +1,6 @@
 import { Component, computed, inject, Signal } from '@angular/core';
 import { StatsHelpIcon } from '@app/components/food/stats/stats-help-icon/stats-help-icon';
+import { FoodScreenModeService } from '@app/services/food/food-screen-mode.service';
 import { FoodStatsInsightsService, FoodStatsStreak } from '@app/services/food/food-stats-insights.service';
 import {
   FOOD_DAY_BAND_COLOR_VAR,
@@ -39,6 +40,7 @@ export class Streak {
   ];
 
   private readonly insightsService = inject(FoodStatsInsightsService);
+  private readonly foodScreenModeService = inject(FoodScreenModeService);
 
   protected readonly streak$$: Signal<FoodStatsStreak> = this.insightsService.streak$$;
 
@@ -54,6 +56,10 @@ export class Streak {
     const padding = Array<null>(this.mondayIndex(completedDays[0]?.dateIso ?? todayIso)).fill(null);
     return [...padding, ...cells];
   });
+
+  protected goToDay(dateIso: string): void {
+    this.foodScreenModeService.showDiaryDay(dateIso);
+  }
 
   protected daysLabel(days: number): string {
     return getRuDeclension(days, 'день', 'дня', 'дней');

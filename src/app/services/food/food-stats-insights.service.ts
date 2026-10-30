@@ -2,6 +2,7 @@ import { computed, inject, Service, Signal } from '@angular/core';
 import { FoodStatsService } from '@app/services/food/food-stats.service';
 import { FoodDayBand, isFoodStreakSuccessBand, resolveFoodDayBand } from '@app/shared/food-day-band';
 import { FoodStatsSummary, FoodStatsTopProduct } from '@app/shared/types';
+import { calculateTodayIsoWithUserTimeShift } from '@app/shared/utils';
 
 export interface FoodStatsRibbonDay {
   dateIso: string;
@@ -57,10 +58,14 @@ export class FoodStatsInsightsService {
     }));
   });
 
-  // Today is always the last entry (backend always includes it, even with zero consumption) and
-  // is excluded everywhere "completed days" are needed — it hasn't finished yet, so its band
-  // isn't a fair success/failure verdict.
-  private readonly completedDays$$: Signal<DayPoint[]> = computed(() => this.allDays$$().slice(0, -1));
+  // Today (the user-shifted day, same as the diary's) and anything after it is excluded everywhere
+  // "completed days" are needed — it hasn't finished yet, so its band isn't a fair success/failure
+  // verdict. Filtered by date, not by position: the backend's own "today" is the UTC date, which
+  // can be a day ahead of or behind the user's.
+  private readonly completedDays$$: Signal<DayPoint[]> = computed(() => {
+    const todayIso = calculateTodayIsoWithUserTimeShift();
+    return this.allDays$$().filter((day) => day.dateIso < todayIso);
+  });
 
   private readonly ribbonWindowDays$$: Signal<DayPoint[]> = computed(() => this.completedDays$$().slice(-RIBBON_WINDOW_DAYS));
 

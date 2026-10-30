@@ -44,7 +44,10 @@ function buildDays(bands: Array<'under' | 'normal' | 'over' | 'noData'>): StatsC
   return chartData({ dates, kcalsFactual, kcalsTarget: bands.map(() => targetKcal), hasNoData });
 }
 
+// Fakes the clock so the user-shifted "today" is the day after the fixture's last date unless
+// `now` says otherwise — the insights treat everything from today onwards as not completed.
 function setup(input: {
+  now?: Date;
   statsChartData?: StatsChartData;
   topProductsByKcal?: FoodStatsTopProduct[];
   topProductsByWeight?: FoodStatsTopProduct[];
@@ -53,6 +56,10 @@ function setup(input: {
   summary?: FoodStatsSummary;
   totalEntries?: number;
 }): FoodStatsInsightsService {
+  const lastDate = input.statsChartData?.dates.at(-1);
+  vi.useFakeTimers();
+  vi.setSystemTime(input.now ?? new Date(`${lastDate ?? '2026-01-01'}T12:00:00`));
+
   const foodStatsServiceFake = {
     totalEntries$$: signal(input.totalEntries ?? 0),
     statsChartData$$: signal(input.statsChartData ?? chartData()),
@@ -68,6 +75,10 @@ function setup(input: {
   });
   return TestBed.inject(FoodStatsInsightsService);
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('FoodStatsInsightsService.streak$$', () => {
   it('excludes today (the last day) from both current and record streak', () => {
@@ -104,6 +115,28 @@ describe('FoodStatsInsightsService.streak$$', () => {
 });
 
 describe('FoodStatsInsightsService.ribbon30$$', () => {
+  it('still treats the night before the day cutoff as the previous, unfinished day', () => {
+    // 02:00 on 06.01 is still 05.01 for the user, so 05.01 must not appear as a completed day.
+    const service = setup({
+      now: new Date('2026-01-06T02:00:00'),
+      statsChartData: buildDays(['normal', 'normal', 'normal', 'normal', 'normal', 'normal']),
+    });
+    expect(service.ribbon30$$().map((day) => day.dateIso)).toEqual([
+      '2026-01-01',
+      '2026-01-02',
+      '2026-01-03',
+      '2026-01-04',
+    ]);
+  });
+
+  it('ignores a backend day that is ahead of the user today', () => {
+    const service = setup({
+      now: new Date('2026-01-03T12:00:00'),
+      statsChartData: buildDays(['normal', 'normal', 'normal', 'normal', 'normal']),
+    });
+    expect(service.ribbon30$$().map((day) => day.dateIso)).toEqual(['2026-01-01', '2026-01-02']);
+  });
+
   it('excludes today and caps at the last 30 completed days', () => {
     const bands = Array.from({ length: 35 }, () => 'normal' as const);
     const service = setup({ statsChartData: buildDays(bands) });

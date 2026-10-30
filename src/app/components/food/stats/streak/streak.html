@@ -39,16 +39,22 @@
           @if (!cell) {
             <div class="h-[18px] w-[18px]"></div>
           } @else if (cell.isToday) {
-            <div class="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-dashed border-[color:var(--v-color-text-muted)] bg-transparent text-[8px] font-semibold text-[color:var(--v-color-text-muted)]"
-                 [title]="cellTitle(cell)">{{ dayNumber(cell.dateIso) }}</div>
+            <button type="button"
+                    class="flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded-full border border-dashed border-[color:var(--v-color-text-muted)] bg-transparent text-[8px] font-semibold text-[color:var(--v-color-text-muted)]"
+                    [title]="cellTitle(cell)"
+                    (click)="goToDay(cell.dateIso)">{{ dayNumber(cell.dateIso) }}</button>
           } @else if (cell.hasNoData) {
-            <div class="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-solid border-[color:var(--v-color-text-muted)] bg-transparent text-[8px] font-semibold text-[color:var(--v-color-text-muted)]"
-                 [title]="cellTitle(cell)">{{ dayNumber(cell.dateIso) }}</div>
+            <button type="button"
+                    class="flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded-full border border-solid border-[color:var(--v-color-text-muted)] bg-transparent text-[8px] font-semibold text-[color:var(--v-color-text-muted)]"
+                    [title]="cellTitle(cell)"
+                    (click)="goToDay(cell.dateIso)">{{ dayNumber(cell.dateIso) }}</button>
           } @else {
-            <div class="flex h-[18px] w-[18px] items-center justify-center rounded-full text-[8px] font-semibold"
-                 [style.background]="cellColor(cell.band!)"
-                 [style.color]="cellTextColor(cell.band!)"
-                 [title]="cellTitle(cell)">{{ dayNumber(cell.dateIso) }}</div>
+            <button type="button"
+                    class="flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded-full text-[8px] font-semibold"
+                    [style.background]="cellColor(cell.band!)"
+                    [style.color]="cellTextColor(cell.band!)"
+                    [title]="cellTitle(cell)"
+                    (click)="goToDay(cell.dateIso)">{{ dayNumber(cell.dateIso) }}</button>
           }
         }
       </div>

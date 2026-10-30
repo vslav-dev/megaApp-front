@@ -6,7 +6,7 @@ import { LocalStorageService } from '@app/services/local-storage.service';
 import { NetworkService } from '@app/services/network.service';
 import { SyncEngineService } from '@app/services/sync-engine.service';
 import { TelemetryService } from '@app/services/telemetry.service';
-import { DayStats, FoodStatsResponse, Stats } from '@app/shared/types';
+import { DayStats, DayTotals, FoodStatsResponse, Stats, UnifiedDiary } from '@app/shared/types';
 import { parseIsoParts } from '@app/shared/utils';
 import { createTelemetryFake } from '@app/testing/telemetry.fake';
 import { Subject } from 'rxjs';
@@ -31,13 +31,21 @@ function buildDailyStats(count: number, startDateIso: string): Stats {
   return stats;
 }
 
-function setup(response: FoodStatsResponse, selectedKcalByDate = new Map<string, number>()): FoodStatsService {
+function emptyDiaryDay(): UnifiedDiary[string] {
+  return { food: [], totals: { kcalsConsumed: 0, bodyWeight: null } as DayTotals };
+}
+
+function setup(
+  response: FoodStatsResponse,
+  selectedKcalByDate = new Map<string, number>(),
+  diary: UnifiedDiary = {},
+): FoodStatsService {
   const localStorageFake: Pick<LocalStorageService, 'getUserScoped' | 'setUserScoped'> = {
     getUserScoped: <T>() => response as unknown as T,
     setUserScoped: () => {},
   };
   const diaryServiceFake: Pick<FoodDiaryService, 'diary$$' | 'mutationApplied$'> = {
-    diary$$: signal({}),
+    diary$$: signal(diary),
     mutationApplied$: new Subject<string>(),
   };
   const settingsServiceFake: Pick<FoodSettingsService, 'statsDateRange$$' | 'ready'> = {
@@ -116,6 +124,28 @@ describe('FoodStatsService.getClipRange', () => {
     const service = setup({ ...emptyResponse(), days });
     service.selectedDateIdxEnd$$.set(999);
     expect(service.getClipRange(10)).toEqual([20, 29]);
+  });
+});
+
+describe('FoodStatsService.statsChartData$$ live window', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('keeps the night hours before the day cutoff on the previous day', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-06T02:00:00'));
+    const diary = { '2026-01-05': emptyDiaryDay(), '2026-01-06': emptyDiaryDay() };
+    const service = setup({ ...emptyResponse(), days: buildDailyStats(3, '2026-01-03') }, new Map(), diary);
+    expect(service.statsChartData$$().dates.at(-1)).toBe('2026-01-05');
+  });
+
+  it('starts the new day once the cutoff has passed', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-06T05:00:00'));
+    const diary = { '2026-01-05': emptyDiaryDay(), '2026-01-06': emptyDiaryDay() };
+    const service = setup({ ...emptyResponse(), days: buildDailyStats(3, '2026-01-03') }, new Map(), diary);
+    expect(service.statsChartData$$().dates.at(-1)).toBe('2026-01-06');
   });
 });
 
