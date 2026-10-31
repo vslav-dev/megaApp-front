@@ -18,6 +18,7 @@ import { FoodSettingsService } from './food-settings.service';
 
 function setup() {
   const addOperation = vi.fn();
+  const recordAfterPaint = vi.fn(() => Promise.resolve());
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(withXhr()),
@@ -32,7 +33,7 @@ function setup() {
         useValue: {
           measure: (_operation: string, work: () => unknown) => work(),
           record: vi.fn(),
-          recordAfterPaint: vi.fn(() => Promise.resolve()),
+          recordAfterPaint,
         },
       },
       { provide: IndexedDbCacheService, useValue: { setDay: vi.fn(() => Promise.resolve()) } },
@@ -41,7 +42,7 @@ function setup() {
       { provide: FoodSettingsService, useValue: { reset: vi.fn(), height$$: signal(null) } },
     ],
   });
-  return { service: TestBed.inject(FoodDiaryService), addOperation };
+  return { service: TestBed.inject(FoodDiaryService), addOperation, recordAfterPaint };
 }
 
 const entry: DiaryEntry = {
@@ -74,6 +75,21 @@ describe('FoodDiaryService.createDiaryEntry search query', () => {
     await service.createDiaryEntry(entry, searchQuery);
 
     expect(addOperation).toHaveBeenCalledWith(expect.objectContaining({ data: entry }));
+  });
+
+  // TODO(plan 48 debug): remove with the hasQuery and queryLength telemetry attributes.
+  it.each([
+    ['конфеты', { hasQuery: true, queryLength: 7 }],
+    [null, { hasQuery: false, queryLength: 0 }],
+  ])('reports in telemetry whether the create carried the query %j', async (searchQuery, expected) => {
+    const { service, recordAfterPaint } = setup();
+
+    await service.createDiaryEntry(entry, searchQuery);
+
+    expect(recordAfterPaint).toHaveBeenCalledWith('food.diary_mutation', expect.any(Number), {
+      mutationType: 'create',
+      ...expected,
+    });
   });
 
   it('leaves the entry itself without the query', async () => {

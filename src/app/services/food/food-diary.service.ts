@@ -275,7 +275,13 @@ export class FoodDiaryService extends BaseFoodService {
     this.updateDiaryEntryWithNewValues(entryWithTempId);
     this.updateNutrientsOptimistically(selectedDay, nutrientsDelta, kcalsDelta);
     this.persistDay(selectedDay);
-    void this.telemetry.recordAfterPaint('food.diary_mutation', startedAt, { mutationType: 'create' });
+    // TODO(plan 48 debug): remove hasQuery and queryLength after the search personalization is accepted. They show a create that
+    // carried no query (a tab opened before the deploy, or a pick with no results on screen).
+    void this.telemetry.recordAfterPaint('food.diary_mutation', startedAt, {
+      mutationType: 'create',
+      hasQuery: !!searchQuery,
+      queryLength: searchQuery?.length ?? 0,
+    });
 
     const successCallback = (response: ServerResponseWithDiaryId) => {
       if (response.result && response.diaryId) {
