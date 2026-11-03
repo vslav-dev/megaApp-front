@@ -14,7 +14,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           unit: 'money',
           aggregation: 'last',
           description:
-            'Сколько USD бот может потратить на покупки: баланс USDC на счёте, ограниченный allowance (берётся меньшее из двух). Заявки на покупку из этой суммы ботом не вычитаются. Обновляется вместе с account-state (по сделке, реконнекту приватного WS-канала, при старте или раз в час), а не непрерывно. Растёт, когда бот продаёт позиции, и падает, когда покупает новые.',
+            'Сколько USD бот может потратить на покупки: баланс USDC на счёте, ограниченный allowance (берётся меньшее из двух). Заявки на покупку из этой суммы ботом не вычитаются. Обновляется вместе с account-state (по сделке, реконнекту приватного WS-канала, при старте или раз в час), а не непрерывно. Баланс читается независимо от позиций (plans/50 бота): сбой Data API его не замораживает. Если линия застыла — смотри account_balance_age_s: при исправном чтении он не растёт выше интервала между обновлениями. Растёт, когда бот продаёт позиции, и падает, когда покупает новые.',
         }),
         metric('estimated_open_positions_value', {
           label: 'Estimated Open Positions Value',
@@ -116,7 +116,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           unit: 'money',
           aggregation: 'last',
           description:
-            'Баланс USDC на счёте так, как его отдаёт биржа, без ограничения по allowance (free_cash — меньшее из balance и allowance). Именно он управляет лестницей CASH_PRICE_LADDER, см. entry_price_ceiling_pts. Обновляется вместе с account-state.',
+            'Баланс USDC на счёте так, как его отдаёт биржа, без ограничения по allowance (free_cash — меньшее из balance и allowance). Именно он управляет лестницей CASH_PRICE_LADDER, см. entry_price_ceiling_pts. Обновляется вместе с account-state, независимо от чтения позиций (plans/50 бота).',
         }),
         metric('entry_price_ceiling_pts', {
           label: 'Entry Price Ceiling (pts)',
@@ -145,7 +145,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько раз за эту минуту попытка обработать round-robin чанк, dust-sweep или обновить account-state полностью не смогла начаться — потому что не получилось загрузить базовые данные со счёта (открытые ордера, позиции) или книги заявок. Если это не ноль, в соответствующей попытке бот вообще не принимал никаких торговых решений — не «решил ничего не делать», а технически не смог даже попытаться. Разбивка по тому, какая именно попытка сорвалась — в reconcile_failures_cycle_chunk, reconcile_failures_dust_sweep_reconcile и reconcile_failures_account_state_refresh. Этим отличается от cycle_errors, где попытки были, но часть из них не получилась.',
+            'Сколько раз за эту минуту попытка обработать round-robin чанк, dust-sweep или обновить account-state полностью не смогла начаться — потому что не получилось загрузить базовые данные со счёта (открытые ордера, позиции) или книги заявок. Если это не ноль, в соответствующей попытке бот вообще не принимал никаких торговых решений — не «решил ничего не делать», а технически не смог даже попытаться. Разбивка по тому, какая именно попытка сорвалась — в reconcile_failures_cycle_chunk, reconcile_failures_dust_sweep_reconcile, reconcile_failures_account_state_balance и reconcile_failures_account_state_positions. Этим отличается от cycle_errors, где попытки были, но часть из них не получилась.',
         }),
         metric('reconcile_failures_cycle_chunk', {
           label: 'Reconcile Failures: Cycle Chunk',
@@ -171,13 +171,21 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           description:
             'Из reconcile_failures — сколько раз сорвалась часовая попытка часового прохода dust-sweep (ликвидация мусорных остатков позиций).',
         }),
-        metric('reconcile_failures_account_state_refresh', {
-          label: 'Reconcile Failures: Account State',
+        metric('reconcile_failures_account_state_balance', {
+          label: 'Reconcile Failures: Account Balance',
           color: MetricColor.Red600,
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Из reconcile_failures — сколько раз сорвалось событийное обновление account-state (заявки/баланс/позиции) — после исчерпания встроенных ретраев. Кэш в этом случае остаётся устаревшим до следующего успешного обновления.',
+            'Из reconcile_failures — сколько раз за эту минуту не удалось прочитать баланс USDC (после исчерпания встроенных ретраев). Баланс при этом остаётся прежним, лестница цены и cash floor держат прошлое состояние; насколько он устарел — account_balance_age_s. Читается независимо от позиций (plans/50 бота).',
+        }),
+        metric('reconcile_failures_account_state_positions', {
+          label: 'Reconcile Failures: Account Positions',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          description:
+            'Из reconcile_failures — сколько раз за эту минуту не удалось прочитать позиции (Data API) — после исчерпания ретраев; постоянная ошибка (например, 4xx) не ретраится вовсе. Инвентарь остаётся прежним, а значит бот не видит новых покупок и продаж: насколько он устарел — account_positions_age_s. Позиции читаются целиком или никак: частичный список не используется. Баланс и cash floor от этого не зависят (plans/50 бота).',
         }),
         metric('export_pending_snapshots', {
           label: 'Export Pending Snapshots',
@@ -208,6 +216,20 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'last',
           description:
             'Сколько миллисекунд прошло с последнего реального изменения ордера на бирже (успешное выставление или отмена) — публикуется независимо от границ round-robin прохода, раз в 10 секунд (plans/44). Замена no_mutation_streak: там считались «циклы подряд без мутаций», что перестало иметь смысл, когда цикл стал переменной по длительности величиной — устойчиво растущее значение (часы) означает, что бот давно ничего не меняет на бирже, независимо от того, сколько проходов round-robin за это время успело завершиться.',
+        }),
+        metric('account_balance_age_s', {
+          label: 'Account Balance Age (s)',
+          color: MetricColor.Amber600,
+          aggregation: 'max',
+          description:
+            'Сколько секунд прошло с последнего успешного чтения баланса USDC. Пишется раз в 10 секунд независимо от успеха чтения, поэтому замёрзший баланс виден (free_cash сам при сбое источника просто повторяет последнее значение). В норме не выше интервала между обновлениями account-state (по сделке, раз в час по потолку); устойчивый рост — баланс не читается, лестница цены и cash floor работают по старому значению.',
+        }),
+        metric('account_positions_age_s', {
+          label: 'Account Positions Age (s)',
+          color: MetricColor.Amber600,
+          aggregation: 'max',
+          description:
+            'Сколько секунд прошло с последнего успешного чтения позиций (Data API). Пишется раз в 10 секунд независимо от успеха чтения. В норме не выше интервала между обновлениями account-state; устойчивый рост — инвентарь устарел: бот не видит новых покупок и продаж, оценки портфеля и redeem считаются по старому набору. Так выглядело 02.11.2026, когда Data API v1 был отключён (plans/50 бота).',
         }),
       ],
     },
@@ -267,7 +289,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           color: MetricColor.Violet600,
           aggregation: 'avg',
           description:
-            'Сколько миллисекунд заняло одно событийное обновление account-state (заявки, баланс, позиции) с биржи. Срабатывает по сделке, реконнекту приватного WS-канала, при старте или раз в час по потолку — не по фиксированному таймеру.',
+            'Сколько миллисекунд заняло одно полное событийное обновление account-state (баланс и позиции; заявки идут отдельно через WS, plans/36) с биржи. Пишется только когда оба источника прочитаны. Срабатывает по сделке, реконнекту приватного WS-канала, при старте или раз в час по потолку — не по фиксированному таймеру.',
         }),
         metric('dust_sweep_ms', {
           label: 'Dust Sweep Duration (ms)',
@@ -318,7 +340,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           description:
-            'Сколько раз за эту минуту account-state (заявки, баланс, позиции) был успешно обновлён с биржи — по сделке, реконнекту приватного WS-канала, при старте процесса или по часовому потолку.',
+            'Сколько раз за эту минуту account-state (баланс и позиции) был полностью успешно обновлён с биржи — оба источника прочитаны; частичный успех (прочитан только один) не считается, его видно по reconcile_failures_account_state_balance / _positions. Причины обновления: по сделке, реконнекту приватного WS-канала, при старте процесса или по часовому потолку.',
         }),
         metric('account_state_pending_confirmation_total', {
           label: 'Account State Pending Confirmation',
@@ -1542,7 +1564,7 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
           aggregation: 'sum',
           integerValued: true,
           removed: true,
-          removedNote: 'Теперь reconcile_failures_account_state_refresh',
+          removedNote: 'Теперь reconcile_failures_account_state_balance и reconcile_failures_account_state_positions',
           description: 'Сколько раз цикл сорвался именно на шаге получения базового состояния счёта с биржи.',
         }),
         metric('reconcile_failures_fetch_books', {
@@ -1565,6 +1587,17 @@ export const SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION: MetricsServiceDefinition 
             'Теперь reconcile_failures_cycle_chunk (Pulse, plans/44) — WS market-канал и hot-batch триггер убраны целиком, market-side reconcile идёт по циклическому REST round-robin',
           description:
             'Из reconcile_failures — сколько раз сорвалась попытка обработать событийный hot-batch (загрузка стаканов по набранному dirty-set и последующий reconcile).',
+        }),
+        metric('reconcile_failures_account_state_refresh', {
+          label: 'Reconcile Failures: Account State',
+          color: MetricColor.Red600,
+          aggregation: 'sum',
+          integerValued: true,
+          removed: true,
+          removedNote:
+            'Теперь reconcile_failures_account_state_balance и reconcile_failures_account_state_positions (Pulse, plans/50 бота) — баланс и позиции читаются и падают независимо, общий счётчик не говорил, какой из источников сломан',
+          description:
+            'Из reconcile_failures — сколько раз сорвалось событийное обновление account-state (баланс и позиции вместе) — после исчерпания встроенных ретраев.',
         }),
         metric('fetch_ms', {
           label: 'Fetch Duration (ms)',
