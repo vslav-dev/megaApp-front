@@ -221,7 +221,6 @@ export interface CompositeMetricDefinition {
   metricName: string;
   serviceA: string;
   serviceB: string;
-  treatMissingAsZero?: boolean;
 }
 
 export interface MetricPoint {

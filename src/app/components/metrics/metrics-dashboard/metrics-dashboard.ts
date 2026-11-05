@@ -80,6 +80,10 @@ const COLLAPSED_MINUTE_STEP_SECONDS = 5 * 60;
 // Hardcoded — was a user-editable list (add/remove sum, per-sum "treat missing as 0"
 // checkbox); that settings UI is gone, this is now the fixed set. serviceB always mirrors
 // serviceA's metric name (there's only one metric per sum, see compositeCardLive).
+//
+// Every sum treats a service with no data in a bucket as 0 (compositeCardLive):
+// spread-capture-bot-v3 was stopped on 2026-11-05 and no longer reports, but the sums must keep
+// running on spread-capture-bot-v4 alone.
 const COMPOSITE_METRIC_DEFINITIONS: CompositeMetricDefinition[] = [
   { id: 'free_cash', metricName: 'free_cash', serviceA: 'spread-capture-bot-v3', serviceB: 'spread-capture-bot-v4' },
   {
@@ -99,7 +103,6 @@ const COMPOSITE_METRIC_DEFINITIONS: CompositeMetricDefinition[] = [
     metricName: 'orders_buy',
     serviceA: 'spread-capture-bot-v3',
     serviceB: 'spread-capture-bot-v4',
-    treatMissingAsZero: true,
   },
   {
     id: 'orders_sell',
@@ -136,6 +139,14 @@ const COMPOSITE_METRIC_ADJUSTMENTS: CompositeMetricAdjustment[] = [
     sinceUnixSeconds: 1793180400,
     delta: 2000,
     note: 'Вывод $2000, 2026-10-28 09:40 UTC',
+  },
+  // v3 остановлен: последняя минута его free_cash (18.47) — 1793916000 (2026-11-05 22:00 UTC),
+  // со следующей минуты v3 даёт 0. Весь кэш кошелька v3 ($21.33) выведен.
+  {
+    definitionIds: ['free_cash'],
+    sinceUnixSeconds: 1793916060,
+    delta: 21.33,
+    note: 'Вывод $21.33 с кошелька v3, 2026-11-05 22:01 UTC',
   },
 ];
 
@@ -375,7 +386,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
   }
 
   // Identity includes every field that changes what this card actually shows, not just
-  // its id — editing a composite definition's services/metric/treatMissingAsZero must
+  // its id — editing a composite definition's services/metric must
   // land on a fresh cache entry, not silently keep evaluating stale closures over the
   // old serviceA/serviceB. The old entry is simply never read again (same "never
   // explicitly pruned" policy as the cache overall).
@@ -384,7 +395,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
     aggregation: MetricAggregation,
     integerValued: boolean,
   ): CardLiveSignals {
-    const cacheKey = `composite:${definition.id}:${definition.serviceA}:${definition.serviceB}:${definition.metricName}:${definition.treatMissingAsZero}`;
+    const cacheKey = `composite:${definition.id}:${definition.serviceA}:${definition.serviceB}:${definition.metricName}`;
     const cached = this.cardLiveSignalsCache.get(cacheKey);
     if (cached) return cached;
 
@@ -394,8 +405,9 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
     const chartMode = computed(() =>
       this.metricsSettingsService.metricChartMode(definition.serviceA, definition.metricName),
     );
-    // Combines two independent series (A + B) at matching buckets, then applies any step
-    // corrections for money transfers at/after their own moment (see COMPOSITE_METRIC_ADJUSTMENTS).
+    // Combines two independent series (A + B) over every bucket either has — a service with no
+    // point in a bucket counts as 0 — then applies any step corrections for money transfers
+    // at/after their own moment (see COMPOSITE_METRIC_ADJUSTMENTS).
     const points = computed<MetricPoint[]>(() => {
       const granularity = this.selectedGranularity$$();
       const { stepSeconds } = METRIC_GRANULARITY_SPECS[granularity];
@@ -403,9 +415,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
       const pointsB = this.metricsService.seriesFor(definition.serviceB, definition.metricName, granularity)();
       const valuesA = new Map(pointsA.map((point) => [point.bucket, point.value]));
       const valuesB = new Map(pointsB.map((point) => [point.bucket, point.value]));
-      const buckets = definition.treatMissingAsZero
-        ? new Set([...valuesA.keys(), ...valuesB.keys()])
-        : new Set(Array.from(valuesA.keys()).filter((bucket) => valuesB.has(bucket)));
+      const buckets = new Set([...valuesA.keys(), ...valuesB.keys()]);
       return Array.from(buckets)
         .sort((left, right) => left - right)
         .map((bucket) => {
@@ -556,7 +566,7 @@ export class MetricsDashboard implements OnInit, AfterViewInit, OnDestroy {
       granularity: this.selectedGranularity$$,
       color: metricColor(definition.serviceA, definition.metricName),
       chartMode: live.chartMode,
-      description: `Сумма «${definition.metricName}»: ${definition.serviceA} + ${definition.serviceB}`,
+      description: `Сумма «${definition.metricName}»: ${definition.serviceA} + ${definition.serviceB}. Если у сервиса нет данных за период, он считается как 0.`,
       display: live.display,
       fullWidthDisplay: live.fullWidthDisplay,
       // No per-card dashboard toggle for composite metrics — the whole section is one

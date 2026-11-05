@@ -12,6 +12,7 @@ import {
 import { MoneyService } from '@app/services/money.service';
 import { evaluateAmountExpression, normalizeAmountInput } from '@app/shared/amount-expression';
 import { parseTransactionDetails } from '@app/shared/money-utils';
+import { groupNumberText } from '@app/shared/number-format';
 import {
   Account,
   AccountKind,
@@ -716,10 +717,7 @@ export class TransactionForm {
     if (!account.id) return '';
     const cash = this.accountCashBalances$$().get(account.id) ?? 0;
     const currency = this.moneyService.currencies$$().find((c) => c.id === account.currencyId) ?? null;
-    const formatted = new Intl.NumberFormat('ru-RU', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Math.round(cash));
+    const formatted = groupNumberText(cash.toFixed(2));
     if (!currency?.symbol) return formatted;
     const ws = currency.whitespace ? ' ' : '';
     if (currency.symbolPosEnum === SymbolPosition.BEFORE) return `${currency.symbol}${ws}${formatted}`;
