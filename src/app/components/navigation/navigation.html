@@ -27,12 +27,6 @@
 
       <!-- collapse sidebar button -->
       <div class="flex flex-col gap-2 mt-auto">
-        @if (authService.isAdmin$$()) {
-          <div class="flex justify-center">
-            <metrics-health-dot />
-          </div>
-        }
-
         <v-button class="menu-item"
                   surface="link"
                   [isLinkStatic]="true"

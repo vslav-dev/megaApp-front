@@ -14,14 +14,13 @@ import { NavigationService } from '@app/services/navigation.service';
 import { ANIMATION_DURATION_MS } from '@app/shared/animations';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
-import { MetricsHealthDot } from '@app/components/metrics/metrics-health-dot/metrics-health-dot';
 import { DarkSwitch } from '@app/components/settings/dark-switch/dark-switch';
 
 @Component({
   selector: 'navigation',
   templateUrl: './navigation.html',
   styleUrl: './navigation.scss',
-  imports: [VButton, VIcon, DarkSwitch, MetricsHealthDot],
+  imports: [VButton, VIcon, DarkSwitch],
 })
 export class Navigation {
   protected readonly desktopNav = viewChild<ElementRef<HTMLElement>>('desktopNav');
