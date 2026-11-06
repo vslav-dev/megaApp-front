@@ -140,10 +140,12 @@ const COMPOSITE_METRIC_ADJUSTMENTS: CompositeMetricAdjustment[] = [
     delta: 2000,
     note: 'Вывод $2000, 2026-10-28 09:40 UTC',
   },
-  // v3 остановлен: последняя минута его free_cash (18.47) — 1793916000 (2026-11-05 22:00 UTC),
-  // со следующей минуты v3 даёт 0. Весь кэш кошелька v3 ($21.33) выведен.
+  // v3 остановлен: последняя минута его метрик — 1793916000 (2026-11-05 22:00 UTC; free_cash 18.47,
+  // позиции 4.39, счёт 22.86), со следующей минуты v3 даёт 0. Позиции проданы, весь кэш кошелька v3
+  // ($21.33) выведен — уменьшились и free_cash, и estimated_account_value (= cash + positions).
+  // estimated_open_positions_value не трогаем: позиции действительно проданы.
   {
-    definitionIds: ['free_cash'],
+    definitionIds: ['free_cash', 'estimated_account_value'],
     sinceUnixSeconds: 1793916060,
     delta: 21.33,
     note: 'Вывод $21.33 с кошелька v3, 2026-11-05 22:01 UTC',
