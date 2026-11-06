@@ -5,7 +5,11 @@ import { IndexedDbCacheService } from '@app/services/indexed-db-cache.service';
 import { MetricsBinaryFrameType, NetworkService } from '@app/services/network.service';
 import { NotificationService } from '@app/services/notification.service';
 import { TelemetryService } from '@app/services/telemetry.service';
-import { METRIC_GRANULARITIES, METRIC_GRANULARITY_SPECS } from '@app/shared/metrics-granularity';
+import {
+  METRIC_GRANULARITIES,
+  METRIC_GRANULARITY_SPECS,
+  metricBufferCapacity,
+} from '@app/shared/metrics-granularity';
 import {
   emptyMetricsCursorMap,
   emptyMetricsHistoryWatermarks,
@@ -415,8 +419,7 @@ export class MetricsService {
   }
 
   private createBuffer(granularity: MetricGranularity): MetricRingBuffer {
-    const { periods, stepSeconds } = METRIC_GRANULARITY_SPECS[granularity];
-    return new MetricRingBuffer(periods, stepSeconds);
+    return new MetricRingBuffer(metricBufferCapacity(granularity), METRIC_GRANULARITY_SPECS[granularity].stepSeconds);
   }
 
   // Reuses entryFor() rather than building its own SeriesBuffer — hydration runs async
@@ -429,8 +432,11 @@ export class MetricsService {
   // writing through its existing pointsSignal keeps that identity intact instead.
   private hydrateSeries(record: MetricSeriesRecord): void {
     if (!this.isValidGranularity(record.granularity)) return;
-    const { periods, stepSeconds } = METRIC_GRANULARITY_SPECS[record.granularity];
-    const buffer = MetricRingBuffer.fromSnapshot(periods, stepSeconds, record.snapshot);
+    const buffer = MetricRingBuffer.fromSnapshot(
+      metricBufferCapacity(record.granularity),
+      METRIC_GRANULARITY_SPECS[record.granularity].stepSeconds,
+      record.snapshot,
+    );
     if (!buffer) return;
 
     const entry = this.entryFor(record.service, record.name, record.granularity);

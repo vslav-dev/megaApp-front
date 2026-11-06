@@ -7,7 +7,7 @@ import { IndexedDbCacheService } from '@app/services/indexed-db-cache.service';
 import { MetricsBinaryFrame, MetricsBinaryFrameType, NetworkService } from '@app/services/network.service';
 import { NotificationService } from '@app/services/notification.service';
 import { TelemetryService } from '@app/services/telemetry.service';
-import { METRIC_GRANULARITY_SPECS } from '@app/shared/metrics-granularity';
+import { METRIC_GRANULARITY_SPECS, metricBufferCapacity } from '@app/shared/metrics-granularity';
 import { MetricRingBuffer } from '@app/shared/metrics-ring-buffer';
 import { MetricPoint } from '@app/shared/types';
 import { encodeMetricsWireFixture } from '@app/testing/metrics-wire.fake';
@@ -114,7 +114,7 @@ describe('MetricsService — point dedup (bufferFor/insertPoint)', () => {
 describe('MetricsService — ring buffer capacity eviction (MetricRingBuffer)', () => {
   it('evicts the oldest point of a series once more than the granularity capacity of newer buckets have arrived', () => {
     const { service, metricsBinaryFrames$ } = setup();
-    const capacity = METRIC_GRANULARITY_SPECS.minute.periods; // 1440
+    const capacity = metricBufferCapacity('minute');
     const stepSeconds = 60;
     const firstBucket = 60;
 
@@ -130,6 +130,23 @@ describe('MetricsService — ring buffer capacity eviction (MetricRingBuffer)', 
       .map((point) => point.bucket);
     expect(buckets).not.toContain(firstBucket);
     expect(buckets.length).toBe(capacity);
+  });
+
+  it('keeps the bucket a window that lags the newest point still starts at', () => {
+    const { service, metricsBinaryFrames$ } = setup();
+    const { periods, stepSeconds } = METRIC_GRANULARITY_SPECS.minute;
+    const firstBucket = 60;
+
+    // The newest point is a full window span ahead of the first one: a window still anchored one
+    // period back starts exactly at the first bucket and must find it in this series.
+    for (let i = 0; i <= periods; i++) {
+      pushUpdate(metricsBinaryFrames$, [metricPoint({ bucket: firstBucket + i * stepSeconds })]);
+    }
+
+    const buckets = service
+      .seriesFor('api', 'requests', 'minute')()
+      .map((point) => point.bucket);
+    expect(buckets).toContain(firstBucket);
   });
 });
 
@@ -170,7 +187,7 @@ describe('MetricsService — per-series IndexedDB persistence (scheduleCacheWrit
 
 describe('MetricsService — hydration from persisted series (constructor)', () => {
   it('rebuilds a series from a persisted MetricRingBuffer snapshot and exposes it via seriesFor', async () => {
-    const capacity = METRIC_GRANULARITY_SPECS.minute.periods;
+    const capacity = metricBufferCapacity('minute');
     const seedBuffer = new MetricRingBuffer(capacity, 60);
     seedBuffer.insert(1_000_000, 42);
     const record = {

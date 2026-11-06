@@ -2,6 +2,7 @@ import {
   isSameMetricWindow,
   METRIC_GRANULARITIES,
   METRIC_GRANULARITY_SPECS,
+  metricBufferCapacity,
   metricWindowAt,
 } from '@app/shared/metrics-granularity';
 import { earliestHistoryBucket } from '@app/shared/metrics-history-range';
@@ -63,5 +64,11 @@ describe('isSameMetricWindow', () => {
     expect(isSameMetricWindow(window, { startBucket: 100, endBucket: 200 })).toBe(true);
     expect(isSameMetricWindow(window, { startBucket: 100, endBucket: 260 })).toBe(false);
     expect(isSameMetricWindow(window, { startBucket: 40, endBucket: 200 })).toBe(false);
+  });
+});
+
+describe('metricBufferCapacity', () => {
+  it.each(METRIC_GRANULARITIES)('%s: holds more periods than one window spans', (granularity) => {
+    expect(metricBufferCapacity(granularity)).toBeGreaterThan(METRIC_GRANULARITY_SPECS[granularity].periods);
   });
 });

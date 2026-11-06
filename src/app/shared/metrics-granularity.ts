@@ -4,9 +4,21 @@ export const METRIC_GRANULARITIES: readonly MetricGranularity[] = ['minute', 'ho
 
 interface MetricGranularitySpec {
   stepSeconds: number;
-  // How many closed periods one window covers — also the depth of the history request
-  // and the capacity of a series' ring buffer, which must all stay equal.
+  // How many closed periods one window covers — also the depth of the history request.
+  // A series' ring buffer holds a few more (see metricBufferCapacity).
   periods: number;
+}
+
+// Extra periods a series' ring buffer keeps beyond what one window spans. The window follows the
+// (ticking, possibly skewed) clock, a series' buffer follows its own newest point, so right after
+// a fresh point lands the window is still one or a few periods behind. Without the slack that
+// point would evict the window's left-edge bucket from this series only, and a sum over several
+// series would then show the left-edge bucket of the others alone. Reads are always cut to the
+// window, so the extra periods are never displayed.
+const BUFFER_SLACK_PERIODS = 5;
+
+export function metricBufferCapacity(granularity: MetricGranularity): number {
+  return METRIC_GRANULARITY_SPECS[granularity].periods + BUFFER_SLACK_PERIODS;
 }
 
 export const METRIC_GRANULARITY_SPECS: Record<MetricGranularity, MetricGranularitySpec> = {
