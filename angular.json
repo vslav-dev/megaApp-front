@@ -35,6 +35,7 @@
               "src/ui-kit/styles/vars.css",
               "src/ui-kit/styles/flat-style.css",
               "src/ui-kit/styles/flat-blue.css",
+              "src/ui-kit/styles/top-layer.css",
               "src/styles.scss"
             ],
             "allowedCommonJsDependencies": [],
@@ -97,6 +98,9 @@
           "options": {
             "buildTarget": "megaapp:build:dev",
             "tsConfig": "tsconfig.spec.json",
+            "setupFiles": [
+              "src/test-setup.ts"
+            ],
             "include": [
               "**/*.spec.ts"
             ]

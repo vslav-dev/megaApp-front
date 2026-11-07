@@ -1,7 +1,7 @@
 <v-modal [deviceType]="deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop'"
          [isOpen]="isModalOpen()"
-         mobileWidth="min(100vw, 300px)"
-         desktopWidth="300px"
+         mobileWidth="min(100vw, 360px)"
+         desktopWidth="360px"
          [borderRadius]="3"
          [padding]="4"
          (closeOutput)="onClose()">
@@ -18,15 +18,14 @@
       </div>
     }
 
-    <div class="flex gap-4">
-      <v-button surface="flat"
-                width="100%"
+    <div class="flex flex-wrap gap-4">
+      <v-button class="flex-auto"
+                surface="flat"
                 (clickOutput)="onCancel()">
         {{ cancelButtonLabel() }}
       </v-button>
 
-      <v-button class="v-danger"
-                width="100%"
+      <v-button class="v-danger flex-auto"
                 (clickOutput)="onConfirm()">
         {{ confirmButtonLabel() }}
       </v-button>
