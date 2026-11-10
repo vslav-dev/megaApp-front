@@ -1,5 +1,4 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   computed,
   effect,
@@ -10,8 +9,10 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { MoneyService } from '@app/services/money.service';
+import { evaluateAmountExpression, normalizeAmountInput } from '@app/shared/amount-expression';
+import { parseTransactionDetails } from '@app/shared/money-utils';
+import { groupNumberText } from '@app/shared/number-format';
 import {
   Account,
   AccountKind,
@@ -22,6 +23,7 @@ import {
   Currency,
   SymbolPosition,
   Transaction,
+  TransactionDetails,
   TransactionKind,
 } from '@app/shared/types';
 import { dateToIsoNoTimeNoTZ } from '@app/shared/utils';
@@ -37,8 +39,7 @@ import { VToggle } from '@ui-kit/components/v-toggle/v-toggle';
   selector: 'transaction-form',
   templateUrl: './transaction-form.html',
   styleUrl: './transaction-form.scss',
-  imports: [FormsModule, VButton, VCheckbox, VDateWheelInput, VDropdown, VIcon, VInput, VToggle],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VButton, VCheckbox, VDateWheelInput, VDropdown, VIcon, VInput, VToggle],
 })
 export class TransactionForm {
   protected readonly Icon = IconName;
@@ -201,8 +202,8 @@ export class TransactionForm {
     if (!this.isFormValid()) return;
 
     if (this.kind$$() === TransactionKind.TRANSFER) {
-      const parsedFromAmount = this.parseAmount(this.amount$$());
-      const parsedToAmount = this.parseAmount(this.amountTo$$());
+      const parsedFromAmount = evaluateAmountExpression(this.amount$$());
+      const parsedToAmount = evaluateAmountExpression(this.amountTo$$());
       if (parsedFromAmount === null || parsedToAmount === null) return;
 
       const normalizedFromAmount = this.normalizeAmount(parsedFromAmount);
@@ -213,38 +214,27 @@ export class TransactionForm {
       const currentTwinId = currentTransaction?.twinId;
 
       if (currentTransaction?.id && currentTwinId) {
-        this.moneyService
-          .updateTransfer({
-            id: currentTransaction.id,
-            twinId: currentTwinId,
-            dateISO: this.dateISO$$(),
-            accountId: Number(this.accountId$$()),
-            amount: normalizedFromAmount,
-            twinAccountId: Number(this.accountToId$$()),
-            twinAmount: normalizedToAmount,
-            notes: this.notes$$() || undefined,
-          })
-          .subscribe((success) => {
-            if (success) {
-              this.savedOutput.emit();
-            }
-          });
+        this.moneyService.updateTransfer({
+          id: currentTransaction.id,
+          twinId: currentTwinId,
+          dateISO: this.dateISO$$(),
+          accountId: Number(this.accountId$$()),
+          amount: normalizedFromAmount,
+          twinAccountId: Number(this.accountToId$$()),
+          twinAmount: normalizedToAmount,
+          notes: this.notes$$() || undefined,
+        });
       } else {
-        this.moneyService
-          .createTransfer({
-            dateISO: this.dateISO$$(),
-            accountId: Number(this.accountId$$()),
-            amount: normalizedFromAmount,
-            twinAccountId: Number(this.accountToId$$()),
-            twinAmount: normalizedToAmount,
-            notes: this.notes$$() || undefined,
-          })
-          .subscribe((success) => {
-            if (success) {
-              this.savedOutput.emit();
-            }
-          });
+        this.moneyService.createTransfer({
+          dateISO: this.dateISO$$(),
+          accountId: Number(this.accountId$$()),
+          amount: normalizedFromAmount,
+          twinAccountId: Number(this.accountToId$$()),
+          twinAmount: normalizedToAmount,
+          notes: this.notes$$() || undefined,
+        });
       }
+      this.savedOutput.emit();
 
       return;
     }
@@ -257,11 +247,11 @@ export class TransactionForm {
 
       if (!Number.isFinite(assetId) || assetId <= 0) return;
 
-      const details: any = {
+      const details: TransactionDetails = {
         assetId,
       };
 
-      let submitAmount = this.normalizeAmount(this.parseAmount(this.amount$$()) ?? NaN);
+      let submitAmount = this.normalizeAmount(evaluateAmountExpression(this.amount$$()) ?? NaN);
 
       if (persistedKind !== TransactionKind.INVEST_DIVIDEND) {
         const quantity = this.normalizeAmount(this.parsePlainNumber(this.quantity$$()) ?? NaN);
@@ -281,7 +271,7 @@ export class TransactionForm {
         if (computedAmount == null || computedAmount <= 0) return;
         submitAmount = computedAmount;
       } else {
-        submitAmount = this.normalizeAmount(this.parseAmount(this.amount$$()) ?? NaN);
+        submitAmount = this.normalizeAmount(evaluateAmountExpression(this.amount$$()) ?? NaN);
       }
 
       if (submitAmount == null || submitAmount <= 0) return;
@@ -299,23 +289,16 @@ export class TransactionForm {
 
       if (currentTransaction?.id) {
         transactionData.id = currentTransaction.id;
-        this.moneyService.updateTransaction(transactionData).subscribe((success) => {
-          if (success) {
-            this.savedOutput.emit();
-          }
-        });
+        this.moneyService.updateTransaction(transactionData);
       } else {
-        this.moneyService.createTransaction(transactionData).subscribe((success) => {
-          if (success) {
-            this.savedOutput.emit();
-          }
-        });
+        this.moneyService.createTransaction(transactionData);
       }
+      this.savedOutput.emit();
 
       return;
     }
 
-    const parsedAmount = this.parseAmount(this.amount$$());
+    const parsedAmount = evaluateAmountExpression(this.amount$$());
     if (parsedAmount === null) return;
     const normalizedAmount = this.normalizeAmount(parsedAmount);
     if (normalizedAmount === null) return;
@@ -336,18 +319,11 @@ export class TransactionForm {
 
     if (currentTransaction?.id) {
       transactionData.id = currentTransaction.id;
-      this.moneyService.updateTransaction(transactionData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      this.moneyService.updateTransaction(transactionData);
     } else {
-      this.moneyService.createTransaction(transactionData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      this.moneyService.createTransaction(transactionData);
     }
+    this.savedOutput.emit();
   }
 
   protected cancel(): void {
@@ -360,8 +336,8 @@ export class TransactionForm {
 
   protected isFormValid(): boolean {
     if (this.kind$$() === TransactionKind.TRANSFER) {
-      const amountFrom = this.parseAmount(this.amount$$());
-      const amountTo = this.parseAmount(this.amountTo$$());
+      const amountFrom = evaluateAmountExpression(this.amount$$());
+      const amountTo = evaluateAmountExpression(this.amountTo$$());
       const normalizedFrom = amountFrom === null ? null : this.normalizeAmount(amountFrom);
       const normalizedTo = amountTo === null ? null : this.normalizeAmount(amountTo);
 
@@ -382,7 +358,7 @@ export class TransactionForm {
       if (!Number.isFinite(assetId) || assetId <= 0) return false;
 
       if (this.persistedKind$$() === TransactionKind.INVEST_DIVIDEND) {
-        const amount = this.normalizeAmount(this.parseAmount(this.amount$$()) ?? NaN);
+        const amount = this.normalizeAmount(evaluateAmountExpression(this.amount$$()) ?? NaN);
         return Boolean(this.dateISO$$() && this.accountId$$() && amount && amount > 0);
       }
 
@@ -402,9 +378,9 @@ export class TransactionForm {
       );
     }
 
-    const amount = this.parseAmount(this.amount$$());
+    const amount = evaluateAmountExpression(this.amount$$());
     const normalizedAmount = amount === null ? null : this.normalizeAmount(amount);
-    return Boolean(this.dateISO$$() && this.accountId$$() && normalizedAmount && normalizedAmount > 0 && this.kind$$());
+    return Boolean(this.dateISO$$() && this.accountId$$() && normalizedAmount !== null && this.kind$$());
   }
 
   protected accountItems(): DropdownItem[] {
@@ -634,7 +610,7 @@ export class TransactionForm {
     this.isGift$$.set(Boolean(transaction.isGift));
     this.categoryId$$.set(transaction.categoryId ? String(transaction.categoryId) : null);
 
-    const details = this.parseDetails(transaction.detailsJSON);
+    const details = parseTransactionDetails(transaction.detailsJSON);
     this.assetId$$.set(details?.assetId != null ? String(details.assetId) : null);
     this.quantity$$.set(details?.quantity != null ? String(details.quantity) : '');
     this.price$$.set(details?.price != null ? String(details.price) : '');
@@ -678,7 +654,9 @@ export class TransactionForm {
   }
 
   private isPersistedInvestKind(kind: TransactionKind): boolean {
-    return [TransactionKind.INVEST_BUY, TransactionKind.INVEST_SELL, TransactionKind.INVEST_DIVIDEND].includes(kind);
+    return (
+      kind === TransactionKind.INVEST_BUY || kind === TransactionKind.INVEST_SELL || kind === TransactionKind.INVEST_DIVIDEND
+    );
   }
 
   private mapPersistedKindToUiKind(kind: TransactionKind): TransactionKind {
@@ -691,7 +669,7 @@ export class TransactionForm {
     if (!this.isInvestMode$$()) return null;
     const persistedKind = this.persistedKind$$();
     if (persistedKind === TransactionKind.INVEST_DIVIDEND) {
-      const amount = this.parseAmount(this.amount$$());
+      const amount = evaluateAmountExpression(this.amount$$());
       return amount == null ? null : this.normalizeAmount(amount);
     }
 
@@ -709,21 +687,6 @@ export class TransactionForm {
     }
 
     return quantity * price - commissionAmount + effectiveAccrued;
-  }
-
-  private parseDetails(detailsJSON: any): any {
-    if (!detailsJSON) return null;
-    if (typeof detailsJSON === 'object') return detailsJSON;
-
-    if (typeof detailsJSON === 'string') {
-      try {
-        return JSON.parse(detailsJSON);
-      } catch {
-        return null;
-      }
-    }
-
-    return null;
   }
 
   private readonly accountCashBalances$$ = computed((): Map<number, number> => {
@@ -744,7 +707,7 @@ export class TransactionForm {
     if (tx.kind === TransactionKind.INVEST_BUY) return -tx.amount;
     if (tx.kind === TransactionKind.INVEST_SELL || tx.kind === TransactionKind.INVEST_DIVIDEND) return tx.amount;
     if (tx.kind !== TransactionKind.TRANSFER) return 0;
-    const details = this.parseDetails(tx.detailsJSON);
+    const details = parseTransactionDetails(tx.detailsJSON);
     if (details?.direction === 'out') return -tx.amount;
     if (details?.direction === 'in') return tx.amount;
     return 0;
@@ -754,10 +717,7 @@ export class TransactionForm {
     if (!account.id) return '';
     const cash = this.accountCashBalances$$().get(account.id) ?? 0;
     const currency = this.moneyService.currencies$$().find((c) => c.id === account.currencyId) ?? null;
-    const formatted = new Intl.NumberFormat('ru-RU', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Math.round(cash));
+    const formatted = groupNumberText(cash.toFixed(2));
     if (!currency?.symbol) return formatted;
     const ws = currency.whitespace ? ' ' : '';
     if (currency.symbolPosEnum === SymbolPosition.BEFORE) return `${currency.symbol}${ws}${formatted}`;
@@ -776,124 +736,9 @@ export class TransactionForm {
     return this.moneyService.transactions$$().find((item) => item.id === transaction.twinId) ?? null;
   }
 
-  private normalizeAmountInput(value: string): string {
-    let normalized = '';
-
-    for (const char of value) {
-      if (char.trim() === '') continue;
-      normalized += char === ',' ? '.' : char;
-    }
-
-    return normalized;
-  }
-
-  private parseAmount(value: string): number | null {
-    if (!value) return null;
-    const normalized = this.normalizeAmountInput(value);
-    if (!normalized) return null;
-
-    return this.parseAmountExpression(normalized);
-  }
-
-  private parseAmountExpression(value: string): number | null {
-    let index = 0;
-
-    const parseExpression = (): number | null => {
-      let left = parseTerm();
-      if (left == null) return null;
-
-      while (index < value.length) {
-        const operator = value[index];
-        if (operator !== '+' && operator !== '-') break;
-        index += 1;
-
-        const right = parseTerm();
-        if (right == null) return null;
-
-        left = operator === '+' ? left + right : left - right;
-      }
-
-      return left;
-    };
-
-    const parseTerm = (): number | null => {
-      let left = parseFactor();
-      if (left == null) return null;
-
-      while (index < value.length) {
-        const operator = value[index];
-        if (operator !== '*' && operator !== '/') break;
-        index += 1;
-
-        const right = parseFactor();
-        if (right == null) return null;
-
-        if (operator === '*') {
-          left *= right;
-          continue;
-        }
-
-        if (right === 0) return null;
-        left /= right;
-      }
-
-      return left;
-    };
-
-    const parseFactor = (): number | null => {
-      let sign = 1;
-
-      while (index < value.length) {
-        const operator = value[index];
-        if (operator === '+') {
-          index += 1;
-          continue;
-        }
-        if (operator === '-') {
-          sign *= -1;
-          index += 1;
-          continue;
-        }
-        break;
-      }
-
-      if (index >= value.length) return null;
-
-      if (value[index] === '(') {
-        index += 1;
-        const nested = parseExpression();
-        if (nested == null || value[index] !== ')') return null;
-        index += 1;
-        return sign * nested;
-      }
-
-      const start = index;
-      while (index < value.length) {
-        const char = value[index];
-        if ((char >= '0' && char <= '9') || char === '.') {
-          index += 1;
-          continue;
-        }
-        break;
-      }
-
-      if (start === index) return null;
-
-      const parsed = Number(value.slice(start, index));
-      if (!Number.isFinite(parsed)) return null;
-
-      return sign * parsed;
-    };
-
-    const parsed = parseExpression();
-    if (parsed == null || index !== value.length || !Number.isFinite(parsed)) return null;
-
-    return parsed;
-  }
-
   private parsePlainNumber(value: string): number | null {
     if (!value) return null;
-    const normalized = this.normalizeAmountInput(value);
+    const normalized = normalizeAmountInput(value);
     if (!normalized || normalized === '-' || normalized === '+') return null;
 
     const parsed = Number(normalized);

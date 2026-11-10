@@ -1,3 +1,5 @@
+import { groupNumberText } from './number-format';
+
 export type MetricUnit = 'ratio' | 'bytes' | 'durationMs' | 'humanDuration' | 'money' | 'count';
 
 const BYTE_UNIT_SUFFIXES = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
@@ -12,13 +14,29 @@ function formatBytesValue(value: number): string {
   return `${current.toFixed(current >= 10 || unitIndex === 0 ? 0 : 1)} ${BYTE_UNIT_SUFFIXES[unitIndex]}`;
 }
 
+// Below this, milliseconds are the readable unit ("320 мс"). At/above it, a bare
+// "500 мс" reads worse than "0.5 с" — switch to seconds (one decimal place).
+const DURATION_MS_TO_SECONDS_THRESHOLD_MS = 500;
+// At/above this many seconds, "1 мин 1 с" reads better than "61 с".
+const DURATION_SECONDS_TO_MINUTES_THRESHOLD_S = 60;
+
 function formatDurationMsValue(valueMs: number): string {
-  const abs = Math.abs(valueMs);
-  if (abs < 1000) return `${Math.round(valueMs)} мс`;
   const sign = valueMs < 0 ? '-' : '';
-  const seconds = Math.floor(abs / 1000);
-  const millis = Math.round(abs % 1000);
-  return millis > 0 ? `${sign}${seconds} с ${millis} мс` : `${sign}${seconds} с`;
+  const abs = Math.abs(valueMs);
+
+  if (abs < DURATION_MS_TO_SECONDS_THRESHOLD_MS) {
+    return `${sign}${Math.round(abs)} мс`;
+  }
+
+  const seconds = Math.round(abs / 100) / 10;
+  if (seconds < DURATION_SECONDS_TO_MINUTES_THRESHOLD_S) {
+    return `${sign}${Number.isInteger(seconds) ? seconds : seconds.toFixed(1)} с`;
+  }
+
+  const totalSeconds = Math.round(abs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainderSeconds = totalSeconds % 60;
+  return remainderSeconds > 0 ? `${sign}${minutes} м ${remainderSeconds} с` : `${sign}${minutes} м`;
 }
 
 function formatHumanDurationValue(valueSeconds: number): string {
@@ -32,8 +50,12 @@ function formatHumanDurationValue(valueSeconds: number): string {
 }
 
 function formatCountValue(value: number): string {
-  if (Math.abs(value) >= 1000 || Number.isInteger(value)) return value.toString();
-  return value.toFixed(2);
+  const text = Number.isInteger(value) ? value.toString() : (Math.round(value * 10) / 10).toFixed(1);
+  return groupNumberText(text);
+}
+
+function formatMoneyValue(value: number): string {
+  return `$${groupNumberText((Math.round(value * 100) / 100).toFixed(2))}`;
 }
 
 export function formatMetricUnitValue(unit: MetricUnit, value: number): string {
@@ -48,7 +70,7 @@ export function formatMetricUnitValue(unit: MetricUnit, value: number): string {
     case 'humanDuration':
       return formatHumanDurationValue(value);
     case 'money':
-      return `$${(Math.round(value * 100) / 100).toFixed(2)}`;
+      return formatMoneyValue(value);
     case 'count':
     default:
       return formatCountValue(value);

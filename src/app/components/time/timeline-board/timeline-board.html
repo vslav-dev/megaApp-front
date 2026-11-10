@@ -7,8 +7,8 @@
        [class.compact]="timeDisplayPrefsService.compactMode$$()"
        [class.with-year]="shouldShowYearColumn$$()"
        [class.initial-scroll-ready]="isInitialScrollReady$$()"
-       [style.--primary-h]="timeDisplayPrefsService.primaryHeightPx$$() + 'px'"
-       [style.--secondary-h]="timeDisplayPrefsService.secondaryHeightPx$$() + 'px'">
+       [style.--primary-h]="`${timeDisplayPrefsService.primaryHeightPx$$()}px`"
+       [style.--secondary-h]="`${timeDisplayPrefsService.secondaryHeightPx$$()}px`">
     <div class="timeline-header">
       <div></div>
       <div class="time-ruler">
@@ -33,17 +33,16 @@
            [style.height.px]="paddingTopPx$$()"></div>
       @for (dayIso of visibleDays$$(); track dayIso) {
         <div class="day-row">
-          @if (dayLabel(dayIso); as label) {
-            <div class="day-label"
-                 [class.weekend]="isWeekend(dayIso)">
-              <span>{{ label.weekday }}</span>
-              <span>{{ label.month }}</span>
-              <span>{{ label.day }}</span>
-              @if (shouldShowYearColumn$$()) {
-                <span>{{ label.year }}</span>
-              }
-            </div>
-          }
+          @let label = dayLabel(dayIso);
+          <div class="day-label"
+               [class.weekend]="isWeekend(dayIso)">
+            <span>{{ label.weekday }}</span>
+            <span>{{ label.month }}</span>
+            <span>{{ label.day }}</span>
+            @if (shouldShowYearColumn$$()) {
+              <span>{{ label.year }}</span>
+            }
+          </div>
 
           <div class="day-lanes">
             <div class="lane lane-primary"
@@ -125,20 +124,21 @@
 </ng-template>
 
 @if (hoveredSegment$$(); as hovered) {
-  <div #tooltipPanelElem
+  <div vTopLayer
+       #tooltipPanelElem
        class="seg-tooltip-panel"
        [class.below]="tooltipPlacement$$() === 'bottom'"
        [class.visible]="isTooltipPositioned$$()"
        [style.top.px]="tooltipTopPx$$()"
-       [style.left.px]="tooltipLeftPx$$()"
-       [style.--v-tooltip-z-index]="tooltipZIndex">{{ hovered.text }}</div>
+       [style.left.px]="tooltipLeftPx$$()">{{ hovered.text }}</div>
 }
 
 @if (pickerState$$(); as picker) {
+  @let editedEntry = picker.mode === 'edit' ? editingEntry(picker.entryId) : undefined;
   <structured-activity-picker [x]="picker.x"
                               [y]="picker.y"
-                              [initialActivityKindId]="picker.mode === 'edit' ? (editingEntry(picker.entryId)?.activityKindId ?? null) : null"
-                              [initialOptions]="picker.mode === 'edit' ? (editingEntry(picker.entryId)?.options ?? []) : []"
+                              [initialActivityKindId]="editedEntry?.activityKindId ?? null"
+                              [initialOptions]="editedEntry?.options ?? []"
                               (confirmOutput)="onPickerConfirm($event)"
                               (closeOutput)="closePicker()" />
 }

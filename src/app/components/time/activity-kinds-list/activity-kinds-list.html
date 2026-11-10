@@ -1,12 +1,10 @@
-<v-card [config]="{
-          padding: 4,
-          borderRadius: 2,
-        }">
+<v-card [padding]="4"
+        [borderRadius]="2">
   <div class="flex items-center justify-between mb-4">
     <div class="text-lg font-semibold">Activities</div>
-    <v-button class="v-flat"
-              [config]="{ paddingY: 1 }"
-              (onClick)="showCreateForm()">
+    <v-button surface="flat"
+              [paddingY]="1"
+              (clickOutput)="showCreateForm()">
       <v-icon v-prefix
               [name]="Icon.Add"
               [size]="6"></v-icon>
@@ -14,28 +12,27 @@
     </v-button>
   </div>
 
-  @if (activityKinds$$().length === 0) {
-    <div class="opacity-70 py-4 text-sm text-center">
-      No activity kinds yet.
-    </div>
-  }
-
   @for (kind of activityKinds$$(); track kind.id) {
-    <div class="last:border-b-0 py-2 border-b border-[color:var(--v-outline-color)]">
+    <div class="last:border-b-0 py-2 border-b border-[color:var(--v-color-border-subtle)]">
       <div class="flex items-center justify-between gap-4">
         <div class="flex-1"
              [class.opacity-50]="kind.isArchived">
           {{ kind.name }}
         </div>
 
-        <v-button class="v-flat"
-                  [config]="{ isLabelHidden: true, padding: iconButton.padding }"
-                  (onClick)="editKind(kind)">
+        <v-button surface="flat"
+                  [isLabelHidden]="true"
+                  [padding]="iconButton.padding"
+                  (clickOutput)="editKind(kind)">
           <v-icon v-prefix
                   [name]="Icon.Edit"
                   [size]="iconButton.size"></v-icon>
         </v-button>
       </div>
+    </div>
+  } @empty {
+    <div class="opacity-70 py-4 text-sm text-center">
+      No activity kinds yet.
     </div>
   }
 </v-card>

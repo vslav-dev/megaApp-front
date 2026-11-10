@@ -1,19 +1,18 @@
 import { HttpClient } from '@angular/common/http';
-import { computed, effect, inject, Injectable, Signal, signal, WritableSignal } from '@angular/core';
+import { computed, effect, inject, Service, Signal, signal, WritableSignal } from '@angular/core';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
+import { LocalStorageService } from '@app/services/local-storage.service';
+import { SyncEngineService, SyncOperationMode, SyncOperationType } from '@app/services/sync-engine.service';
+import { TelemetryService } from '@app/services/telemetry.service';
 import { TimeEntry, TimeEntryCreateInput, TimeEntrySelectionInput, TimeEntryTimeInput } from '@app/shared/time-types';
 import { firstValueFrom } from 'rxjs';
-import { LocalStorageService } from '../local-storage.service';
-import { NetworkService } from '../network.service';
-import { NotificationService } from '../notification.service';
-import { SyncOperationType, SyncQueueService } from '../sync-queue.service';
-import { BaseTimeService } from './time-base.service';
 
 interface DataResponse<T> {
   success: boolean;
   data: T;
 }
 
+const ENTRIES_STORAGE_KEY = 'time_entries';
 const TAIL_REFRESH_DAYS = 14;
 
 export interface TimeDayLanes {
@@ -21,11 +20,13 @@ export interface TimeDayLanes {
   secondary: TimeEntry[];
 }
 
-@Injectable({
-  providedIn: 'root',
-})
-export class TimeEntriesService extends BaseTimeService {
-  private readonly ENTRIES_STORAGE_KEY = 'time_entries';
+@Service()
+export class TimeEntriesService {
+  private readonly http = inject(HttpClient);
+  private readonly localStorageService = inject(LocalStorageService);
+  private readonly syncEngine = inject(SyncEngineService);
+  private readonly authService = inject(AuthService);
+  private readonly telemetry = inject(TelemetryService);
 
   public readonly entries$$: WritableSignal<TimeEntry[]> = signal([]);
   public readonly isLoaded$$: WritableSignal<boolean> = signal(false);
@@ -34,12 +35,11 @@ export class TimeEntriesService extends BaseTimeService {
   // day-row looks this up in O(1) instead of filtering the whole array.
   public readonly entriesByDay$$: Signal<Map<string, TimeDayLanes>> = computed(() => this.buildDayIndex());
 
-  protected getStorageKey(): string {
-    return this.ENTRIES_STORAGE_KEY;
-  }
-
-  private readonly authService = inject(AuthService);
-  private readonly notificationService = inject(NotificationService);
+  // Entry id (temp ids of unconfirmed creates included) → number of its writes sitting in the sync
+  // queue. Re-entering the screen refetches entries, and the server can legitimately still return
+  // the pre-write state for them — mergeWithPending() keeps our own state for these ids instead.
+  // A count, not a set: a drag and a selection edit of one entry can be queued at once.
+  private readonly pendingWritesByEntryId = new Map<number, number>();
 
   private readonly resetOnAuthLossEffect$$ = effect(() => {
     if (this.authService.sessionState$$() === AuthSessionState.Guest) {
@@ -47,56 +47,64 @@ export class TimeEntriesService extends BaseTimeService {
     }
   });
 
-  constructor(
-    http: HttpClient,
-    localStorageService: LocalStorageService,
-    networkService: NetworkService,
-    syncQueueService: SyncQueueService,
-  ) {
-    super(http, localStorageService, networkService, syncQueueService);
-    this.init();
-  }
-
   public reset(): void {
     this.entries$$.set([]);
     this.isLoaded$$.set(false);
+    this.pendingWritesByEntryId.clear();
   }
 
-  private init(): void {
-    const cached = this.loadFromLocalStorage<TimeEntry[]>();
-    if (cached) {
-      this.entries$$.set(cached);
-      this.isLoaded$$.set(true);
-      void this.refreshTail();
+  //                                                            ~~~ BOOTSTRAP ~~~
+
+  // Called on every entry to the screen: shows the cached entries at once, then refreshes only
+  // the recent tail from the server (or everything, when there is no cache yet).
+  public loadData(): void {
+    const cached = this.localStorageService.getUserScoped<TimeEntry[]>(ENTRIES_STORAGE_KEY);
+    if (!cached) {
+      void this.fetchEntries(null);
       return;
     }
-    void this.loadAll();
+
+    this.telemetry.measure(
+      'time.entries_apply',
+      () => this.applyEntries(cached),
+      () => ({ source: 'cache', entries: cached.length }),
+    );
+    void this.fetchEntries(this.buildTailCutoff());
   }
 
-  private async loadAll(): Promise<void> {
+  private async fetchEntries(tailCutoff: string | null): Promise<void> {
+    const startedAt = performance.now();
+    const query = tailCutoff === null ? '' : `?start=${encodeURIComponent(tailCutoff)}`;
     try {
-      const response = await firstValueFrom(this.http.get<DataResponse<TimeEntry[]>>('/api/time/entries'));
-      this.entries$$.set(response.data);
-      this.saveToLocalStorage(response.data);
+      const response = await firstValueFrom(this.http.get<DataResponse<TimeEntry[]>>(`/api/time/entries${query}`));
+      const olderEntries = tailCutoff === null ? [] : this.entries$$().filter((entry) => entry.startAt < tailCutoff);
+      this.applyEntries(this.mergeWithPending([...olderEntries, ...response.data]));
+      this.writeCache();
+      void this.telemetry.recordAfterPaint('time.entries_apply', startedAt, {
+        source: tailCutoff === null ? 'server' : 'server_tail',
+        entries: response.data.length,
+      });
     } catch (error) {
       console.error('Failed loading time entries:', error);
-    } finally {
       this.isLoaded$$.set(true);
     }
   }
 
-  private async refreshTail(): Promise<void> {
-    const cutoff = this.buildTailCutoff();
-    try {
-      const response = await firstValueFrom(
-        this.http.get<DataResponse<TimeEntry[]>>(`/api/time/entries?start=${encodeURIComponent(cutoff)}`),
-      );
-      const merged = [...this.entries$$().filter((entry) => entry.startAt < cutoff), ...response.data];
-      this.entries$$.set(merged);
-      this.saveToLocalStorage(merged);
-    } catch (error) {
-      console.error('Failed refreshing time entries tail:', error);
+  private applyEntries(entries: TimeEntry[]): void {
+    this.entries$$.set(entries);
+    this.isLoaded$$.set(true);
+  }
+
+  private mergeWithPending(incoming: TimeEntry[]): TimeEntry[] {
+    if (this.pendingWritesByEntryId.size === 0) return incoming;
+
+    const merged = incoming.filter((entry) => !this.pendingWritesByEntryId.has(entry.id));
+    const currentById = new Map(this.entries$$().map((entry) => [entry.id, entry]));
+    for (const id of this.pendingWritesByEntryId.keys()) {
+      const current = currentById.get(id);
+      if (current) merged.push(current);
     }
+    return merged;
   }
 
   private buildTailCutoff(): string {
@@ -120,36 +128,50 @@ export class TimeEntriesService extends BaseTimeService {
     return index;
   }
 
-  public createEntry(input: TimeEntryCreateInput): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — entry not saved');
-      return;
+  private markPending(entryId: number): void {
+    this.pendingWritesByEntryId.set(entryId, (this.pendingWritesByEntryId.get(entryId) ?? 0) + 1);
+  }
+
+  private clearPending(entryId: number): void {
+    const remaining = (this.pendingWritesByEntryId.get(entryId) ?? 0) - 1;
+    if (remaining > 0) {
+      this.pendingWritesByEntryId.set(entryId, remaining);
+    } else {
+      this.pendingWritesByEntryId.delete(entryId);
     }
+  }
 
+  private writeCache(): void {
+    this.localStorageService.setUserScoped(ENTRIES_STORAGE_KEY, this.entries$$());
+  }
+
+  //                                                            ~~~ MUTATIONS ~~~
+
+  // Optimistic: local state changes at once and the sync engine confirms or rolls back later,
+  // so there is nothing for a caller to wait for.
+  public createEntry(input: TimeEntryCreateInput): void {
     const tempId = -Date.now();
-    const optimisticEntry: TimeEntry = {
-      ...input,
-      id: tempId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    this.entries$$.update((entries) => [...entries, optimisticEntry]);
-    this.saveToLocalStorage(this.entries$$());
+    const now = new Date().toISOString();
+    this.entries$$.update((entries) => [...entries, { ...input, id: tempId, createdAt: now, updatedAt: now }]);
+    this.writeCache();
+    this.markPending(tempId);
 
-    this.addSyncOperation({
+    this.syncEngine.addOperation({
+      mode: SyncOperationMode.Optimistic,
       type: SyncOperationType.CREATE,
       endpoint: '/api/time/entries',
       data: input,
-      concurrent: true,
       successCallback: (response: DataResponse<{ id: number }>) => {
+        this.clearPending(tempId);
         this.entries$$.update((entries) =>
           entries.map((entry) => (entry.id === tempId ? { ...entry, id: response.data.id } : entry)),
         );
-        this.saveToLocalStorage(this.entries$$());
+        this.writeCache();
       },
       rollbackCallback: () => {
+        this.clearPending(tempId);
         this.entries$$.update((entries) => entries.filter((entry) => entry.id !== tempId));
-        this.saveToLocalStorage(this.entries$$());
+        this.writeCache();
       },
       feedback: {
         successMessage: 'Entry saved',
@@ -160,108 +182,56 @@ export class TimeEntriesService extends BaseTimeService {
   }
 
   // Drag/resize/move — touches only track/startAt/endAt. Rollback restores
-  // just those fields on this one entry by id, so a concurrent selection
+  // just those fields on this one entry by id, so a queued selection
   // update on the same entry (see updateEntrySelection) is never clobbered.
   public updateEntryTime(entryId: number, input: TimeEntryTimeInput): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — changes not saved');
-      return;
-    }
-
     const previous = this.entries$$().find((entry) => entry.id === entryId);
-    if (!previous) return;
+    if (!previous || !isConfirmedEntry(previous)) return;
     const previousTime: TimeEntryTimeInput = {
       track: previous.track,
       startAt: previous.startAt,
       endAt: previous.endAt,
     };
 
-    this.entries$$.update((entries) =>
-      entries.map((entry) => (entry.id === entryId ? { ...entry, ...input, updatedAt: new Date().toISOString() } : entry)),
-    );
-    this.saveToLocalStorage(this.entries$$());
-
-    this.addSyncOperation({
-      type: SyncOperationType.PATCH,
-      endpoint: `/api/time/entries/${entryId}/time`,
-      data: input,
-      concurrent: true,
-      rollbackCallback: () => {
-        this.entries$$.update((entries) =>
-          entries.map((entry) => (entry.id === entryId ? { ...entry, ...previousTime } : entry)),
-        );
-        this.saveToLocalStorage(this.entries$$());
-      },
-      feedback: {
-        successMessage: 'Changes saved',
-        errorMessage: 'Failed to save changes',
-        pendingMessage: 'Saving changes...',
-      },
-    });
+    this.patchEntry(entryId, input, previousTime, `/api/time/entries/${entryId}/time`);
   }
 
-  // Picker create/edit — touches only activityKindId/options. Rollback
-  // restores just those fields, leaving track/startAt/endAt (possibly since
-  // moved by a concurrent drag) untouched.
+  // Picker edit — touches only activityKindId/options. Rollback restores
+  // just those fields, leaving track/startAt/endAt (possibly since
+  // moved by a queued drag) untouched.
   public updateEntrySelection(entryId: number, input: TimeEntrySelectionInput): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — changes not saved');
-      return;
-    }
-
     const previous = this.entries$$().find((entry) => entry.id === entryId);
-    if (!previous) return;
+    if (!previous || !isConfirmedEntry(previous)) return;
     const previousSelection: TimeEntrySelectionInput = {
       activityKindId: previous.activityKindId,
       options: previous.options,
     };
 
-    this.entries$$.update((entries) =>
-      entries.map((entry) => (entry.id === entryId ? { ...entry, ...input, updatedAt: new Date().toISOString() } : entry)),
-    );
-    this.saveToLocalStorage(this.entries$$());
-
-    this.addSyncOperation({
-      type: SyncOperationType.PATCH,
-      endpoint: `/api/time/entries/${entryId}/selection`,
-      data: input,
-      concurrent: true,
-      rollbackCallback: () => {
-        this.entries$$.update((entries) =>
-          entries.map((entry) => (entry.id === entryId ? { ...entry, ...previousSelection } : entry)),
-        );
-        this.saveToLocalStorage(this.entries$$());
-      },
-      feedback: {
-        successMessage: 'Changes saved',
-        errorMessage: 'Failed to save changes',
-        pendingMessage: 'Saving changes...',
-      },
-    });
+    this.patchEntry(entryId, input, previousSelection, `/api/time/entries/${entryId}/selection`);
   }
 
   public deleteEntry(entryId: number): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — entry not deleted');
-      return;
-    }
-
     const previous = this.entries$$().find((entry) => entry.id === entryId);
-    if (!previous) return;
+    if (!previous || !isConfirmedEntry(previous)) return;
 
     this.entries$$.update((entries) => entries.filter((entry) => entry.id !== entryId));
-    this.saveToLocalStorage(this.entries$$());
+    this.writeCache();
+    this.markPending(entryId);
 
-    this.addSyncOperation({
+    this.syncEngine.addOperation({
+      mode: SyncOperationMode.Optimistic,
       type: SyncOperationType.DELETE,
       endpoint: `/api/time/entries/${entryId}`,
-      data: null,
-      concurrent: true,
+      data: {},
+      successCallback: () => {
+        this.clearPending(entryId);
+      },
       rollbackCallback: () => {
+        this.clearPending(entryId);
         this.entries$$.update((entries) =>
           entries.some((entry) => entry.id === entryId) ? entries : [...entries, previous],
         );
-        this.saveToLocalStorage(this.entries$$());
+        this.writeCache();
       },
       feedback: {
         successMessage: 'Entry deleted',
@@ -270,4 +240,47 @@ export class TimeEntriesService extends BaseTimeService {
       },
     });
   }
+
+  private patchEntry<T extends TimeEntryTimeInput | TimeEntrySelectionInput>(
+    entryId: number,
+    input: T,
+    previousFields: T,
+    endpoint: string,
+  ): void {
+    this.entries$$.update((entries) =>
+      entries.map((entry) =>
+        entry.id === entryId ? { ...entry, ...input, updatedAt: new Date().toISOString() } : entry,
+      ),
+    );
+    this.writeCache();
+    this.markPending(entryId);
+
+    this.syncEngine.addOperation({
+      mode: SyncOperationMode.Optimistic,
+      type: SyncOperationType.PATCH,
+      endpoint,
+      data: input,
+      successCallback: () => {
+        this.clearPending(entryId);
+      },
+      rollbackCallback: () => {
+        this.clearPending(entryId);
+        this.entries$$.update((entries) =>
+          entries.map((entry) => (entry.id === entryId ? { ...entry, ...previousFields } : entry)),
+        );
+        this.writeCache();
+      },
+      feedback: {
+        successMessage: 'Changes saved',
+        errorMessage: 'Failed to save changes',
+        pendingMessage: 'Saving changes...',
+      },
+    });
+  }
+}
+
+// Optimistic creates get a negative temp id until the server answers with the real one; such an
+// entry has no server address yet, so it can't be patched or deleted.
+export function isConfirmedEntry(entry: TimeEntry): boolean {
+  return entry.id > 0;
 }

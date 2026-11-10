@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { TimeCatalogueService } from '@app/services/time/time-catalogue.service';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
@@ -6,7 +6,7 @@ import { CategoryGroup, CategoryGroupKind, CategoryOption } from '@app/shared/ti
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
-import { ICON_BUTTON } from '../time.const';
+import { ICON_BUTTON } from '@app/components/time/time.const';
 import { CategoryGroupForm } from './category-group-form/category-group-form';
 import { CategoryOptionForm } from './category-option-form/category-option-form';
 
@@ -15,7 +15,6 @@ import { CategoryOptionForm } from './category-option-form/category-option-form'
   templateUrl: './category-groups-list.html',
   styleUrl: './category-groups-list.scss',
   imports: [CategoryGroupForm, CategoryOptionForm, DefaultModal, FormModal, VButton, VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CategoryGroupsList {
   protected readonly Icon = IconName;
@@ -60,7 +59,7 @@ export class CategoryGroupsList {
     this.isDeleteGroupConfirmOpen$$.set(false);
     this.pendingDeleteGroupId$$.set(null);
     if (!id) return;
-    this.timeCatalogueService.deleteCategoryGroup(id);
+    void this.timeCatalogueService.deleteCategoryGroup(id);
   }
 
   protected onGroupSaved(): void {
@@ -119,7 +118,7 @@ export class CategoryGroupsList {
     this.isDeleteOptionConfirmOpen$$.set(false);
     this.pendingDeleteOptionId$$.set(null);
     if (!id) return;
-    this.timeCatalogueService.deleteCategoryOption(id);
+    void this.timeCatalogueService.deleteCategoryOption(id);
   }
 
   protected onOptionSaved(): void {

@@ -1,4 +1,5 @@
-<div class="picker-overlay"
+<div vTopLayer
+     class="picker-overlay"
      (click)="close()">
   <div #panelElem
        class="picker-panel"
@@ -8,15 +9,19 @@
        [style.height.px]="timeDisplayPrefsService.pickerHeightPx$$()"
        (click)="$event.stopPropagation()">
     <div class="picker-kinds">
-      @if (kindsByFrequency$$().length === 0) {
-        <div class="opacity-70 text-sm p-2">No activity kinds yet — add one on the left.</div>
-      }
       @for (kind of kindsByFrequency$$(); track kind.id) {
-        <v-button [class]="kindButtonClass(kind.id)"
-                  [config]="{ width: '100%', textAlign: 'left', paddingY: 1, paddingX: 2 }"
-                  (onClick)="selectKind(kind.id)">
+        @let isSelected = isKindSelected(kind.id);
+        <v-button width="100%"
+                  textAlign="left"
+                  [paddingY]="1"
+                  [paddingX]="2"
+                  [class.v-primary]="isSelected"
+                  [surface]="isSelected ? 'default' : 'flat'"
+                  (clickOutput)="selectKind(kind.id)">
           {{ kind.name }}
         </v-button>
+      } @empty {
+        <div class="opacity-70 text-sm p-2">No activity kinds yet — add one on the left.</div>
       }
     </div>
 
@@ -25,8 +30,9 @@
         <div class="picker-details-header flex items-center justify-between mb-3">
           <span class="font-semibold">{{ selectedKindName$$() }}</span>
           <v-button class="v-primary"
-                    [config]="{ isDisabled: !canSubmit$$(), paddingY: 1 }"
-                    (onClick)="confirm()">
+                    [paddingY]="1"
+                    [isDisabled]="!canSubmit$$()"
+                    (clickOutput)="confirm()">
             OK
           </v-button>
         </div>
@@ -37,7 +43,7 @@
               <div class="mb-1 text-sm opacity-70">
                 {{ groupName(groupId) }}
                 @if (isRequired(groupId)) {
-                  <span class="text-red-400">*</span>
+                  <span class="text-[color:var(--v-color-danger)]">*</span>
                 }
               </div>
               <time-option-chips [options]="optionsForGroup(groupId)"

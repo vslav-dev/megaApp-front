@@ -1,12 +1,10 @@
-<v-modal [config]="{
-           isOpen: isModalOpen(),
-           borderRadius: 3,
-           padding: 4,
-           deviceType: deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop',
-           mobileWidth: 'min(100vw, 300px)',
-           desktopWidth: '300px',
-         }"
-         (onClose)="onClose()">
+<v-modal [deviceType]="deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop'"
+         [isOpen]="isModalOpen()"
+         mobileWidth="min(100vw, 360px)"
+         desktopWidth="360px"
+         [borderRadius]="3"
+         [padding]="4"
+         (closeOutput)="onClose()">
   <div class="flex flex-col gap-4">
     @if (modalTitle()) {
       <div class="text-xl font-medium text-center">
@@ -20,20 +18,15 @@
       </div>
     }
 
-    <div class="flex gap-4">
-      <v-button class="v-flat"
-                [config]="{
-                  width: '100%'
-                }"
-                (onClick)="onCancel()">
+    <div class="flex flex-wrap gap-4">
+      <v-button class="flex-auto"
+                surface="flat"
+                (clickOutput)="onCancel()">
         {{ cancelButtonLabel() }}
       </v-button>
 
-      <v-button class="v-danger"
-                [config]="{
-                  width: '100%'
-                }"
-                (onClick)="onConfirm()">
+      <v-button class="v-danger flex-auto"
+                (clickOutput)="onConfirm()">
         {{ confirmButtonLabel() }}
       </v-button>
     </div>

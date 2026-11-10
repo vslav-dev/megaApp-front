@@ -32,7 +32,7 @@ export interface ActivityKind {
 export interface CategoryGroup {
   id: number;
   name: string;
-  kind: CategoryGroupKind | string | null;
+  kind: CategoryGroupKind | null;
   isArchived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -78,7 +78,7 @@ export interface ActivityKindInput {
 
 export interface CategoryGroupInput {
   name: string;
-  kind: string | null;
+  kind: CategoryGroupKind | null;
   isArchived: boolean;
 }
 

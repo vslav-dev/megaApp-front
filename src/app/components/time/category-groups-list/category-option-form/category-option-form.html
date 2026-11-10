@@ -1,37 +1,33 @@
 <div class="mb-4 text-lg font-semibold">{{ isEditing() ? 'Edit option' : 'New option' }}</div>
 
 <div class="flex flex-col gap-4">
-  <v-input [config]="{
-               label: 'Name',
-               placeholder: 'ATS',
-               type: 'text',
-             }"
-           [ngModel]="name$$()"
-           (ngModelChange)="name$$.set($event)" />
+  <v-input type="text"
+           label="Name"
+           placeholder="ATS"
+           [(value)]="name$$" />
 
   @if (isAreaGroup$$()) {
     <div class="flex flex-col gap-2">
       <span class="opacity-70 text-sm">Color</span>
-      <v-color-picker [value]="color$$()"
-                      (valueChange)="color$$.set($event)"></v-color-picker>
+      <v-color-picker [(value)]="color$$"></v-color-picker>
     </div>
   }
 
-  <v-checkbox [config]="{ mode: 'switch', labelPosition: 'right' }"
-              [value]="isArchived$$()"
-              (valueChange)="isArchived$$.set($event)">
+  <v-checkbox mode="switch"
+              labelPosition="right"
+              [(value)]="isArchived$$">
     Archived
   </v-checkbox>
 
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
-              [config]="{ isDisabled: !name$$() }"
-              (onClick)="save()">
+              [isDisabled]="!name$$()"
+              (clickOutput)="save()">
       {{ isEditing() ? 'Save' : 'Create' }}
     </v-button>
 
-    <v-button class="v-flat"
-              (onClick)="cancel()">
+    <v-button surface="flat"
+              (clickOutput)="cancel()">
       Cancel
     </v-button>
   </div>

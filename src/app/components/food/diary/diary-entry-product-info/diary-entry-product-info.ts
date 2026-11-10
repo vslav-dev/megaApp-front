@@ -5,7 +5,6 @@ import { DiaryEntry } from '@app/shared/types';
 @Component({
   selector: 'diary-entry-product-info',
   templateUrl: './diary-entry-product-info.html',
-  standalone: true,
 })
 export class DiaryEntryProductInfo {
   public readonly diaryEntry = input.required<DiaryEntry>();

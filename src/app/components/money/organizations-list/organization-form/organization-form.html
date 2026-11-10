@@ -1,49 +1,39 @@
 <div class="mb-4 text-lg font-semibold">{{ isEditing() ? 'Edit Organization' : 'Add New Organization' }}</div>
 
 <div class="flex flex-col gap-4">
-  <v-input [config]="{
-               label: 'Title',
-               placeholder: 'Sberbank',
-               type: 'text',
-             }"
-           [ngModel]="title$$()"
-           (ngModelChange)="title$$.set($event)" />
+  <v-input label="Title"
+           placeholder="Sberbank"
+           [(value)]="title$$" />
 
   <div class="flex flex-col gap-2">
-    <div class="text-sm opacity-70">Logo</div>
+    <div class="opacity-70 text-sm">Logo</div>
 
     <div class="flex items-center gap-3">
       @if (getLogoSrc(); as src) {
         <img [src]="src"
-             class="w-10 h-10 rounded object-contain border border-[color:var(--v-outline-color)]"
+             class="w-10 h-10 rounded object-contain border border-[color:var(--v-color-border-subtle)]"
              alt="">
 
-        <v-button class="v-flat"
-                  [config]="{
-                    paddingY: 1,
-                    paddingX: 2,
-                  }"
-                  (onClick)="clearLogo()">
+        <v-button surface="flat"
+                  [paddingX]="2"
+                  [paddingY]="1"
+                  (clickOutput)="clearLogo()">
           Remove
         </v-button>
 
-        <v-button class="v-flat"
-                  [config]="{
-                    paddingY: 1,
-                    paddingX: 2,
-                  }"
-                  (onClick)="triggerFileInput()">
+        <v-button surface="flat"
+                  [paddingX]="2"
+                  [paddingY]="1"
+                  (clickOutput)="triggerFileInput()">
           Replace
         </v-button>
       } @else {
-        <div class="w-10 h-10 rounded border border-dashed border-[color:var(--v-outline-color)] opacity-40"></div>
+        <div class="w-10 h-10 rounded border border-dashed border-[color:var(--v-color-border-subtle)] opacity-40"></div>
 
-        <v-button class="v-flat"
-                  [config]="{
-                    paddingY: 1,
-                    paddingX: 2,
-                  }"
-                  (onClick)="triggerFileInput()">
+        <v-button surface="flat"
+                  [paddingX]="2"
+                  [paddingY]="1"
+                  (clickOutput)="triggerFileInput()">
           Upload image
         </v-button>
       }
@@ -58,15 +48,13 @@
 
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
-              [config]="{
-                  isDisabled: !isFormValid(),
-                }"
-              (onClick)="save()">
+              [isDisabled]="!isFormValid()"
+              (clickOutput)="save()">
       {{ isEditing() ? 'Update' : 'Create' }}
     </v-button>
 
-    <v-button class="v-flat"
-              (onClick)="cancel()">
+    <v-button surface="flat"
+              (clickOutput)="cancel()">
       Cancel
     </v-button>
   </div>

@@ -1,5 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { TimeCatalogueService } from '@app/services/time/time-catalogue.service';
 import { ActivityKind, ActivityKindInput, GroupBinding } from '@app/shared/time-types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -9,8 +8,7 @@ import { VInput } from '@ui-kit/components/v-input/v-input';
 @Component({
   selector: 'activity-kind-form',
   templateUrl: './activity-kind-form.html',
-  imports: [FormsModule, VButton, VCheckbox, VInput],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VButton, VCheckbox, VInput],
 })
 export class ActivityKindForm {
   public readonly activityKindInput = input<ActivityKind | null>(null);
@@ -27,7 +25,7 @@ export class ActivityKindForm {
   // groupId -> required. Presence in the map means the group is bound.
   protected readonly bindings$$ = signal<Map<number, boolean>>(new Map());
 
-  constructor() {
+  public constructor() {
     effect(() => {
       const kind = this.activityKindInput();
       if (kind) {
@@ -67,7 +65,7 @@ export class ActivityKindForm {
     });
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     if (!this.name$$()) return;
 
     const groupBindings: GroupBinding[] = [...this.bindings$$().entries()].map(([groupId, required]) => ({
@@ -81,12 +79,12 @@ export class ActivityKindForm {
     };
 
     const current = this.activityKindInput();
-    if (current) {
-      this.timeCatalogueService.updateActivityKind(current.id, input);
-    } else {
-      this.timeCatalogueService.createActivityKind(input);
+    const isSaved = current
+      ? await this.timeCatalogueService.updateActivityKind(current.id, input)
+      : await this.timeCatalogueService.createActivityKind(input);
+    if (isSaved) {
+      this.savedOutput.emit();
     }
-    this.savedOutput.emit();
   }
 
   protected cancel(): void {

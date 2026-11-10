@@ -1,29 +1,24 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { MoneyService } from '@app/services/money.service';
-import { convertAmount } from '@app/shared/money-utils';
+import { convertAmount, parseTransactionDetails } from '@app/shared/money-utils';
+import { groupNumberText } from '@app/shared/number-format';
 import { Account, AccountKind, Organization, SymbolPosition, Transaction, TransactionKind } from '@app/shared/types';
-import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 
 @Component({
   selector: 'accounts-balance',
   templateUrl: './accounts-balance.html',
-  imports: [VButton, VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VCard, VIcon],
 })
 export class AccountsBalance {
-  protected readonly Icon = IconName;
-
-  private readonly THOUSANDS_SEP = '\u2005';
-
   // Edit this array to control the display order of accounts (by account ID).
   // Accounts not listed here will appear at the end in their default order.
   private readonly ACCOUNT_DISPLAY_ORDER: readonly number[] = [3, 15, 16, 1, 14];
 
   private readonly moneyService = inject(MoneyService);
 
-  protected readonly keepNativeCurrency$$ = computed(() => this.moneyService.keepTransactionCurrency$$());
+  protected readonly convertToUnifiedCurrency$$ = computed(() => this.moneyService.convertToUnifiedCurrency$$());
   private readonly displayCurrency$$ = computed(() => this.moneyService.displayCurrency$$());
   private readonly today = new Date().toISOString().substring(0, 10);
   private readonly latestRates$$ = computed(() => this.moneyService.getRatesForDate(this.today) ?? {});
@@ -87,7 +82,7 @@ export class AccountsBalance {
     const currency = this.currencies$$().find((c) => c.id === account.currencyId);
     if (!currency) return this.formatNumber(balance);
 
-    if (this.keepNativeCurrency$$() || currency.ticker === this.displayCurrency$$()) {
+    if (!this.convertToUnifiedCurrency$$() || currency.ticker === this.displayCurrency$$()) {
       const ws = currency.whitespace ? ' ' : '';
       const formatted = this.formatNumber(balance);
       if (currency.symbolPosEnum === SymbolPosition.BEFORE) return `${currency.symbol}${ws}${formatted}`;
@@ -104,13 +99,8 @@ export class AccountsBalance {
     return `${formatted}${ws}${displayCurrency.symbol}`;
   }
 
-  protected toggleKeepNativeCurrency(): void {
-    this.moneyService.setKeepTransactionCurrency(!this.keepNativeCurrency$$());
-  }
-
   private formatNumber(amount: number): string {
-    const [int, dec] = amount.toFixed(2).split('.');
-    return `${int.replace(/\B(?=(\d{3})+(?!\d))/g, this.THOUSANDS_SEP)}.${dec}`;
+    return groupNumberText(amount.toFixed(2));
   }
 
   private getTxDelta(tx: Transaction): number {
@@ -119,22 +109,9 @@ export class AccountsBalance {
     if (tx.kind === TransactionKind.INVEST_BUY) return -tx.amount;
     if (tx.kind === TransactionKind.INVEST_SELL || tx.kind === TransactionKind.INVEST_DIVIDEND) return tx.amount;
     if (tx.kind !== TransactionKind.TRANSFER) return 0;
-    const details = this.parseDetails(tx.detailsJSON);
+    const details = parseTransactionDetails(tx.detailsJSON);
     if (details?.direction === 'out') return -tx.amount;
     if (details?.direction === 'in') return tx.amount;
     return 0;
-  }
-
-  private parseDetails(detailsJSON: any): any {
-    if (!detailsJSON) return null;
-    if (typeof detailsJSON === 'object') return detailsJSON;
-    if (typeof detailsJSON === 'string') {
-      try {
-        return JSON.parse(detailsJSON);
-      } catch {
-        return null;
-      }
-    }
-    return null;
   }
 }

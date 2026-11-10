@@ -1,17 +1,25 @@
 import {
   AfterViewInit,
-  ChangeDetectionStrategy,
   Component,
   ElementRef,
   OnDestroy,
   computed,
   effect,
+  inject,
   input,
   signal,
-  untracked,
   viewChild,
 } from '@angular/core';
-import { BALANCE_ACCOUNT_PALETTE, BALANCE_CHART_CONFIG, CHART_COLORS } from '@app/shared/chart-config';
+import { ChartThemeService } from '@app/services/chart-theme.service';
+import { MoneyService, SuspensionFilter } from '@app/services/money.service';
+import { TelemetryService } from '@app/services/telemetry.service';
+import {
+  ChartColors,
+  balanceCategoricalPalette,
+  createBalanceChartConfig,
+  formatMonthYearLabel,
+  tooltipValue,
+} from '@app/shared/chart-config';
 import { BalanceChartAccountSeries, BalanceChartData } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCheckbox } from '@ui-kit/components/v-checkbox/v-checkbox';
@@ -37,29 +45,42 @@ Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineContro
   selector: 'balances-chart',
   templateUrl: './balances-chart.html',
   imports: [VButton, VCheckbox, VToggle],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BalancesChart implements AfterViewInit, OnDestroy {
-  readonly dataInput = input.required<BalanceChartData>();
-  readonly currencySymbolInput = input<string>('₽');
+  public readonly dataInput = input.required<BalanceChartData>();
+  public readonly currencySymbolInput = input<string>('₽');
 
   protected readonly chartCanvas = viewChild.required<ElementRef<HTMLCanvasElement>>('chartCanvas');
   protected readonly chart$$ = signal<Chart | null>(null);
-  protected readonly showByAccount$$ = signal(false);
-  protected readonly suspensionFilter$$ = signal<'all' | 'exclude' | 'only'>('all');
-  protected readonly enabledAccountIds$$ = signal<Set<number>>(new Set());
+  protected readonly showByAccount$$ = computed(() => this.moneyService.showByAccount$$());
+  protected readonly suspensionFilter$$ = computed(() => this.moneyService.suspensionFilter$$());
+  protected readonly disabledAccountIds$$ = computed(() => this.moneyService.disabledAccountIds$$());
+
+  private readonly moneyService = inject(MoneyService);
+  private readonly chartThemeService = inject(ChartThemeService);
+  private readonly telemetry = inject(TelemetryService);
+
+  // Chart.js caches a scale's resolved grid/border/ticks color internally — mutating
+  // chart.data and calling chart.update('none') doesn't reliably repaint it after a theme
+  // toggle (see the identical comment/fix in food-stats-charts.ts). Recreating the chart
+  // whenever the theme (light/dark) changes sidesteps it; plain data updates, including a new
+  // category palette, stay a cheap in-place mutation.
+  private lastColors: ChartColors | null = null;
 
   private yearBoundaries: { year: string; startIdx: number; endIdx: number }[] = [];
 
   private readonly crosshairPlugin: Plugin = {
     id: 'balanceCrosshair',
-    afterDraw: (chart) => {
+    // beforeDatasetsDraw (not afterDraw) so the crosshair sits under the data line, the
+    // same layering the built-in grid uses — active-element state is already known by
+    // this point in the draw cycle (set by the hover handler, not computed during draw).
+    beforeDatasetsDraw: (chart) => {
       const active = chart.tooltip?.getActiveElements();
       if (!active?.length) return;
 
       const { top, bottom, left, right } = chart.chartArea;
-      const x = active[0].element.x;
-      if (x < left || x > right) return;
+      const x = active[0]?.element.x;
+      if (x === undefined || x < left || x > right) return;
 
       const ctx = chart.ctx;
       ctx.save();
@@ -67,7 +88,9 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
       ctx.moveTo(x, top);
       ctx.lineTo(x, bottom);
       ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+      // Reads the live theme color instead of a hardcoded one — same mechanism the
+      // label fillStyle below already uses via Chart.defaults.
+      ctx.strokeStyle = Chart.defaults.color as string;
       ctx.setLineDash([4, 4]);
       ctx.stroke();
       ctx.restore();
@@ -76,27 +99,42 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
 
   private readonly yearSeparatorPlugin: Plugin = {
     id: 'balanceYearSeparator',
-    afterDraw: (chart) => {
+    // Drawn before the dataset (not afterDraw) so the separator sits under the data line,
+    // the same layering the built-in grid uses — the year label text stays in afterDraw
+    // below, since it's positioned under the plot area and never overlaps the line anyway.
+    beforeDatasetsDraw: (chart) => {
       if (!this.yearBoundaries.length) return;
       const xScale = chart.scales['x'];
       if (!xScale) return;
       const { ctx, chartArea } = chart;
       ctx.save();
 
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+      // Was a hardcoded 'rgba(0, 0, 0, 0.15)' — always-black, so on dark theme it barely
+      // showed up at all. Chart.defaults.borderColor is the same theme grid color every
+      // scale's own gridlines use, read live on every draw (no stale-cache concern here —
+      // unlike Chart.js's own scale rendering, this plugin paints the canvas directly).
+      ctx.strokeStyle = Chart.defaults.borderColor as string;
       ctx.lineWidth = 1;
-      for (let i = 1; i < this.yearBoundaries.length; i++) {
+      for (const [i, boundary] of this.yearBoundaries.entries()) {
+        const previous = this.yearBoundaries[i - 1];
+        if (!previous) continue;
         const x =
-          Math.round(
-            (xScale.getPixelForValue(this.yearBoundaries[i - 1].endIdx) +
-              xScale.getPixelForValue(this.yearBoundaries[i].startIdx)) /
-              2,
-          ) + 0.5;
+          Math.round((xScale.getPixelForValue(previous.endIdx) + xScale.getPixelForValue(boundary.startIdx)) / 2) +
+          0.5;
         ctx.beginPath();
         ctx.moveTo(x, chartArea.top);
         ctx.lineTo(x, chartArea.bottom);
         ctx.stroke();
       }
+
+      ctx.restore();
+    },
+    afterDraw: (chart) => {
+      if (!this.yearBoundaries.length) return;
+      const xScale = chart.scales['x'];
+      if (!xScale) return;
+      const { ctx, chartArea } = chart;
+      ctx.save();
 
       const labelY = Math.round((chartArea.bottom + xScale.bottom) / 2);
       const font = Chart.defaults.font;
@@ -115,21 +153,8 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
 
   protected readonly activeAccountSeries$$ = computed(() => {
     const series = this.dataInput().accountSeries;
-    const enabled = this.enabledAccountIds$$();
-    return series.filter((s) => enabled.has(s.accountId));
-  });
-
-  private readonly syncEnabledAccountsEffect = effect(() => {
-    const series = this.dataInput().accountSeries;
-    untracked(() => {
-      const current = this.enabledAccountIds$$();
-      const newIds = series.map((s) => s.accountId).filter((id) => !current.has(id));
-      if (newIds.length > 0) {
-        const updated = new Set(current);
-        newIds.forEach((id) => updated.add(id));
-        this.enabledAccountIds$$.set(updated);
-      }
-    });
+    const disabled = this.disabledAccountIds$$();
+    return series.filter((s) => !disabled.has(s.accountId));
   });
 
   private readonly chartUpdateEffect = effect(() => {
@@ -137,35 +162,49 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
     const showByAccount = this.showByAccount$$();
     const activeSeries = this.activeAccountSeries$$();
     const suspensionFilter = this.suspensionFilter$$();
-    const chart = this.chart$$();
-    if (!chart) return;
-    this.rebuildChartDatasets(chart, data, showByAccount, activeSeries, suspensionFilter);
+    const colors = this.chartThemeService.colors$$();
+    this.telemetry.measure(
+      'money.balance_chart_render',
+      () => {
+        let chart = this.chart$$();
+        if (chart && colors.isDark !== this.lastColors?.isDark) {
+          chart.destroy();
+          chart = this.createChart(colors);
+          this.chart$$.set(chart);
+        }
+        this.lastColors = colors;
+        if (!chart) return;
+        this.rebuildChartDatasets(chart, data, showByAccount, activeSeries, suspensionFilter, colors);
+      },
+      () => ({ months: data.dates.length, series: activeSeries.length }),
+    );
   });
 
-  public ngAfterViewInit(): void {
+  private createChart(colors: ChartColors): Chart | null {
     const ctx = this.chartCanvas().nativeElement.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return null;
     const chart = new Chart(ctx, {
-      ...BALANCE_CHART_CONFIG,
+      ...createBalanceChartConfig(colors),
       plugins: [this.yearSeparatorPlugin, this.crosshairPlugin],
     });
     if (chart.options.plugins?.tooltip?.callbacks) {
       chart.options.plugins.tooltip.callbacks.label = (ctx) => {
-        const raw = (ctx.dataset as any)['_rawValues'];
-        const value = raw ? raw[ctx.dataIndex] : ctx.parsed.y;
+        const value = tooltipValue(ctx);
         return ` ${ctx.dataset.label}: ${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)} ${this.currencySymbolInput()}`;
       };
       chart.options.plugins.tooltip.callbacks.footer = (items) => {
         if (items.length < 2) return [];
-        const sum = items.reduce((acc, item) => {
-          const raw = (item.dataset as any)['_rawValues'];
-          const value = raw ? raw[item.dataIndex] : item.parsed.y;
-          return acc + value;
-        }, 0);
+        const sum = items.reduce((acc, item) => acc + tooltipValue(item), 0);
         return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(sum)} ${this.currencySymbolInput()}`;
       };
     }
-    this.chart$$.set(chart);
+    return chart;
+  }
+
+  public ngAfterViewInit(): void {
+    this.lastColors = this.chartThemeService.colors$$();
+    const chart = this.createChart(this.lastColors);
+    if (chart) this.chart$$.set(chart);
   }
 
   public ngOnDestroy(): void {
@@ -188,7 +227,7 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
   }
 
   protected onViewToggleChange(value: string[]): void {
-    this.showByAccount$$.set(value[0] === 'by-account');
+    this.moneyService.setShowByAccount(value[0] === 'by-account');
   }
 
   protected suspensionToggleValue(): string[] {
@@ -196,17 +235,17 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
   }
 
   protected onSuspensionToggleChange(value: string[]): void {
-    this.suspensionFilter$$.set((value[0] ?? 'all') as 'all' | 'exclude' | 'only');
+    this.moneyService.setSuspensionFilter((value[0] ?? 'all') as SuspensionFilter);
   }
 
   protected isAccountEnabled(accountId: number): boolean {
-    return this.enabledAccountIds$$().has(accountId);
+    return !this.disabledAccountIds$$().has(accountId);
   }
 
   protected readonly allEnabled$$ = computed(() => {
     const series = this.dataInput().accountSeries;
-    const enabled = this.enabledAccountIds$$();
-    return series.every((s) => enabled.has(s.accountId));
+    const disabled = this.disabledAccountIds$$();
+    return series.every((s) => !disabled.has(s.accountId));
   });
 
   protected readonly allNoneLabel$$ = computed(() => (this.allEnabled$$() ? 'None' : 'All'));
@@ -214,26 +253,25 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
   protected toggleAll(): void {
     const series = this.dataInput().accountSeries;
     if (this.allEnabled$$()) {
-      this.enabledAccountIds$$.set(new Set());
+      this.moneyService.setDisabledAccountIds(new Set(series.map((s) => s.accountId)));
     } else {
-      this.enabledAccountIds$$.set(new Set(series.map((s) => s.accountId)));
+      this.moneyService.setDisabledAccountIds(new Set());
     }
   }
 
   protected toggleAccount(accountId: number, checked: boolean): void {
-    const current = this.enabledAccountIds$$();
+    const current = this.disabledAccountIds$$();
     const updated = new Set(current);
     if (checked) {
-      updated.add(accountId);
-    } else {
       updated.delete(accountId);
+    } else {
+      updated.add(accountId);
     }
-    this.enabledAccountIds$$.set(updated);
+    this.moneyService.setDisabledAccountIds(updated);
   }
 
   protected getAccountColor(accountId: number): string {
-    const index = this.dataInput().accountSeries.findIndex((s) => s.accountId === accountId);
-    return BALANCE_ACCOUNT_PALETTE[index % BALANCE_ACCOUNT_PALETTE.length];
+    return balanceCategoricalPalette.getColor(String(accountId), this.chartThemeService.colors$$());
   }
 
   private rebuildChartDatasets(
@@ -242,8 +280,9 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
     showByAccount: boolean,
     activeSeries: BalanceChartAccountSeries[],
     suspensionFilter: 'all' | 'exclude' | 'only',
+    colors: ChartColors,
   ): void {
-    const labels = data.dates.map((d) => this.formatDateLabel(d));
+    const labels = data.dates.map((d) => formatMonthYearLabel(d));
 
     this.yearBoundaries = [];
     const yearMap = new Map<string, { startIdx: number; endIdx: number }>();
@@ -274,8 +313,8 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
           label: 'Баланс',
           data: filteredTotals,
           fill: true,
-          borderColor: CHART_COLORS.main,
-          backgroundColor: CHART_COLORS.mainAlpha,
+          borderColor: colors.main,
+          backgroundColor: colors.mainAlpha,
         },
       ];
       chart.update('none');
@@ -283,18 +322,17 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
     }
 
     const datasets: ChartDataset<'line'>[] = [];
-    const accumulated: number[] = new Array(data.dates.length).fill(0);
-    const allSeries = data.accountSeries;
+    const accumulated: number[] = new Array<number>(data.dates.length).fill(0);
 
     activeSeries.forEach((series, localIdx) => {
-      const globalIdx = allSeries.findIndex((s) => s.accountId === series.accountId);
-      const color = BALANCE_ACCOUNT_PALETTE[globalIdx % BALANCE_ACCOUNT_PALETTE.length];
-      const colorAlpha = color.replace('rgb(', 'rgba(').replace(')', ', 0.6)');
+      const color = balanceCategoricalPalette.getColor(String(series.accountId), colors);
+      const colorAlpha = balanceCategoricalPalette.getColor(String(series.accountId), colors, 0.6);
 
       const rawValues = series.values.map((_, i) => getEffectiveValue(series, i));
       const cumulativeData = rawValues.map((v, i) => {
-        accumulated[i] += v;
-        return accumulated[i];
+        const total = (accumulated[i] ?? 0) + v;
+        accumulated[i] = total;
+        return total;
       });
 
       datasets.push({
@@ -310,12 +348,5 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
     chart.data.labels = labels;
     chart.data.datasets = datasets;
     chart.update('none');
-  }
-
-  private formatDateLabel(dateISO: string): string {
-    const date = new Date(dateISO + 'T00:00:00');
-    const month = date.getMonth();
-    const year = date.getFullYear();
-    return `${String(month + 1).padStart(2, '0')}.${year}`;
   }
 }

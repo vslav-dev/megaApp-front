@@ -1,27 +1,37 @@
-@if (deviceInfoService.isDesktopScreen$$()) {
+<!-- @if (deviceInfoService.isDesktopScreen$$()) {
   <div class="mb-4">
-    <v-card [config]="{
-              borderRadius: 2,
-              padding: 0
-            }">
+    <v-card [borderRadius]="2"
+            [padding]="0">
       <div class="w-full my-2 text-xl font-semibold text-center">Дневник</div>
     </v-card>
   </div>
-}
+} -->
 
 <div class="flex gap-2">
-  <div class="w-full mb-2">
+  <div class="w-full mb-3">
     <diary-nav-buttons />
   </div>
 </div>
 
 <v-accordion groupId="food-diary-section">
-  <v-expand class="BMI mb-2"
-            (onOpened)="onBMIExpandOpened($event)">
+  <v-expand class="BMI mb-3"
+            (openedOutput)="onBMIExpandOpened($event)">
     <div v-header
-         class="v-header w-full p-2 text-center"
-         [ngStyle]="setBackgroundStyle(selectedDaysKcalsPercent$$(), true)">
-      <span class=" font-normal">{{ caloriesDisplayText$$() }}</span>
+         class="v-header v-theme-transition day-progress w-full p-2 text-center">
+      <div class="day-progress-fill"
+           [style.width.%]="dayProgressFillPercent$$()"></div>
+
+      @for (tick of dayProgressTicks$$(); track tick.value) {
+        <div class="day-progress-tick"
+             [style.left.%]="tick.position">
+          <span class="day-progress-tick-label">{{ tick.value }}%</span>
+        </div>
+      }
+
+      @if (selectedDaysConsumedPercentText$$(); as percentText) {
+        <span class="day-progress-label font-normal">Съедено <v-rolling-number [textInput]="`${percentText}%`" /> от
+          дневной нормы</span>
+      }
     </div>
 
     <div v-body
@@ -33,31 +43,10 @@
   </v-expand>
 </v-accordion>
 
-<!-- @for (food of selectedDayDiaryEntries$$(); track food.id) { -->
-@if (selectedDayDiaryEntries$$().length > 0) {
-  <div #foodCont
-       class="whitespace-nowrap flex w-full gap-1 px-2 overflow-hidden text-base font-normal">
-    <div #foodName
-         class="tw-card-food-entry grow whitespace-nowrap overflow-hidden text-center">
-      Блюдо:
-    </div>
-
-    <div #foodWeight
-         class="text-center">
-      г.
-    </div>
-
-    <div #foodPercent
-         class="text-center">
-      %
-    </div>
-  </div>
-}
-
 <v-accordion groupId="food-diary-section">
   @for (food of selectedDayDiaryEntries$$(); track food.id) {
     <v-expand class="item"
-              (onOpened)="onVExpandOpened($event, food.id)">
+              (openedOutput)="onVExpandOpened($event, food.id)">
       <ng-container v-corner-pic>
         @if (foodCatalogueService.getCornerImageUrl(food.foodCatalogueId); as cornerImageUrl) {
           <img [src]="cornerImageUrl"
@@ -68,8 +57,8 @@
 
       <div v-header
            #diaryEntryHeader
-           class="relative p-2"
-           [ngStyle]="setBackgroundStyle(food.foodKcalPercentageOfDaysNorm)">
+           class="v-theme-transition relative p-2"
+           [style]="setBackgroundStyle(getFillPercent(food), food.isFoodArchived)">
 
         @if (foodCatalogueService.getSquircleImageUrl(food.foodCatalogueId); as squircleImageUrl) {
           <img [src]="squircleImageUrl"
@@ -85,14 +74,14 @@
             <span class="readable-text-bg py-[1px] px-[6px]">{{ food.foodName }}</span>
           </div>
 
-          <div #foodWeight
-               class="text-right">
-            {{ food.foodWeight }} <span class="text-xs"> Г.</span>
+          <div class="col-animated-width whitespace-nowrap overflow-hidden text-right"
+               [style.width.px]="columnWidths$$().weight">
+            <span #foodWeightMeasureElem>{{ food.foodWeight }} <span class="text-xs"> Г.</span></span>
           </div>
 
-          <div #foodPercent
-               class="pl-2 text-right">
-            {{ food.foodPercent }} <span class="text-xs">%</span>
+          <div class="col-animated-width whitespace-nowrap ml-2 overflow-hidden text-right"
+               [style.width.px]="columnWidths$$().percent">
+            <span #foodPercentMeasureElem>{{ food.foodPercent }} <span class="text-xs">%</span></span>
           </div>
         </div>
       </div>
@@ -100,28 +89,27 @@
       <div v-body
            class="p-4">
         @defer (on timer(300)) {
-          <diary-entry-edit-form [diaryEntry]="food"
-                                 (onServerSuccessfullEditResponse)="closeAllAccordions()" />
+          <diary-entry-edit-form [diaryEntryInput]="food"
+                                 (entryChangedOutput)="closeAllAccordions()" />
         }
       </div>
     </v-expand>
   }
   @empty {
-    <div class="text-slate-500 p-4 text-center">
+    <div class="text-[color:var(--v-color-text-muted)] p-4 text-center">
       Записей за этот день ещё нет
     </div>
   }
 </v-accordion>
 
 @if (deviceInfoService.isDesktopScreen$$() || hasSelectedDayDiaryEntries$$() || canRestoreSelectedDay$$()) {
-  <div class="flex justify-start gap-4 mt-4">
+  <div class="flex justify-start gap-3 mt-3">
     @if (hasSelectedDayDiaryEntries$$()) {
-      <v-button class="v-flat shrink-0"
-                [config]="{
-                  isLabelHidden: true,
-                  padding: 2,
-                }"
-                (onClick)="openDeleteDayConfirmationModal()">
+      <v-button class="shrink-0"
+                surface="flat"
+                [isLabelHidden]="true"
+                [padding]="2"
+                (clickOutput)="openDeleteDayConfirmationModal()">
         <v-icon v-prefix
                 [name]="Icon.Delete"
                 [size]="6" />
@@ -129,26 +117,21 @@
     }
 
     @if (canRestoreSelectedDay$$()) {
-      <v-button class="v-flat shrink-0"
-                [config]="{
-                  isLabelHidden: true,
-                  padding: 2,
-                }"
-                (onClick)="onRestoreDayClicked()">
+      <v-button class="shrink-0"
+                surface="flat"
+                [isLabelHidden]="true"
+                [padding]="2"
+                (clickOutput)="onRestoreDayClicked()">
         <v-icon v-prefix
                 [name]="Icon.Undo"
                 [size]="6" />
       </v-button>
     }
 
-    @if (deviceInfoService.isDesktopScreen$$()) {
-      <v-button [class.v-primary]="addDiaryEntryButtonVariant$$() === 'primary'"
-                [class.v-raised]="addDiaryEntryButtonVariant$$() === 'raised'"
-                class="grow"
-                [config]="{
-                  width: '100%'
-                }"
-                (onClick)="openAddFoodModal()">
+    @if (deviceInfoService.isDesktopScreen$$() && !isAnyAccordionOpen$$()) {
+      <v-button class="v-primary grow"
+                width="100%"
+                (clickOutput)="openAddFoodModal()">
         Добавить запись
       </v-button>
     }
@@ -156,68 +139,31 @@
 }
 
 <div class="h-[50vh]"
+     [class.hidden]="deviceInfoService.isDesktopScreen$$()"
      (click)="closeAllAccordions()"></div>
 
-<v-modal [config]="{
-           isOpen: foodAddModalService.currentState$$() !== ModalViewMode.CLOSED,
-           borderRadius: 3,
-           padding: 0,
-           deviceType: deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop',
-           mobileWidth: '100vw',
-           desktopWidth: 'min(100vw, 577px)'
-         }"
-         (onClose)="closeModal()">
-  @switch (foodAddModalService.currentState$$()) {
-    @case (ModalViewMode.SEARCH) {
-      <food-search />
-    }
-
-    @case (ModalViewMode.CAMERA_PREVIEW) {
-      <camera-preview />
-    }
-
-    @case (ModalViewMode.ADD_DIARY_ENTRY) {
-      <diary-entry-add-form />
-    }
-
-    @case (ModalViewMode.CREATE_NEW_PRODUCT) {
-      <catalogue-entry-edit-form />
-    }
-
-    @case (ModalViewMode.EDIT_PRODUCT) {
-      <catalogue-entry-edit-form />
-    }
-  }
-</v-modal>
-
-<v-modal [config]="{
-           isOpen: isDeleteDayConfirmOpen,
-           borderRadius: 3,
-           padding: 4,
-           deviceType: deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop',
-           mobileWidth: 'min(100vw, 320px)',
-           desktopWidth: '320px',
-         }"
-         (onClose)="closeDeleteDayConfirmationModal()">
+<v-modal [deviceType]="deviceInfoService.isMobileScreen$$() ? 'mobile' : 'desktop'"
+         [isOpen]="isDeleteDayConfirmOpen$$()"
+         mobileWidth="min(100vw, 320px)"
+         desktopWidth="320px"
+         [borderRadius]="3"
+         [padding]="4"
+         (closeOutput)="closeDeleteDayConfirmationModal()">
   <div class="flex flex-col gap-4">
-    <div class="text-3xl font-extrabold leading-tight text-center text-red-600">
+    <div class="text-3xl font-extrabold leading-tight text-center text-[color:var(--v-color-text-danger)]">
       Вы уверены, что хотите удалить все записи за этот день?
     </div>
 
     <div class="flex gap-4">
-      <v-button class="v-flat"
-                [config]="{
-                  width: '100%'
-                }"
-                (onClick)="closeDeleteDayConfirmationModal()">
+      <v-button surface="flat"
+                width="100%"
+                (clickOutput)="closeDeleteDayConfirmationModal()">
         Нет
       </v-button>
 
       <v-button class="v-danger"
-                [config]="{
-                  width: '100%'
-                }"
-                (onClick)="onDeleteDayConfirmed()">
+                width="100%"
+                (clickOutput)="onDeleteDayConfirmed()">
         Да
       </v-button>
     </div>

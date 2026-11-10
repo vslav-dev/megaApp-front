@@ -1,5 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { TimeCatalogueService } from '@app/services/time/time-catalogue.service';
 import { CategoryGroupKind, CategoryOption, CategoryOptionInput } from '@app/shared/time-types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -10,8 +9,7 @@ import { VInput } from '@ui-kit/components/v-input/v-input';
 @Component({
   selector: 'category-option-form',
   templateUrl: './category-option-form.html',
-  imports: [FormsModule, VButton, VCheckbox, VColorPicker, VInput],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VButton, VCheckbox, VColorPicker, VInput],
 })
 export class CategoryOptionForm {
   public readonly categoryOptionInput = input<CategoryOption | null>(null);
@@ -24,6 +22,8 @@ export class CategoryOptionForm {
   protected readonly color$$ = signal<string | null>(null);
   protected readonly isArchived$$ = signal(false);
 
+  private readonly timeCatalogueService = inject(TimeCatalogueService);
+
   // Color only ever affects the board: the segment's color comes from the
   // kind='area' group's selected option — a color on an option from any other
   // group is never read anywhere, so the field is pointless there.
@@ -31,7 +31,7 @@ export class CategoryOptionForm {
     () => this.timeCatalogueService.groupById$$().get(this.groupId())?.kind === CategoryGroupKind.Area,
   );
 
-  constructor(private readonly timeCatalogueService: TimeCatalogueService) {
+  public constructor() {
     effect(() => {
       const option = this.categoryOptionInput();
       if (option) {
@@ -42,7 +42,7 @@ export class CategoryOptionForm {
     });
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     if (!this.name$$()) return;
 
     const input: CategoryOptionInput = {
@@ -53,12 +53,12 @@ export class CategoryOptionForm {
     };
 
     const current = this.categoryOptionInput();
-    if (current) {
-      this.timeCatalogueService.updateCategoryOption(current.id, input);
-    } else {
-      this.timeCatalogueService.createCategoryOption(input);
+    const isSaved = current
+      ? await this.timeCatalogueService.updateCategoryOption(current.id, input)
+      : await this.timeCatalogueService.createCategoryOption(input);
+    if (isSaved) {
+      this.savedOutput.emit();
     }
-    this.savedOutput.emit();
   }
 
   protected cancel(): void {

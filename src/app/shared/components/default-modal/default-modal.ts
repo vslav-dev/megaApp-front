@@ -5,7 +5,7 @@ import { VModal } from '@ui-kit/components/v-modal/v-modal';
 
 @Component({
   selector: 'default-modal',
-  templateUrl: 'default-modal.html',
+  templateUrl: './default-modal.html',
   imports: [VButton, VModal],
 })
 export class DefaultModal {

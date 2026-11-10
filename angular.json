@@ -20,9 +20,6 @@
             "outputPath": "dist",
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": [
-              "zone.js"
-            ],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [
@@ -74,9 +71,7 @@
             "buildTarget": "megaapp:build:dev",
             "proxyConfig": "proxy.conf.json",
             "host": "0.0.0.0",
-            "allowedHosts": [
-              "lab.vslav.dev"
-            ]
+            "allowedHosts": true
           },
           "configurations": {
             "prod": {
@@ -98,22 +93,16 @@
           }
         },
         "test": {
-          "builder": "@angular/build:karma",
+          "builder": "@angular/build:unit-test",
           "options": {
-            "polyfills": [
-              "zone.js",
-              "zone.js/testing"
-            ],
+            "buildTarget": "megaapp:build:dev",
             "tsConfig": "tsconfig.spec.json",
-            "inlineStyleLanguage": "scss",
-            "assets": [
-              "src/favicon.ico",
-              "src/assets"
+            "setupFiles": [
+              "src/test-setup.ts"
             ],
-            "styles": [
-              "src/styles.scss"
-            ],
-            "scripts": []
+            "include": [
+              "**/*.spec.ts"
+            ]
           }
         }
       }

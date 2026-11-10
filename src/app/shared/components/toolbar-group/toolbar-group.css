@@ -1,0 +1,15 @@
+:host {
+  display: flex;
+  align-items: center;
+  gap: var(--unit-2);
+  border-inline: 1px solid transparent;
+  padding-inline: 0;
+  transition:
+    border-color var(--v-theme-transition-duration, 0.2s) ease,
+    padding-inline var(--v-theme-transition-duration, 0.2s) ease;
+
+  &.active {
+    border-color: var(--v-color-border-subtle);
+    padding-inline: var(--unit-2);
+  }
+}

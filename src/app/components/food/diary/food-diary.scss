@@ -4,3 +4,53 @@
     width: 100vw !important;
   }
 }
+
+.col-animated-width {
+  // Lets `width` transition to/from the browser-resolved `auto` size (first paint, before
+  // any width has been measured yet), not just between two explicit px values.
+  interpolate-size: allow-keywords;
+  transition: width var(--animation-duration-medium) ease;
+}
+
+// Day's kcal-consumed bar. Fill width is relative to a dynamic scale (see
+// dayProgressScale$$) instead of the flat 0-100 gradient used elsewhere, so it can
+// represent overflow past 100% without clipping — dashed ticks mark each absorbed
+// 100/125/150/... threshold the scale has grown past.
+.day-progress {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--gradient-bg);
+}
+
+.day-progress-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0%;
+  background-color: var(--gradient-color);
+}
+
+.day-progress-label {
+  position: relative;
+}
+
+.day-progress-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0%;
+  width: 0;
+  border-left: 1px dashed var(--v-outline-hover-light);
+  pointer-events: none;
+}
+
+.day-progress-tick-label {
+  position: absolute;
+  bottom: 0;
+  right: 2px;
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--v-outline-hover);
+}

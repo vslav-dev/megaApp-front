@@ -1,61 +1,70 @@
-import { AfterViewInit, Component, effect, inject, viewChild } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AfterViewInit,
+  Component,
+  computed,
+  inject,
+  OnDestroy,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { form, FormField, FormRoot, required, validate } from '@angular/forms/signals';
 import { FoodAddModalService } from '@app/services/food/food-add-modal.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
-import { FoodPersonalKcalsService } from '@app/services/food/food-personal-kcals.service';
 import { FoodStatsService } from '@app/services/food/food-stats.service';
+import { evaluateWholeAmount, isEmptyOrPositiveWholeAmount } from '@app/shared/amount-expression';
 import { DiaryEntry, HistoryEntryAction } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { VInput } from '@ui-kit/components/v-input/v-input';
+import { VRollingNumber } from '@ui-kit/components/v-rolling-number/v-rolling-number';
 import { UiProgressIcon } from '@ui-kit/progress-icon/progress-icon.component';
 
 @Component({
   selector: 'diary-entry-add-form',
   templateUrl: './diary-entry-add-form.html',
-  imports: [ReactiveFormsModule, UiProgressIcon, VButton, VIcon, VInput],
+  imports: [FormField, FormRoot, UiProgressIcon, VButton, VIcon, VInput, VRollingNumber],
 })
-export class DiaryEntryAddForm implements AfterViewInit {
+export class DiaryEntryAddForm implements AfterViewInit, OnDestroy {
   protected readonly Icon = IconName;
 
-  private selectedDaysTargerKcals = 0;
-  private selectedDaysConsumedPercent = 0;
-  private selectedFoodPersonalKcalsPer100g = 0;
-  protected projectedSelectedDaysConsumedPercentNum = 0;
-  protected projectedSelectedDaysConsumedPercentPadded = '0';
+  // Mirrors the day's kcal-percent counter shown everywhere else (top bar, nutrition-summary) —
+  // draft-aware via FoodDiaryService.setDraftEntryWeight, so this and the top bar are always the
+  // same number, and it's already the exact figure the server will confirm on save.
+  protected readonly projectedSelectedDaysConsumedPercentNum$$ = computed(
+    () => this.foodDiaryService.selectedDayTotals$$().kcalsPercent,
+  );
+  protected readonly projectedSelectedDaysConsumedPercentPadded$$ = computed(() =>
+    this.projectedSelectedDaysConsumedPercentNum$$().toFixed(1),
+  );
+  protected readonly projectedSelectedDaysConsumedPercentDisplay$$ = computed(
+    () => `${this.projectedSelectedDaysConsumedPercentPadded$$()}%`,
+  );
+
+  protected readonly isProductArchived$$ = computed(() =>
+    Boolean(this.foodAddModalService.selectedProduct$$()?.archived),
+  );
 
   protected readonly foodWeightInput = viewChild.required(VInput);
 
   protected readonly foodCatalogueService = inject(FoodCatalogueService);
   protected readonly foodAddModalService = inject(FoodAddModalService);
   private readonly foodDiaryService = inject(FoodDiaryService);
-  private readonly foodPersonalKcalsService = inject(FoodPersonalKcalsService);
   private readonly foodStatsService = inject(FoodStatsService);
 
-  private readonly selectedDayTotalsEffect$$ = effect(() => {
-    const totals = this.foodDiaryService.selectedDayTotals$$();
-    this.selectedDaysTargerKcals = totals.targetKcals;
-    this.selectedDaysConsumedPercent = totals.kcalsPercent;
-    this.updateProjectedDaysConsumedPercent(0);
-  });
+  // Raw text: a number or an expression like "80*2" — evaluated by evaluateWholeAmount.
+  private readonly entry$$ = signal({ foodWeight: '' });
 
-  private readonly selectedProductEffect$$ = effect(() => {
-    const product = this.foodAddModalService.selectedProduct$$();
-    if (!product) return;
-
-    this.selectedFoodPersonalKcalsPer100g =
-      this.foodPersonalKcalsService.personalKcals$$()?.[product.id] ?? product.kcals;
-    this.updateProjectedDaysConsumedPercent(this.foodWeightControl.value || 0);
-  });
-
-  protected diaryEntryForm: FormGroup = new FormGroup({
-    foodWeight: new FormControl<number | null>(null, [Validators.required, Validators.pattern(/^\d+$/)]),
-  });
-
-  protected get foodWeightControl() {
-    return this.diaryEntryForm.get('foodWeight') as FormControl<number | null>;
-  }
+  protected readonly diaryEntryForm = form(
+    this.entry$$,
+    (path) => {
+      required(path.foodWeight);
+      validate(path.foodWeight, ({ value }) =>
+        isEmptyOrPositiveWholeAmount(value()) ? undefined : { kind: 'weightExpression' },
+      );
+    },
+    { submission: { action: () => this.submitForm() } },
+  );
 
   public ngAfterViewInit(): void {
     setTimeout(() => {
@@ -63,38 +72,25 @@ export class DiaryEntryAddForm implements AfterViewInit {
     }, 100);
   }
 
-  protected isFormValid(): boolean {
-    return this.diaryEntryForm.valid;
+  public ngOnDestroy(): void {
+    this.foodDiaryService.clearDraftEntryWeight(null);
   }
 
   protected onFoodWeightInput(): void {
-    const weightValue = Number(this.foodWeightControl.value) || 0;
-    this.updateProjectedDaysConsumedPercent(weightValue);
-  }
-
-  private updateProjectedDaysConsumedPercent(weightValue: number): void {
-    if (!this.selectedFoodPersonalKcalsPer100g) {
-      this.projectedSelectedDaysConsumedPercentNum = this.selectedDaysConsumedPercent;
-      this.projectedSelectedDaysConsumedPercentPadded = this.selectedDaysConsumedPercent.toFixed(1);
-      return;
-    }
-
-    if (this.selectedDaysTargerKcals) {
-      const weightKcalsTotal = (weightValue / 100) * this.selectedFoodPersonalKcalsPer100g;
-
-      const deltaInPercent = (weightKcalsTotal / this.selectedDaysTargerKcals) * 100;
-      const totalPercent = this.selectedDaysConsumedPercent + deltaInPercent;
-
-      this.projectedSelectedDaysConsumedPercentNum = totalPercent;
-      this.projectedSelectedDaysConsumedPercentPadded = totalPercent.toFixed(1);
+    const weight = evaluateWholeAmount(this.diaryEntryForm.foodWeight().value()) ?? 0;
+    const product = this.foodAddModalService.selectedProduct$$();
+    if (product && weight > 0) {
+      this.foodDiaryService.setDraftEntryWeight(this.foodDiaryService.selectedDayIso$$(), null, product.id, weight);
+    } else {
+      this.foodDiaryService.clearDraftEntryWeight(null);
     }
   }
 
-  protected async submitForm(): Promise<void> {
-    if (!this.diaryEntryForm.valid) return;
+  // The form's submission action: runs only for a valid form, with diaryEntryForm().submitting() true meanwhile.
+  private async submitForm(): Promise<void> {
+    if (this.isProductArchived$$()) return;
 
-    this.diaryEntryForm.disable();
-    const { foodWeight } = this.diaryEntryForm.value;
+    const foodWeight = evaluateWholeAmount(this.diaryEntryForm.foodWeight().value()) ?? 0;
     const product = this.foodAddModalService.selectedProduct$$();
     if (!product) return;
 
@@ -102,18 +98,20 @@ export class DiaryEntryAddForm implements AfterViewInit {
       id: 0,
       dateISO: this.foodDiaryService.selectedDayIso$$(),
       foodCatalogueId: product.id,
-      foodWeight: Number(foodWeight) || 0,
+      foodWeight,
       kcals: 0,
-      history: [{ action: HistoryEntryAction.INIT, value: Number(foodWeight) || 0 }],
+      history: [{ action: HistoryEntryAction.INIT, value: foodWeight }],
     };
 
-    const response = await this.foodDiaryService.createDiaryEntry(entry);
+    const response = await this.foodDiaryService.createDiaryEntry(
+      entry,
+      this.foodAddModalService.selectedProductQuery$$(),
+    );
+    this.foodDiaryService.clearDraftEntryWeight(null);
 
     if (response?.result && response.diaryId) {
       this.foodAddModalService.submitSuccess();
     }
-
-    this.diaryEntryForm.enable();
   }
 
   protected goBack(): void {

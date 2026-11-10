@@ -1,12 +1,10 @@
-<v-card [config]="{
-          padding: 4,
-          borderRadius: 2,
-        }">
+<v-card [padding]="4"
+        [borderRadius]="2">
   <div class="flex items-center justify-between mb-4">
     <div class="text-lg font-semibold">Categories</div>
-    <v-button class="v-flat"
-              [config]="{ paddingY: 1 }"
-              (onClick)="showCreateGroupForm()">
+    <v-button surface="flat"
+              [paddingY]="1"
+              (clickOutput)="showCreateGroupForm()">
       <v-icon v-prefix
               [name]="Icon.Add"
               [size]="6"></v-icon>
@@ -14,14 +12,8 @@
     </v-button>
   </div>
 
-  @if (groups$$().length === 0) {
-    <div class="opacity-70 py-4 text-sm text-center">
-      No groups yet.
-    </div>
-  }
-
   @for (group of groups$$(); track group.id) {
-    <div class="last:border-b-0 py-2 border-b border-[color:var(--v-outline-color)]">
+    <div class="last:border-b-0 py-2 border-b border-[color:var(--v-color-border-subtle)]">
       <div class="group relative flex items-center">
         <div class="flex-1"
              [class.opacity-50]="group.isArchived">
@@ -29,25 +21,28 @@
         </div>
 
         <div class="hover-actions">
-          <v-button class="v-flat"
-                    [config]="{ isLabelHidden: true, padding: iconButton.padding }"
-                    (onClick)="showCreateOptionForm(group.id)">
+          <v-button surface="flat"
+                    [isLabelHidden]="true"
+                    [padding]="iconButton.padding"
+                    (clickOutput)="showCreateOptionForm(group.id)">
             <v-icon v-prefix
                     [name]="Icon.Add"
                     [size]="iconButton.size"></v-icon>
           </v-button>
 
-          <v-button class="v-flat"
-                    [config]="{ isLabelHidden: true, padding: iconButton.padding }"
-                    (onClick)="editGroup(group)">
+          <v-button surface="flat"
+                    [isLabelHidden]="true"
+                    [padding]="iconButton.padding"
+                    (clickOutput)="editGroup(group)">
             <v-icon v-prefix
                     [name]="Icon.Edit"
                     [size]="iconButton.size"></v-icon>
           </v-button>
 
           <v-button class="v-danger"
-                    [config]="{ isLabelHidden: true, padding: iconButton.padding }"
-                    (onClick)="deleteGroup(group.id)">
+                    [isLabelHidden]="true"
+                    [padding]="iconButton.padding"
+                    (clickOutput)="deleteGroup(group.id)">
             <v-icon v-prefix
                     [name]="Icon.Delete"
                     [size]="iconButton.size"></v-icon>
@@ -55,9 +50,10 @@
         </div>
       </div>
 
-      @if (optionsForGroup(group.id).length > 0) {
+      @let groupOptions = optionsForGroup(group.id);
+      @if (groupOptions.length > 0) {
         <div class="flex flex-col gap-1.5 mt-2 pl-4">
-          @for (option of optionsForGroup(group.id); track option.id) {
+          @for (option of groupOptions; track option.id) {
             <div class="group relative flex items-center">
               <div class="flex items-center flex-1 gap-2"
                    [class.opacity-50]="option.isArchived">
@@ -69,17 +65,19 @@
               </div>
 
               <div class="hover-actions">
-                <v-button class="v-flat"
-                          [config]="{ isLabelHidden: true, padding: iconButton.padding }"
-                          (onClick)="editOption(option)">
+                <v-button surface="flat"
+                          [isLabelHidden]="true"
+                          [padding]="iconButton.padding"
+                          (clickOutput)="editOption(option)">
                   <v-icon v-prefix
                           [name]="Icon.Edit"
                           [size]="iconButton.size"></v-icon>
                 </v-button>
 
                 <v-button class="v-danger"
-                          [config]="{ isLabelHidden: true, padding: iconButton.padding }"
-                          (onClick)="deleteOption(option.id)">
+                          [isLabelHidden]="true"
+                          [padding]="iconButton.padding"
+                          (clickOutput)="deleteOption(option.id)">
                   <v-icon v-prefix
                           [name]="Icon.Delete"
                           [size]="iconButton.size"></v-icon>
@@ -89,6 +87,10 @@
           }
         </div>
       }
+    </div>
+  } @empty {
+    <div class="opacity-70 py-4 text-sm text-center">
+      No groups yet.
     </div>
   }
 </v-card>

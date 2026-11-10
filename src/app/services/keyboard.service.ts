@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Service } from '@angular/core';
 import { fromEvent, Observable } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
@@ -14,9 +14,7 @@ export interface KeyboardShortcut {
   when?: () => boolean;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class KeyboardService {
   private readonly keyboardEvents$ = fromEvent<KeyboardEvent>(document, 'keydown');
 

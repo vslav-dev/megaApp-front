@@ -1,5 +1,22 @@
 @use 'tw-colors';
 
+// Registered as typed <color> custom properties so their OWN value is what animates
+// (background-image/linear-gradient has "discrete" animation type per spec — a transition
+// on background/background-image never crossfades a gradient, it just snaps). Once the
+// variables themselves are registered, everything that reads them via var() — including
+// inside a linear-gradient() — repaints with the interpolated value on every frame.
+@property --gradient-color {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #C7D2FE;
+}
+
+@property --gradient-bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff00;
+}
+
 :root {
   // orginizing fonts by tailwind
   --fonts-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
@@ -10,6 +27,12 @@
   --gradient-color: #C7D2FE; // indigo-200
   // --gradient-color: #cbd5e1; //slate-300
   --gradient-bg: #ffffff00;
+
+  // Same shared window as every other theme-color transition in the app (see vars.css) —
+  // 0s outside the toggle window, SettingsService.applyThemeAnimated's duration during it.
+  transition:
+    --gradient-color var(--v-theme-transition-duration, 0s),
+    --gradient-bg var(--v-theme-transition-duration, 0s);
 
   interpolate-size: allow-keywords;
 }

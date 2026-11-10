@@ -1,16 +1,12 @@
 <div>
 
-  <v-card [config]="{
-            padding: 4,
-            borderRadius: 2,
-          }">
+  <v-card [borderRadius]="2"
+          [padding]="4">
     <div class="flex items-center justify-between mb-4">
       <div class="text-lg font-semibold">Organizations</div>
-      <v-button class="v-flat"
-                [config]="{
-                  paddingY: 1,
-                }"
-                (onClick)="showCreateForm()">
+      <v-button surface="flat"
+                [paddingY]="1"
+                (clickOutput)="showCreateForm()">
         <v-icon v-prefix
                 [name]="Icon.Add"
                 [size]="6"></v-icon>
@@ -18,52 +14,46 @@
       </v-button>
     </div>
 
-    @if (organizations$$().length === 0) {
-      <div class="opacity-70 py-8 text-center">
-        No organizations found.
-      </div>
-    }
-
     @for (organization of organizations$$(); track organization.id) {
-      <div class="last:border-b-0 py-4 border-b border-[color:var(--v-outline-color)]">
+      <div class="last:border-b-0 py-4 border-b border-[color:var(--v-color-border-subtle)]">
         <div class="flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3 flex-1">
+          <div class="flex items-center flex-1 gap-3">
             @if (getLogoSrc(organization.logoBase64); as src) {
               <img [src]="src"
-                   class="w-8 h-8 rounded object-contain"
+                   class="object-contain w-8 h-8 rounded"
                    alt="">
             } @else {
-              <div class="w-8 h-8 rounded bg-[color:var(--v-outline-color)] opacity-30"></div>
+              <div class="w-8 h-8 rounded bg-[color:var(--v-color-border-subtle)] opacity-30"></div>
             }
 
             <span class="font-semibold">{{ organization.title }}</span>
           </div>
 
           <div class="flex gap-2">
-            <v-button class="v-flat"
-                      [config]="{
-                        isLabelHidden: true,
-                        padding: iconButton.padding,
-                      }"
-                      (onClick)="editOrganization(organization)">
+            <v-button surface="flat"
+                      [isLabelHidden]="true"
+                      [padding]="iconButton.padding"
+                      (clickOutput)="editOrganization(organization)">
               <v-icon v-prefix
                       [name]="Icon.Edit"
                       [size]="iconButton.size"></v-icon>
             </v-button>
 
             <v-button class="v-danger"
-                      [config]="{
-                        isLabelHidden: true,
-                        padding: iconButton.padding,
-                        isDisabled: !canDeleteOrganization(organization.id!),
-                      }"
-                      (onClick)="deleteOrganization(organization.id!)">
+                      [isDisabled]="!canDeleteOrganization(organization.id!)"
+                      [isLabelHidden]="true"
+                      [padding]="iconButton.padding"
+                      (clickOutput)="deleteOrganization(organization.id!)">
               <v-icon v-prefix
                       [name]="Icon.Delete"
                       [size]="iconButton.size"></v-icon>
             </v-button>
           </div>
         </div>
+      </div>
+    } @empty {
+      <div class="opacity-70 py-8 text-center">
+        No organizations found.
       </div>
     }
   </v-card>

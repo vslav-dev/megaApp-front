@@ -1,53 +1,54 @@
 <div class="mb-4 text-lg font-semibold">{{ isEditing() ? 'Edit group' : 'New group' }}</div>
 
 <div class="flex flex-col gap-4">
-  <v-input [config]="{
-               label: 'Name',
-               placeholder: 'Source',
-               type: 'text',
-             }"
-           [ngModel]="name$$()"
-           (ngModelChange)="name$$.set($event)" />
+  <v-input type="text"
+           label="Name"
+           placeholder="Source"
+           [(value)]="name$$" />
 
   <div class="flex items-center gap-2">
-    <v-checkbox [config]="{ mode: 'switch', labelPosition: 'right', isDisabled: isAreaToggleDisabled$$() }"
-                [value]="isArea$$()"
-                (valueChange)="isArea$$.set($event)">
+    <v-checkbox mode="switch"
+                labelPosition="right"
+                [isDisabled]="isAreaToggleDisabled$$()"
+                [(value)]="isArea$$">
       Area group (for main stats and color) — only one allowed at a time
     </v-checkbox>
 
     @if (isAreaToggleDisabled$$()) {
-      <v-tooltip [text]="areaBlockedTooltip$$()">
+      <v-tooltip>
         <v-icon [name]="Icon.Info"
                 [size]="4" />
+        <span v-panel>{{ areaBlockedTooltip$$() }}</span>
       </v-tooltip>
     }
   </div>
 
   <div class="flex items-center gap-2">
-    <v-checkbox [config]="{ mode: 'switch', labelPosition: 'right', isDisabled: isArchiveToggleDisabled$$() }"
-                [value]="isArchived$$()"
-                (valueChange)="isArchived$$.set($event)">
+    <v-checkbox mode="switch"
+                labelPosition="right"
+                [isDisabled]="isArchiveToggleDisabled$$()"
+                [(value)]="isArchived$$">
       Archived
     </v-checkbox>
 
     @if (isArchiveToggleDisabled$$()) {
-      <v-tooltip [text]="archiveBlockedTooltip$$()">
+      <v-tooltip>
         <v-icon [name]="Icon.Info"
                 [size]="4" />
+        <span v-panel>{{ archiveBlockedTooltip$$() }}</span>
       </v-tooltip>
     }
   </div>
 
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
-              [config]="{ isDisabled: !name$$() }"
-              (onClick)="save()">
+              [isDisabled]="!name$$()"
+              (clickOutput)="save()">
       {{ isEditing() ? 'Save' : 'Create' }}
     </v-button>
 
-    <v-button class="v-flat"
-              (onClick)="cancel()">
+    <v-button surface="flat"
+              (clickOutput)="cancel()">
       Cancel
     </v-button>
   </div>

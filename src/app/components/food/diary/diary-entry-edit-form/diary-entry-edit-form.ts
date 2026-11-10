@@ -1,32 +1,32 @@
-import { Component, computed, effect, EventEmitter, inject, Input, OnChanges, Output, viewChild } from '@angular/core';
 import {
-  AbstractControl,
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  ValidationErrors,
-  ValidatorFn,
-  Validators,
-} from '@angular/forms';
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  OnDestroy,
+  output,
+  signal,
+  viewChild,
+  WritableSignal,
+} from '@angular/core';
+import { form, FormField, FormRoot, validate } from '@angular/forms/signals';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
-import { FoodPersonalKcalsService } from '@app/services/food/food-personal-kcals.service';
+import { evaluateWholeAmount, isEmptyOrPositiveWholeAmount } from '@app/shared/amount-expression';
 import { DiaryEntry, HistoryEntry, HistoryEntryAction } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VExpand } from '@ui-kit/components/v-expand/v-expand';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { VInput } from '@ui-kit/components/v-input/v-input';
 import { VModal } from '@ui-kit/components/v-modal/v-modal';
+import { VRollingNumber } from '@ui-kit/components/v-rolling-number/v-rolling-number';
 import { UiProgressIcon } from '@ui-kit/progress-icon/progress-icon.component';
-import { DiaryEntryProductInfo } from '../diary-entry-product-info/diary-entry-product-info';
-import { NutritionSummary } from '../nutrition-summary/nutrition-summary';
+import { DiaryEntryProductInfo } from '@app/components/food/diary/diary-entry-product-info/diary-entry-product-info';
+import { NutritionSummary } from '@app/components/food/diary/nutrition-summary/nutrition-summary';
 
-interface DiaryEntryFormModel {
-  id: FormControl<number>;
-  foodWeightNew: FormControl<string | null>;
-  foodWeightChange: FormControl<string | null>;
-}
+const EMPTY_WEIGHTS = { foodWeightNew: '', foodWeightChange: '' };
 
 @Component({
   selector: 'diary-entry-edit-form',
@@ -35,23 +35,24 @@ interface DiaryEntryFormModel {
     style: 'display: flex; flex-direction: column;',
   },
   imports: [
-    ReactiveFormsModule,
+    FormField,
+    FormRoot,
     UiProgressIcon,
     VButton,
     VIcon,
     VExpand,
     VInput,
     VModal,
+    VRollingNumber,
     DiaryEntryProductInfo,
     NutritionSummary,
   ],
 })
-export class DiaryEntryEditForm implements OnChanges {
-  @Input()
-  public diaryEntry!: DiaryEntry;
+export class DiaryEntryEditForm implements OnDestroy {
+  public readonly diaryEntryInput = input.required<DiaryEntry>();
 
-  @Output()
-  public onServerSuccessfullEditResponse = new EventEmitter<void>();
+  // Fires after the entry was saved or deleted on the server.
+  public readonly entryChangedOutput = output<void>();
 
   protected readonly foodWeightNewElem = viewChild.required<VInput>('foodWeightNewElem');
   protected readonly foodWeightChangeElem = viewChild.required<VInput>('foodWeightChangeElem');
@@ -59,18 +60,39 @@ export class DiaryEntryEditForm implements OnChanges {
   protected readonly chartsPanelElem = viewChild.required<VExpand>('chartsPanelElem');
   protected readonly historyPanelElem = viewChild.required<VExpand>('historyPanelElem');
 
-  protected isDeleteConfirmOpen = false;
-  protected disablePanelsAnimationTemporarily = false;
+  protected readonly isDeleteConfirmOpen$$ = signal(false);
+  protected readonly isDeleting$$ = signal(false);
+  protected readonly disablePanelsAnimationTemporarily$$ = signal(false);
   private historyAction: HistoryEntryAction = HistoryEntryAction.SET;
 
-  private selectedDaysTargerKcals = 0;
-  private selectedDaysConsumedPercent = 0;
-  private selectedFoodPersonalKcalsPer100g = 0;
-  protected projectedSelectedDaysConsumedPercentNum = 0;
-  protected projectedSelectedDaysConsumedPercentPadded = '0';
+  // Compared by value, so effects that depend on it ignore background refreshes of the entry.
+  private readonly diaryEntryId$$ = computed(() => this.diaryEntryInput().id);
 
-  protected foodWeightInitial: number = 0;
-  protected foodWeightFinal: number = 0;
+  // Base data from the server — legitimately refreshed by any background reload, in-progress
+  // draft below is never touched by it, only by the user's own input/reset/submit.
+  private readonly foodWeightInitial$$ = computed(() => this.diaryEntryInput().foodWeight);
+
+  // The user's in-progress, unsubmitted draft — set only from onNewWeightInput/onChangeWeightInput
+  // and the reset handlers below, mutually exclusive (setting one clears the other). Both hold
+  // the evaluated number, null while the input is empty or not yet a valid expression.
+  private readonly foodWeightDraftNew$$: WritableSignal<number | null> = signal(null);
+  private readonly foodWeightDraftChange$$: WritableSignal<number | null> = signal(null);
+
+  protected readonly foodWeightFinal$$ = computed(() => this.computeFoodWeightFinal());
+  protected readonly foodWeightFinalDisplay$$ = computed(() => `${this.foodWeightFinal$$()}г.`);
+
+  // Mirrors the day's kcal-percent counter shown everywhere else (top bar, nutrition-summary) —
+  // draft-aware via FoodDiaryService.setDraftEntryWeight, so this and the top bar are always the
+  // same number, and it's already the exact figure the server will confirm on save.
+  protected readonly projectedSelectedDaysConsumedPercentNum$$ = computed(
+    () => this.foodDiaryService.selectedDayTotals$$().kcalsPercent,
+  );
+  protected readonly projectedSelectedDaysConsumedPercentPadded$$ = computed(() =>
+    this.projectedSelectedDaysConsumedPercentNum$$().toFixed(1),
+  );
+  protected readonly projectedSelectedDaysConsumedPercentDisplay$$ = computed(
+    () => `${this.projectedSelectedDaysConsumedPercentPadded$$()}%`,
+  );
 
   protected readonly Icon = IconName;
 
@@ -82,226 +104,148 @@ export class DiaryEntryEditForm implements OnChanges {
     );
   });
 
-  private newWeightPattern = /^(?!0+$)\d+$/; // Digits only, but not zero
-  private editWeightPattern = /^[-+]?\d*$/; // Digits only with or without a plus or a minus
+  private readonly weights$$ = signal({ ...EMPTY_WEIGHTS });
 
-  private positiveResultValidator(): ValidatorFn {
-    return (control: AbstractControl): ValidationErrors | null => {
-      if (!control.value) return null;
-      const rawValue = String(control.value);
-      if (rawValue === '-' || rawValue === '+') return null;
+  // Both inputs take a number or an expression like "80*2" (see evaluateWholeAmount); empty is valid.
+  protected readonly diaryEntryForm = form(
+    this.weights$$,
+    (path) => {
+      validate(path.foodWeightNew, ({ value }) =>
+        isEmptyOrPositiveWholeAmount(value()) ? undefined : { kind: 'weightExpression' },
+      );
+      validate(path.foodWeightChange, ({ value }) => {
+        if (!value()) return undefined;
 
-      const changeValue = parseInt(rawValue);
-      if (!Number.isFinite(changeValue)) return null;
+        const changeValue = evaluateWholeAmount(value());
+        if (changeValue === null) return { kind: 'weightExpression' };
 
-      const newWeight = this.foodWeightInitial + changeValue;
-      return newWeight > 0 ? null : { negativeResult: true };
-    };
-  }
+        return this.foodWeightInitial$$() + changeValue > 0 ? undefined : { kind: 'negativeResult' };
+      });
+    },
+    { submission: { action: () => this.onSubmit() } },
+  );
 
-  protected diaryEntryForm = new FormGroup<DiaryEntryFormModel>({
-    id: new FormControl(0, { nonNullable: true }),
-    foodWeightNew: new FormControl<string | null>(null, [Validators.pattern(this.newWeightPattern)]),
-    foodWeightChange: new FormControl<string | null>(null, [
-      Validators.pattern(this.editWeightPattern),
-      this.positiveResultValidator(),
-    ]),
-  });
+  // The template shows the reset buttons and the "г." suffix while an input has text.
+  protected readonly hasNewWeight$$ = computed(() => this.diaryEntryForm.foodWeightNew().value() !== '');
+  protected readonly hasChangeWeight$$ = computed(() => this.diaryEntryForm.foodWeightChange().value() !== '');
 
-  protected get foodWeightNewControl() {
-    return this.diaryEntryForm.controls.foodWeightNew;
-  }
-  protected get foodWeightChangeControl() {
-    return this.diaryEntryForm.controls.foodWeightChange;
-  }
-
-  private inputFocusEffect$$ = effect(() => {
+  private readonly inputFocusEffect$$ = effect(() => {
     const focusId = this.foodDiaryService.diaryEntryFocusId$$();
-    if (focusId === this.diaryEntryForm.value.id) {
+    if (focusId === this.diaryEntryId$$()) {
       setTimeout(() => {
         this.foodWeightChangeElem().focus();
       }, 100); // Waiting for the panel animation to finish, otherwise there's a jitter
     }
   });
 
-  private formResetEffect$$ = effect(() => {
+  private readonly formResetEffect$$ = effect(() => {
     const resetId = this.foodDiaryService.diaryEntryResetId$$();
     setTimeout(() => {
-      if (resetId === this.diaryEntryForm.value.id) {
+      if (resetId === this.diaryEntryId$$()) {
         this.resetForm();
         this.closePanels();
       }
     }, 50); // Waiting for the panel to close, otherwise the reset is visually janky
   });
 
-  private totalsUpdateEffect$$ = effect(() => {
-    const totals = this.foodDiaryService.selectedDayTotals$$();
-    this.selectedDaysConsumedPercent = totals.kcalsPercent;
-    this.selectedDaysTargerKcals = totals.targetKcals;
-    this.selectedFoodPersonalKcalsPer100g =
-      this.foodPersonalKcalsService.personalKcals$$()?.[this.diaryEntry.foodCatalogueId] ??
-      this.foodCatalogueService.catalogue$$()?.[this.diaryEntry.foodCatalogueId]?.kcals ??
-      0;
-    this.updateProjectedDaysConsumedPercent();
-  });
-
   protected get selectedFoodName() {
-    return this.foodCatalogueService.catalogue$$()?.[this.diaryEntry.foodCatalogueId]?.name;
+    return this.foodCatalogueService.catalogue$$()?.[this.diaryEntryInput().foodCatalogueId]?.name;
   }
 
   protected readonly deviceInfoService = inject(DeviceInfoService);
   private readonly foodDiaryService = inject(FoodDiaryService);
   private readonly foodCatalogueService = inject(FoodCatalogueService);
-  private readonly foodPersonalKcalsService = inject(FoodPersonalKcalsService);
 
-  public ngOnChanges(): void {
-    if (this.diaryEntry) {
-      this.diaryEntryForm.patchValue({
-        id: this.diaryEntry.id,
-      });
-      this.foodWeightInitial = this.diaryEntry.foodWeight;
-      this.foodWeightFinal = this.diaryEntry.foodWeight;
-
-      setTimeout(() => {
-        this.updateProjectedDaysConsumedPercent();
-      }, 0);
-    }
+  public ngOnDestroy(): void {
+    this.foodDiaryService.clearDraftEntryWeight(this.diaryEntryId$$());
   }
 
   protected isFormValid(): boolean {
-    if (!this.diaryEntryForm.valid) return false;
-    if (this.foodWeightNewControl.value === '') return false;
-    if (this.foodWeightChangeControl.value === '') return false;
+    if (this.diaryEntryForm().invalid() || this.diaryEntryForm().submitting() || this.isDeleting$$()) return false;
 
-    const weightIfNew = this.foodWeightNewControl.value;
-    const weightIfChange = this.foodWeightChangeControl.value;
-
-    const nextWeightIfNew = weightIfNew !== null ? parseInt(weightIfNew) : null;
-    const nextWeightIfChange = weightIfChange !== null ? parseInt(weightIfChange) : null;
+    const nextWeightIfNew = evaluateWholeAmount(this.diaryEntryForm.foodWeightNew().value());
+    const nextWeightIfChange = evaluateWholeAmount(this.diaryEntryForm.foodWeightChange().value());
 
     const hasValidChange =
-      (nextWeightIfNew !== null && Number.isFinite(nextWeightIfNew) && this.foodWeightInitial !== nextWeightIfNew) ||
-      (nextWeightIfChange !== null && Number.isFinite(nextWeightIfChange) && nextWeightIfChange !== 0);
+      (nextWeightIfNew !== null && this.foodWeightInitial$$() !== nextWeightIfNew) ||
+      (nextWeightIfChange !== null && nextWeightIfChange !== 0);
 
-    return hasValidChange && this.foodWeightFinal > 0;
+    return hasValidChange && this.foodWeightFinal$$() > 0;
   }
 
   protected onNewWeightInput() {
-    this.foodWeightChangeControl.setValue(null);
-    const newWeight = this.diaryEntryForm.controls.foodWeightNew.value;
+    this.diaryEntryForm.foodWeightChange().value.set('');
+    this.foodWeightDraftChange$$.set(null);
 
-    if (this.newWeightPattern.test(String(newWeight))) {
-      this.foodWeightFinal = parseInt(String(newWeight));
-    } else {
-      this.foodWeightFinal = this.foodWeightInitial;
-    }
-
-    this.updateProjectedDaysConsumedPercent();
+    const newWeight = evaluateWholeAmount(this.diaryEntryForm.foodWeightNew().value());
+    this.foodWeightDraftNew$$.set(newWeight !== null && newWeight > 0 ? newWeight : null);
+    this.syncDraftWithService();
   }
 
   protected onWeightNewResetClick(): void {
-    this.foodWeightNewControl.setValue(null);
-    this.foodWeightFinal = this.foodWeightInitial;
-    this.updateProjectedDaysConsumedPercent();
+    this.diaryEntryForm.foodWeightNew().value.set('');
+    this.foodWeightDraftNew$$.set(null);
+    this.syncDraftWithService();
   }
 
   protected onChangeWeightInput() {
-    this.diaryEntryForm.controls.foodWeightNew.setValue(null);
-    const foodWeightChangeStr = String(this.foodWeightChangeControl.value);
-    if (
-      foodWeightChangeStr === 'null' ||
-      foodWeightChangeStr === '' ||
-      foodWeightChangeStr === '-' ||
-      foodWeightChangeStr === '+'
-    ) {
-      // Intermediate input state: reset projection to avoid showing stale calculated result.
-      this.foodWeightFinal = this.foodWeightInitial;
-      this.updateProjectedDaysConsumedPercent();
-      return;
-    }
-
-    const foodWeightChangeInt = parseInt(foodWeightChangeStr);
-    if (!Number.isFinite(foodWeightChangeInt)) {
-      // Invalid numeric input: fall back to initial weight to keep UI consistent.
-      this.foodWeightFinal = this.foodWeightInitial;
-      this.updateProjectedDaysConsumedPercent();
-      return;
-    }
-
-    if (this.editWeightPattern.test(foodWeightChangeStr)) {
-      const newWeight = this.foodWeightInitial + foodWeightChangeInt;
-      if (newWeight > 0) {
-        this.foodWeightFinal = newWeight;
-      } else {
-        // Prevent non-positive result.
-        this.foodWeightFinal = 0;
-      }
-    } else {
-      // Pattern mismatch: do not apply delta.
-      this.foodWeightFinal = this.foodWeightInitial;
-    }
-
-    this.updateProjectedDaysConsumedPercent();
+    this.diaryEntryForm.foodWeightNew().value.set('');
+    this.foodWeightDraftNew$$.set(null);
+    this.foodWeightDraftChange$$.set(evaluateWholeAmount(this.diaryEntryForm.foodWeightChange().value()));
+    this.syncDraftWithService();
   }
 
   protected onWeightChangeResetClick(): void {
-    this.foodWeightChangeControl.setValue(null);
-    this.foodWeightFinal = this.foodWeightInitial;
-    this.updateProjectedDaysConsumedPercent();
+    this.diaryEntryForm.foodWeightChange().value.set('');
+    this.foodWeightDraftChange$$.set(null);
+    this.syncDraftWithService();
   }
 
-  public async onSubmit(): Promise<void> {
-    const weightIfChangeRaw = this.foodWeightChangeControl.value;
-    const weightIfSetRaw = this.diaryEntryForm.controls.foodWeightNew.value;
+  // The form's submission action.
+  private async onSubmit(): Promise<void> {
+    const weightIfChange = evaluateWholeAmount(this.diaryEntryForm.foodWeightChange().value());
+    const weightIfSet = evaluateWholeAmount(this.diaryEntryForm.foodWeightNew().value());
 
-    const weightIfChangeParsed = weightIfChangeRaw !== null ? parseInt(weightIfChangeRaw) : null;
-    const weightIfSetParsed = weightIfSetRaw !== null ? parseInt(weightIfSetRaw) : null;
-
-    const weightIfChange =
-      weightIfChangeParsed !== null && Number.isFinite(weightIfChangeParsed) ? weightIfChangeParsed : null;
-    const weightIfSet = weightIfSetParsed !== null && Number.isFinite(weightIfSetParsed) ? weightIfSetParsed : null;
-
-    const foodWeight = weightIfChange ?? (weightIfSet !== null ? weightIfSet - this.foodWeightInitial : 0);
+    const foodWeight = weightIfChange ?? (weightIfSet !== null ? weightIfSet - this.foodWeightInitial$$() : 0);
 
     const historyValue = weightIfChange !== null ? Math.abs(foodWeight) : (weightIfSet ?? 0);
 
     if (weightIfChange === null) {
       this.historyAction = HistoryEntryAction.SET;
     } else {
-      this.historyAction = weightIfChangeRaw!.includes('-') ? HistoryEntryAction.SUBTRACT : HistoryEntryAction.ADD;
+      this.historyAction = weightIfChange < 0 ? HistoryEntryAction.SUBTRACT : HistoryEntryAction.ADD;
     }
 
     const history: HistoryEntry = { action: this.historyAction, value: historyValue };
-    this.diaryEntryForm.disable();
     this.foodWeightNewElem().blur();
     this.foodWeightChangeElem().blur();
 
     const preppedFormValues: DiaryEntry = {
-      id: this.diaryEntryForm.getRawValue().id,
+      id: this.diaryEntryId$$(),
       dateISO: this.foodDiaryService.selectedDayIso$$(),
-      foodCatalogueId: this.diaryEntry.foodCatalogueId,
-      foodWeight: this.foodWeightFinal,
+      foodCatalogueId: this.diaryEntryInput().foodCatalogueId,
+      foodWeight: this.foodWeightFinal$$(),
       kcals: 0,
       history: [history],
     };
 
     await this.foodDiaryService.editDiaryEntry(preppedFormValues);
-    this.diaryEntryForm.enable();
-    this.diaryEntryForm.reset();
-    this.onServerSuccessfullEditResponse.emit();
+    this.foodDiaryService.clearDraftEntryWeight(this.diaryEntryId$$());
+    this.diaryEntryForm().reset({ ...EMPTY_WEIGHTS });
+    this.entryChangedOutput.emit();
   }
 
   protected openConfirmationModal(): void {
-    this.isDeleteConfirmOpen = true;
+    this.isDeleteConfirmOpen$$.set(true);
   }
 
   protected closeConfirmationModal(): void {
-    this.isDeleteConfirmOpen = false;
+    this.isDeleteConfirmOpen$$.set(false);
   }
 
   protected onDeleteConfirmed(): void {
-    this.deleteDiaryEntry();
-    this.isDeleteConfirmOpen = false;
+    void this.deleteDiaryEntry();
+    this.isDeleteConfirmOpen$$.set(false);
   }
 
   protected formHistoryEntry(historyEntry: HistoryEntry) {
@@ -364,41 +308,54 @@ export class DiaryEntryEditForm implements OnChanges {
   }
 
   private async deleteDiaryEntry(): Promise<void> {
-    this.diaryEntryForm.disable();
-    await this.foodDiaryService.deleteDiaryEntry(this.diaryEntryForm.getRawValue().id);
-    this.diaryEntryForm.enable();
-    this.diaryEntryForm.reset();
-    this.onServerSuccessfullEditResponse.emit();
+    this.isDeleting$$.set(true);
+    this.foodDiaryService.clearDraftEntryWeight(this.diaryEntryId$$());
+    await this.foodDiaryService.deleteDiaryEntry(this.diaryEntryId$$());
+    this.isDeleting$$.set(false);
+    this.diaryEntryForm().reset({ ...EMPTY_WEIGHTS });
+    this.entryChangedOutput.emit();
   }
 
-  private updateProjectedDaysConsumedPercent(): void {
-    const weightDelta = this.foodWeightFinal - this.foodWeightInitial;
+  private computeFoodWeightFinal(): number {
+    const draftNew = this.foodWeightDraftNew$$();
+    if (draftNew !== null) return draftNew;
 
-    if (this.selectedFoodPersonalKcalsPer100g && this.selectedDaysTargerKcals) {
-      const weightKcalsTotal = (weightDelta / 100) * this.selectedFoodPersonalKcalsPer100g;
+    const base = this.foodWeightInitial$$();
+    const draftChange = this.foodWeightDraftChange$$();
 
-      const deltaInPercent = (weightKcalsTotal / this.selectedDaysTargerKcals) * 100;
-      const totalPercent = this.selectedDaysConsumedPercent + deltaInPercent;
+    // Empty or unfinished input (e.g. "-" or "50*") has no draft: fall back to the base weight.
+    if (draftChange === null) return base;
 
-      this.projectedSelectedDaysConsumedPercentNum = totalPercent;
-      this.projectedSelectedDaysConsumedPercentPadded = totalPercent.toFixed(1);
-    }
+    return Math.max(base + draftChange, 0); // Prevent non-positive result.
   }
 
   private resetForm(): void {
-    this.foodWeightNewControl.setValue(null);
-    this.foodWeightChangeControl.setValue(null);
-    this.foodWeightFinal = this.foodWeightInitial;
-    this.updateProjectedDaysConsumedPercent();
+    this.diaryEntryForm().reset({ ...EMPTY_WEIGHTS });
+    this.foodWeightDraftNew$$.set(null);
+    this.foodWeightDraftChange$$.set(null);
+    this.syncDraftWithService();
+  }
+
+  // final === initial whenever there's no genuine in-progress edit (including right after
+  // resetForm) — in that case we drop the projection override entirely rather than push a
+  // no-op draft, so the counters fall back to the plain server truth.
+  private syncDraftWithService(): void {
+    const final = this.foodWeightFinal$$();
+    const diaryEntry = this.diaryEntryInput();
+    if (final === this.foodWeightInitial$$()) {
+      this.foodDiaryService.clearDraftEntryWeight(diaryEntry.id);
+    } else {
+      this.foodDiaryService.setDraftEntryWeight(diaryEntry.dateISO, diaryEntry.id, diaryEntry.foodCatalogueId, final);
+    }
   }
 
   private closePanels(): void {
-    this.disablePanelsAnimationTemporarily = true;
+    this.disablePanelsAnimationTemporarily$$.set(true);
     this.infoPanelElem().setExpanded(false);
     this.chartsPanelElem().setExpanded(false);
     this.historyPanelElem().setExpanded(false);
     setTimeout(() => {
-      this.disablePanelsAnimationTemporarily = false;
+      this.disablePanelsAnimationTemporarily$$.set(false);
     }, 100);
   }
 }

@@ -1,26 +1,26 @@
 @if (isFilterVisible$$()) {
-  <v-input class="mb-2"
-           [config]="{ placeholder: 'Filter...', type: 'text' }"
-           [ngModel]="filterText$$()"
-           (ngModelChange)="filterText$$.set($event)" />
+  <v-input type="text"
+           placeholder="Filter..."
+           class="mb-2"
+           [(value)]="filterText$$" />
 }
 
 <div class="flex flex-wrap gap-1.5">
   @for (option of visibleOptions$$(); track option.id) {
+    @let isSelected = value() === option.id;
     <button type="button"
             class="flex items-center gap-1 px-2.5 py-1 text-sm border rounded-full transition-colors"
-            [style.borderColor]="value() === option.id ? 'var(--v-color-primary)' : 'var(--v-outline-color)'"
-            [style.borderStyle]="value() === option.id ? 'solid' : 'dashed'"
-            [style.background]="value() === option.id ? 'var(--v-color-primary)' : null"
-            [style.color]="value() === option.id ? null : 'var(--v-color-text-muted)'"
-            [class.text-white]="value() === option.id"
+            [style.borderColor]="isSelected ? 'var(--v-color-primary)' : 'var(--v-color-border-subtle)'"
+            [style.borderStyle]="isSelected ? 'solid' : 'dashed'"
+            [style.background]="isSelected ? 'var(--v-color-primary)' : null"
+            [style.color]="isSelected ? 'var(--v-color-text-on-accent, white)' : 'var(--v-color-text-muted)'"
             (click)="select(option.id)">
       @if (option.color) {
         <span class="inline-block w-2 h-2 rounded-full"
               [style.background]="option.color"></span>
       }
       {{ option.name }}
-      @if (value() === option.id) {
+      @if (isSelected) {
         <span class="opacity-80"
               (click)="clear($event)">×</span>
       }

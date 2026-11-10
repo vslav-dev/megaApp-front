@@ -1,16 +1,12 @@
 <div>
 
-  <v-card [config]="{
-            padding: 4,
-            borderRadius: 2,
-          }">
+  <v-card [borderRadius]="2"
+          [padding]="4">
     <div class="flex items-center justify-between mb-4">
       <div class="text-lg font-semibold">Accounts</div>
-      <v-button class="v-flat"
-                [config]="{
-                  paddingY: 1,
-                }"
-                (onClick)="showCreateForm()">
+      <v-button surface="flat"
+                [paddingY]="1"
+                (clickOutput)="showCreateForm()">
         <v-icon v-prefix
                 [name]="Icon.Add"
                 [size]="6"></v-icon>
@@ -25,7 +21,7 @@
     }
 
     @for (account of activeAccounts$$(); track account.id) {
-      <div class="last:border-b-0 py-4 border-b border-[color:var(--v-outline-color)]">
+      <div class="last:border-b-0 py-4 border-b border-[color:var(--v-color-border-subtle)]">
         <div class="flex items-start justify-between gap-4">
           <div class="flex-1">
             <div class="mb-1 font-semibold">
@@ -36,30 +32,26 @@
               <span class="opacity-70 font-normal">{{ getAccountKindLabel(account) }}</span>
             </div>
 
-            <div class="text-sm opacity-70">
+            <div class="opacity-70 text-sm">
               {{ getFormattedBalance(account) }}
             </div>
           </div>
 
           <div class="flex gap-2">
-            <v-button class="v-flat"
-                      [config]="{
-                        isLabelHidden: true,
-                        padding: iconButton.padding,
-                      }"
-                      (onClick)="editAccount(account)">
+            <v-button surface="flat"
+                      [isLabelHidden]="true"
+                      [padding]="iconButton.padding"
+                      (clickOutput)="editAccount(account)">
               <v-icon v-prefix
                       [name]="Icon.Edit"
                       [size]="iconButton.size"></v-icon>
             </v-button>
 
             <v-button class="v-danger"
-                      [config]="{
-                        isLabelHidden: true,
-                        padding: iconButton.padding,
-                        isDisabled: !canDeleteAccount(account.id!),
-                      }"
-                      (onClick)="deleteAccount(account.id!)">
+                      [isDisabled]="!canDeleteAccount(account.id!)"
+                      [isLabelHidden]="true"
+                      [padding]="iconButton.padding"
+                      (clickOutput)="deleteAccount(account.id!)">
               <v-icon v-prefix
                       [name]="Icon.Delete"
                       [size]="iconButton.size"></v-icon>
@@ -71,7 +63,8 @@
 
     @if (archivedAccounts$$().length > 0) {
       <div class="mt-2">
-        <button class="flex items-center gap-2 w-full py-3 opacity-60 hover:opacity-90 text-sm"
+        <button type="button"
+                class="opacity-60 hover:opacity-90 flex items-center w-full gap-2 py-3 text-sm"
                 (click)="toggleArchivedAccounts()">
           <v-icon [name]="showArchivedAccounts$$() ? Icon.KeyboardArrowUp : Icon.KeyboardArrowDown"
                   [size]="5"></v-icon>
@@ -80,7 +73,7 @@
 
         @if (showArchivedAccounts$$()) {
           @for (account of archivedAccounts$$(); track account.id) {
-            <div class="last:border-b-0 py-4 border-b border-[color:var(--v-outline-color)] opacity-60">
+            <div class="last:border-b-0 py-4 border-b border-[color:var(--v-color-border-subtle)] opacity-60">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1">
                   <div class="mb-1 font-semibold">
@@ -91,30 +84,26 @@
                     <span class="opacity-70 font-normal">{{ getAccountKindLabel(account) }}</span>
                   </div>
 
-                  <div class="text-sm opacity-70">
+                  <div class="opacity-70 text-sm">
                     {{ getFormattedBalance(account) }}
                   </div>
                 </div>
 
                 <div class="flex gap-2">
-                  <v-button class="v-flat"
-                            [config]="{
-                              isLabelHidden: true,
-                              padding: iconButton.padding,
-                            }"
-                            (onClick)="editAccount(account)">
+                  <v-button surface="flat"
+                            [isLabelHidden]="true"
+                            [padding]="iconButton.padding"
+                            (clickOutput)="editAccount(account)">
                     <v-icon v-prefix
                             [name]="Icon.Edit"
                             [size]="iconButton.size"></v-icon>
                   </v-button>
 
                   <v-button class="v-danger"
-                            [config]="{
-                              isLabelHidden: true,
-                              padding: iconButton.padding,
-                              isDisabled: !canDeleteAccount(account.id!),
-                            }"
-                            (onClick)="deleteAccount(account.id!)">
+                            [isDisabled]="!canDeleteAccount(account.id!)"
+                            [isLabelHidden]="true"
+                            [padding]="iconButton.padding"
+                            (clickOutput)="deleteAccount(account.id!)">
                     <v-icon v-prefix
                             [name]="Icon.Delete"
                             [size]="iconButton.size"></v-icon>

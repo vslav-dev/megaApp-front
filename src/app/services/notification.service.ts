@@ -1,4 +1,4 @@
-import { Injectable, signal, WritableSignal } from '@angular/core';
+import { Service, signal, WritableSignal } from '@angular/core';
 import { NOTIFICATION_DEFAULT_DURATION_MS } from '@app/shared/const';
 
 export interface NotificationMessage {
@@ -14,11 +14,9 @@ export interface AddNotificationOptions {
   durationMs?: number;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class NotificationService {
-  public notifications$$: WritableSignal<NotificationMessage[]> = signal([]);
+  public readonly notifications$$: WritableSignal<NotificationMessage[]> = signal([]);
 
   public showSyncError(message: string): void {
     this.addNotification('error', `Sync error: ${message}`);

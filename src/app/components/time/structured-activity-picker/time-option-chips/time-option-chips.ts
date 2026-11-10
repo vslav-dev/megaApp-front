@@ -1,5 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, computed, input, model, signal } from '@angular/core';
 import { CategoryOption } from '@app/shared/time-types';
 import { VInput } from '@ui-kit/components/v-input/v-input';
 
@@ -8,15 +7,13 @@ const FILTER_THRESHOLD_DEFAULT = 8;
 @Component({
   selector: 'time-option-chips',
   templateUrl: './time-option-chips.html',
-  imports: [FormsModule, VInput],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VInput],
 })
 export class TimeOptionChips {
   public readonly options = input.required<CategoryOption[]>();
-  public readonly value = input<number | null>(null);
   public readonly filterThreshold = input<number>(FILTER_THRESHOLD_DEFAULT);
 
-  public readonly valueChange = output<number | null>();
+  public readonly value = model<number | null>(null);
 
   protected readonly filterText$$ = signal('');
 
@@ -29,11 +26,11 @@ export class TimeOptionChips {
   });
 
   protected select(optionId: number): void {
-    this.valueChange.emit(this.value() === optionId ? null : optionId);
+    this.value.set(this.value() === optionId ? null : optionId);
   }
 
   protected clear(event: Event): void {
     event.stopPropagation();
-    this.valueChange.emit(null);
+    this.value.set(null);
   }
 }

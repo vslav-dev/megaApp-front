@@ -1,13 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { MoneyService } from '@app/services/money.service';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
-import { convertAmount } from '@app/shared/money-utils';
+import { convertAmount, parseTransactionDetails } from '@app/shared/money-utils';
 import { Account, AccountKind, Currency, SymbolPosition, Transaction, TransactionKind } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
-import { ICON_BUTTON } from '../money.const';
+import { ICON_BUTTON } from '@app/components/money/money.const';
 import { AccountForm } from './account-form/account-form';
 
 interface AccountBalance {
@@ -19,7 +19,6 @@ interface AccountBalance {
   selector: 'accounts-list',
   templateUrl: './accounts-list.html',
   imports: [AccountForm, DefaultModal, FormModal, VButton, VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AccountsList {
   protected readonly Icon = IconName;
@@ -124,7 +123,7 @@ export class AccountsList {
     this.pendingDeleteId$$.set(null);
     if (!id) return;
     if (!this.canDeleteAccount(id)) return;
-    this.moneyService.deleteAccount(id).subscribe((success) => {});
+    void this.moneyService.deleteAccount(id);
   }
 
   protected onSaved(): void {
@@ -250,24 +249,12 @@ export class AccountsList {
   }
 
   private getTransferDirection(transaction: Transaction): 'out' | 'in' | null {
-    const detailsJSON = transaction.detailsJSON;
-    if (!detailsJSON) return null;
-    let parsed: any = detailsJSON;
-    if (typeof detailsJSON === 'string') {
-      try {
-        parsed = JSON.parse(detailsJSON);
-      } catch {
-        return null;
-      }
-    }
-    const direction = parsed?.direction ?? null;
-    if (direction === 'out' || direction === 'in') return direction;
-    return null;
+    return parseTransactionDetails(transaction.detailsJSON)?.direction ?? null;
   }
 
   private applyBrokerPositionDelta(transaction: Transaction, brokerUnitsByAsset: Map<string, number>): void {
     if (transaction.kind !== TransactionKind.INVEST_BUY && transaction.kind !== TransactionKind.INVEST_SELL) return;
-    const details = this.parseDetails(transaction.detailsJSON);
+    const details = parseTransactionDetails(transaction.detailsJSON);
     const assetId = this.toPositiveNumber(details?.assetId);
     const quantity = this.toPositiveNumber(details?.quantity);
     if (assetId == null || quantity == null) return;
@@ -279,19 +266,6 @@ export class AccountsList {
     }
     const next = current - quantity;
     brokerUnitsByAsset.set(key, next > 0 ? next : 0);
-  }
-
-  private parseDetails(detailsJSON: any): any {
-    if (!detailsJSON) return null;
-    if (typeof detailsJSON === 'object') return detailsJSON;
-    if (typeof detailsJSON === 'string') {
-      try {
-        return JSON.parse(detailsJSON);
-      } catch {
-        return null;
-      }
-    }
-    return null;
   }
 
   private toPositiveNumber(value: unknown): number | null {

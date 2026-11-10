@@ -1,18 +1,17 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { TimeCatalogueService } from '@app/services/time/time-catalogue.service';
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
 import { ActivityKind } from '@app/shared/time-types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
-import { ICON_BUTTON } from '../time.const';
+import { ICON_BUTTON } from '@app/components/time/time.const';
 import { ActivityKindForm } from './activity-kind-form/activity-kind-form';
 
 @Component({
   selector: 'activity-kinds-list',
   templateUrl: './activity-kinds-list.html',
   imports: [ActivityKindForm, FormModal, VButton, VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ActivityKindsList {
   protected readonly Icon = IconName;

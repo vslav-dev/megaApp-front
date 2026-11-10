@@ -11,6 +11,10 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: deploy-test
+  cancel-in-progress: false
+
 jobs:
   deploy:
     uses: ./.github/workflows/build-and-deploy.yml

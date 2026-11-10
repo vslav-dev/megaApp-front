@@ -1,13 +1,11 @@
 import {
   afterNextRender,
-  ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
   ElementRef,
   inject,
-  Injector,
   input,
+  OnInit,
   output,
   signal,
   viewChild,
@@ -17,6 +15,7 @@ import { TimeDisplayPrefsService } from '@app/services/time/time-display-prefs.s
 import { TimeEntriesService } from '@app/services/time/time-entries.service';
 import { CategoryOption, EntryOption } from '@app/shared/time-types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
+import { VTopLayerDirective } from '@ui-kit/directives/top-layer.directive';
 import { TimeOptionChips } from './time-option-chips/time-option-chips';
 
 const VIEWPORT_MARGIN_PX = 8;
@@ -33,10 +32,9 @@ export interface StructuredActivitySelection {
   host: {
     '(document:keydown.escape)': 'close()',
   },
-  imports: [TimeOptionChips, VButton],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TimeOptionChips, VButton, VTopLayerDirective],
 })
-export class StructuredActivityPicker {
+export class StructuredActivityPicker implements OnInit {
   public readonly x = input.required<number>();
   public readonly y = input.required<number>();
   // Edit mode: pass the entry's current selection so it's shown as-is
@@ -49,7 +47,6 @@ export class StructuredActivityPicker {
 
   private readonly timeCatalogueService = inject(TimeCatalogueService);
   private readonly timeEntriesService = inject(TimeEntriesService);
-  private readonly injector = inject(Injector);
   protected readonly timeDisplayPrefsService = inject(TimeDisplayPrefsService);
 
   protected readonly panelElem = viewChild<ElementRef<HTMLElement>>('panelElem');
@@ -59,8 +56,6 @@ export class StructuredActivityPicker {
   protected readonly isPositioned$$ = signal(false);
   protected readonly fixedTop$$ = signal(0);
   protected readonly fixedLeft$$ = signal(0);
-
-  private hasInitialized = false;
 
   protected readonly kindsByFrequency$$ = computed(() => {
     const kinds = this.timeCatalogueService.activityKinds$$().filter((kind) => !kind.isArchived);
@@ -92,25 +87,19 @@ export class StructuredActivityPicker {
     return [...required].every((groupId) => selected.has(groupId));
   });
 
-  constructor() {
-    // Runs once per component instance (the caller always creates a fresh
-    // instance per open via @if) — seeds edit-mode state from the entry's
-    // current selection. A brand-new create-mode instance has
-    // initialActivityKindId() === null and simply stays unselected until the
-    // user clicks a kind, which goes through selectKind()'s runtime preselect.
-    // Uses effect() rather than a direct constructor read because signal
-    // inputs on a component created inside @if aren't guaranteed to be
-    // resolved yet at construction time.
-    effect(() => {
-      if (this.hasInitialized) return;
-      const kindId = this.initialActivityKindId();
-      if (kindId === null) return;
-      this.hasInitialized = true;
-      this.selectedKindId$$.set(kindId);
-      this.selectedOptions$$.set(new Map(this.initialOptions().map((option) => [option.groupId, option.optionId])));
-    });
+  public constructor() {
+    afterNextRender(() => this.updatePosition());
+  }
 
-    afterNextRender(() => this.updatePosition(), { injector: this.injector });
+  // Seeds edit-mode state from the entry's selection once — the caller creates a fresh instance
+  // per open via @if, so later changes of the entry don't overwrite what the user picks here.
+  // A create-mode instance has no initial kind and stays unselected until the user clicks one,
+  // which goes through selectKind()'s runtime preselect.
+  public ngOnInit(): void {
+    const kindId = this.initialActivityKindId();
+    if (kindId === null) return;
+    this.selectedKindId$$.set(kindId);
+    this.selectedOptions$$.set(new Map(this.initialOptions().map((option) => [option.groupId, option.optionId])));
   }
 
   // Prefers dropping below the click point; flips above only if it doesn't
@@ -131,8 +120,8 @@ export class StructuredActivityPicker {
     this.isPositioned$$.set(true);
   }
 
-  protected kindButtonClass(kindId: number): string {
-    return this.selectedKindId$$() === kindId ? 'v-primary' : 'v-flat';
+  protected isKindSelected(kindId: number): boolean {
+    return this.selectedKindId$$() === kindId;
   }
 
   protected groupName(groupId: number): string {
@@ -154,11 +143,6 @@ export class StructuredActivityPicker {
 
   protected selectKind(kindId: number): void {
     if (this.selectedKindId$$() === kindId) return;
-    // First selection right after edit-mode init already carries the real
-    // selection (see constructor) — only re-preselect on a genuine switch.
-    if (!this.hasInitialized) {
-      this.hasInitialized = true;
-    }
     this.selectedKindId$$.set(kindId);
     this.selectedOptions$$.set(this.computePreselect(kindId));
   }

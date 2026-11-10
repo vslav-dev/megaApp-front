@@ -1,5 +1,6 @@
-<!-- z-[9999] must outrank ZLayerService's dynamic range (starts at 100, grows per open modal/dropdown) so toasts stay visible above any open modal -->
-<div class="fixed bottom-4 left-4 z-[9999] flex flex-col items-start gap-2 pointer-events-none">
+<!-- Top-layer popover: toasts stay above any open modal (see raise() in the component). -->
+<div vTopLayer
+     class="fixed top-auto right-auto bottom-4 left-4 m-0 p-0 border-0 bg-transparent overflow-visible flex flex-col items-start gap-2 pointer-events-none">
   @for (notification of notificationService.notifications$$(); track notification.id) {
     <div class="pointer-events-auto"
          [animate.enter]="AnimationClass.SLIDE_IN_LEFT"
@@ -7,7 +8,7 @@
       <v-toast [type]="notification.type"
                [message]="notification.message"
                [isPending]="notification.persistent"
-               (onClose)="dismiss(notification.id)" />
+               (closeOutput)="dismiss(notification.id)" />
     </div>
   }
 </div>

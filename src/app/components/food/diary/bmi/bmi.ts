@@ -1,11 +1,12 @@
-import { Component, computed, inject, OnInit, Signal } from '@angular/core';
+import { Component, computed, inject, Signal } from '@angular/core';
 import { FoodDiaryService } from '@app/services/food/food-diary.service';
-import { SettingsService } from '@app/services/settings.service';
+import { BMI_CATEGORIES, BMI_SCALE, bmiToKg } from '@app/shared/bmi-bands';
+import { itemAt } from '@app/shared/utils';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 
 interface BmiSegment {
   twSegmentClasses: string;
-  twLabelClasses?: string;
+  twLabelClasses?: string | undefined;
 }
 
 @Component({
@@ -13,53 +14,28 @@ interface BmiSegment {
   templateUrl: './bmi.html',
   imports: [VIcon],
 })
-export class BMI implements OnInit {
+export class BMI {
   protected readonly Icon = IconName;
 
-  protected readonly bmiSegments: BmiSegment[] = [
-    {
-      twSegmentClasses: 'relative h-2 rounded-l-md bg-yellow-300',
-    },
-    {
-      twSegmentClasses: 'relative h-2 bg-green-400',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-    {
-      twSegmentClasses: 'relative h-2 bg-yellow-300',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-    {
-      twSegmentClasses: 'relative h-2 bg-red-300',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-    {
-      twSegmentClasses: 'relative h-2 bg-red-500',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-    {
-      twSegmentClasses: 'relative h-2 rounded-r-md bg-red-700',
-      twLabelClasses: 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
-    },
-  ];
+  protected readonly bmiSegments: BmiSegment[] = BMI_CATEGORIES.map((category, idx) => {
+    const roundedClasses = idx === 0 ? 'rounded-l-md' : idx === BMI_CATEGORIES.length - 1 ? 'rounded-r-md' : '';
+    return {
+      twSegmentClasses: `relative h-2 ${roundedClasses} ${category.twBgClasses}`,
+      twLabelClasses: idx === 0 ? undefined : 'absolute left-0 top-[10px] text-sm -translate-x-1/2',
+    };
+  });
 
-  protected bmiSegmentsWidthFractions: number[] = [];
+  protected readonly bmiSegmentsWidthFractions: number[] = this.calculateBmiSegmentsWidthFractions();
 
   protected readonly bmiPointerPercent$$: Signal<number | null> = computed(() => this.calculateBmiPointerPercent());
-
-  private readonly bmiValues = [16, 18.5, 25, 30, 35, 40, 45];
 
   private readonly bmiSegmentsThresholdsInKgs$$: Signal<number[]> = computed(() =>
     this.prepBmiSegmentsThresholdsInKgs(),
   );
 
   private readonly foodDiaryService = inject(FoodDiaryService);
-  private readonly settingsService = inject(SettingsService);
 
-  public ngOnInit(): void {
-    this.bmiSegmentsWidthFractions = this.calculateBmiSegmentsWidthFractions();
-  }
-
-  protected bmiKgThresholdValue(idx: number): number {
+  protected bmiKgThresholdValue(idx: number): number | undefined {
     return this.bmiSegmentsThresholdsInKgs$$()[idx];
   }
 
@@ -74,39 +50,29 @@ export class BMI implements OnInit {
     const selectedDateISO = this.foodDiaryService.selectedDayIso$$();
     const weight = this.foodDiaryService.diary$$()?.[selectedDateISO]?.totals.bodyWeight ?? 0;
 
-    if (!this.isWeightWithinRange(weight)) return null;
-
     const bmiKgs = this.bmiSegmentsThresholdsInKgs$$();
-    if (bmiKgs.length === 0) return null;
+    const first = bmiKgs[0];
+    const last = bmiKgs.at(-1);
+    if (first === undefined || last === undefined) return null;
+    if (weight <= first || weight >= last) return null;
 
-    const percentShift = (weight - bmiKgs[0]) / (bmiKgs[bmiKgs.length - 1] - bmiKgs[0]);
+    const percentShift = (weight - first) / (last - first);
     return Math.max(0, Math.min(100, percentShift * 100));
   }
 
-  private isWeightWithinRange(weight: number): boolean {
-    const bmiKgs = this.bmiSegmentsThresholdsInKgs$$();
-    return weight > bmiKgs[0] && weight < bmiKgs[bmiKgs.length - 1];
-  }
-
   private prepBmiSegmentsThresholdsInKgs(): number[] {
-    const height = this.settingsService.settings$$().height;
+    const height = this.foodDiaryService.height$$();
     if (!height) return [];
 
-    const heightMeters = height / 100;
-    return this.bmiValues.map((value) => {
-      return Math.round(value * (heightMeters * heightMeters));
-    });
+    return BMI_SCALE.map((value) => Math.round(bmiToKg(value, height)));
   }
 
   private calculateBmiSegmentsWidthFractions(): number[] {
-    const fractions: number[] = [];
-    const total = this.bmiValues[this.bmiValues.length - 1] - this.bmiValues[0];
+    const first = BMI_SCALE[0];
+    const last = BMI_SCALE.at(-1);
+    if (first === undefined || last === undefined) return [];
+    const total = last - first;
 
-    for (let i = 0; i < this.bmiValues.length - 1; i++) {
-      const segment = this.bmiValues[i + 1] - this.bmiValues[i];
-      fractions.push(segment / total);
-    }
-
-    return fractions;
+    return BMI_SCALE.slice(1).map((end, i) => (end - itemAt(BMI_SCALE, i)) / total);
   }
 }

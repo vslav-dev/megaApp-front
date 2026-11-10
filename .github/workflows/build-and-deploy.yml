@@ -3,6 +3,10 @@ name: Build and Deploy Angular App
 on:
   workflow_call:
     inputs:
+      branch:
+        required: true
+        type: string
+        description: 'Branch to deploy'
       build-config:
         required: true
         type: string
@@ -11,10 +15,6 @@ on:
         required: true
         type: string
         description: 'Server path for deployment'
-      branch:
-        required: true
-        type: string
-        description: 'Branch to deploy'
       commit_sha:
         required: false
         type: string
@@ -28,7 +28,7 @@ on:
         required: true
 
 jobs:
-  build-and-deploy:
+  deploy:
     name: Build and Deploy Angular App
     runs-on: ubuntu-latest
     environment: VPS_31
@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          ref: ${{ inputs.commit_sha || format('refs/heads/{0}', inputs.branch) }}
+          ref: ${{ inputs.commit_sha || inputs.branch }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,6 +48,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate build info
+        run: node generate-build-info.js
 
       - name: Build Angular app
         run: npm run build -- --configuration=${{ inputs.build-config }}

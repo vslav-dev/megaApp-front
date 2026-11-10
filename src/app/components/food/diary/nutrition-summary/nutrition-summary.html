@@ -1,7 +1,8 @@
 <div class="flex flex-col gap-4">
   <div class="flex gap-4">
     <v-progress class="w-1/2"
-                [config]="proteinBarConfig$$()">
+                [value]="proteinBar$$().value"
+                [barColor]="proteinBar$$().barColor">
       <div v-label
            class="flex justify-between gap-2">
         <span>Белки</span>
@@ -10,7 +11,8 @@
     </v-progress>
 
     <v-progress class="w-1/2"
-                [config]="fatBarConfig$$()">
+                [value]="fatBar$$().value"
+                [barColor]="fatBar$$().barColor">
       <div v-label
            class="flex justify-between gap-2">
         <span>Жиры</span>
@@ -21,7 +23,8 @@
 
   <div class="flex gap-4">
     <v-progress class="w-1/2"
-                [config]="carbsBarConfig$$()">
+                [value]="carbsBar$$().value"
+                [barColor]="carbsBar$$().barColor">
       <div v-label
            class="flex justify-between gap-2">
         <span>Углеводы</span>
@@ -30,7 +33,8 @@
     </v-progress>
 
     <v-progress class="w-1/2"
-                [config]="fiberBarConfig$$()">
+                [value]="fiberBar$$().value"
+                [barColor]="fiberBar$$().barColor">
       <div v-label
            class="flex justify-between gap-2">
         <span>Клетчатка</span>

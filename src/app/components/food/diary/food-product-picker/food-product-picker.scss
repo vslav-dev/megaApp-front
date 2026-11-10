@@ -1,0 +1,29 @@
+.grid-auto-fill {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  justify-items: end;
+}
+
+.catalogue-entry-name {
+  padding: 1px 6px;
+  background: color-mix(in srgb, var(--v-color-surface) 80%, transparent);
+  border-radius: 4px;
+  box-decoration-break: clone;
+  transition: background var(--v-theme-transition-duration, 0s);
+}
+
+.catalogue-entry-weight,
+.catalogue-entry-badge {
+  padding: 1px 6px;
+  background: color-mix(in srgb, var(--v-color-surface) 80%, transparent);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  transition: background var(--v-theme-transition-duration, 0s);
+}
+
+.add-catalogue-entry {}
+
+::ng-deep {
+  v-input.catalogue-entry-name-input div.input-wrapper div.prefix {
+    line-height: 12px;
+  }
+}

@@ -1,6 +1,9 @@
-import { HttpClient } from '@angular/common/http';
-import { computed, effect, inject, Injectable, Signal, signal, WritableSignal } from '@angular/core';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { computed, effect, inject, Service, Signal, signal, WritableSignal } from '@angular/core';
 import { AuthService, AuthSessionState } from '@app/services/auth.service';
+import { LocalStorageService } from '@app/services/local-storage.service';
+import { NotificationService } from '@app/services/notification.service';
+import { TelemetryService } from '@app/services/telemetry.service';
 import {
   ActivityKind,
   ActivityKindInput,
@@ -11,23 +14,29 @@ import {
   CategoryOption,
   CategoryOptionInput,
 } from '@app/shared/time-types';
-import { firstValueFrom } from 'rxjs';
-import { LocalStorageService } from '../local-storage.service';
-import { NetworkService } from '../network.service';
-import { NotificationService } from '../notification.service';
-import { SyncOperationType, SyncQueueService } from '../sync-queue.service';
-import { BaseTimeService } from './time-base.service';
+import { firstValueFrom, Observable } from 'rxjs';
 
 interface DataResponse<T> {
   success: boolean;
   data: T;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
-export class TimeCatalogueService extends BaseTimeService {
-  private readonly CATALOGUE_STORAGE_KEY = 'time_catalogue';
+type CreateResponse = DataResponse<{ id: number }>;
+
+interface MutationMessages {
+  success: string;
+  error: string;
+}
+
+const CATALOGUE_STORAGE_KEY = 'time_catalogue';
+
+@Service()
+export class TimeCatalogueService {
+  private readonly http = inject(HttpClient);
+  private readonly localStorageService = inject(LocalStorageService);
+  private readonly notificationService = inject(NotificationService);
+  private readonly authService = inject(AuthService);
+  private readonly telemetry = inject(TelemetryService);
 
   public readonly activityKinds$$: WritableSignal<ActivityKind[]> = signal([]);
   public readonly categoryGroups$$: WritableSignal<CategoryGroup[]> = signal([]);
@@ -40,7 +49,8 @@ export class TimeCatalogueService extends BaseTimeService {
     () => new Map(this.categoryGroups$$().map((group) => [group.id, group])),
   );
   public readonly areaGroupId$$: Signal<number | null> = computed(
-    () => this.categoryGroups$$().find((group) => group.kind === CategoryGroupKind.Area && !group.isArchived)?.id ?? null,
+    () =>
+      this.categoryGroups$$().find((group) => group.kind === CategoryGroupKind.Area && !group.isArchived)?.id ?? null,
   );
   public readonly optionById$$: Signal<Map<number, CategoryOption>> = computed(
     () => new Map(this.categoryOptions$$().map((option) => [option.id, option])),
@@ -60,24 +70,23 @@ export class TimeCatalogueService extends BaseTimeService {
   public readonly applicableGroupsByKindId$$: Signal<Map<number, number[]>> = computed(() => {
     const index = new Map<number, number[]>();
     for (const kind of this.activityKinds$$()) {
-      index.set(kind.id, kind.groupBindings.map((binding) => binding.groupId));
+      index.set(
+        kind.id,
+        kind.groupBindings.map((binding) => binding.groupId),
+      );
     }
     return index;
   });
   public readonly requiredGroupIdsByKindId$$: Signal<Map<number, Set<number>>> = computed(() => {
     const index = new Map<number, Set<number>>();
     for (const kind of this.activityKinds$$()) {
-      index.set(kind.id, new Set(kind.groupBindings.filter((binding) => binding.required).map((binding) => binding.groupId)));
+      index.set(
+        kind.id,
+        new Set(kind.groupBindings.filter((binding) => binding.required).map((binding) => binding.groupId)),
+      );
     }
     return index;
   });
-
-  protected getStorageKey(): string {
-    return this.CATALOGUE_STORAGE_KEY;
-  }
-
-  private readonly authService = inject(AuthService);
-  private readonly notificationService = inject(NotificationService);
 
   private readonly resetOnAuthLossEffect$$ = effect(() => {
     if (this.authService.sessionState$$() === AuthSessionState.Guest) {
@@ -85,299 +94,187 @@ export class TimeCatalogueService extends BaseTimeService {
     }
   });
 
-  constructor(
-    http: HttpClient,
-    localStorageService: LocalStorageService,
-    networkService: NetworkService,
-    syncQueueService: SyncQueueService,
-  ) {
-    super(http, localStorageService, networkService, syncQueueService);
-    this.loadFromCache();
-    void this.refreshFromServer();
-  }
-
   public reset(): void {
     this.activityKinds$$.set([]);
     this.categoryGroups$$.set([]);
     this.categoryOptions$$.set([]);
   }
 
-  private loadFromCache(): void {
-    const cached = this.loadFromLocalStorage<Catalog>();
+  //                                                            ~~~ BOOTSTRAP ~~~
+
+  // Called on every entry to the screen: shows the cached catalogue at once, then refreshes it.
+  public loadData(): void {
+    const cached = this.localStorageService.getUserScoped<Catalog>(CATALOGUE_STORAGE_KEY);
     if (cached) {
-      this.activityKinds$$.set(cached.activityKinds);
-      this.categoryGroups$$.set(cached.categoryGroups);
-      this.categoryOptions$$.set(cached.categoryOptions);
+      this.telemetry.measure(
+        'time.catalogue_apply',
+        () => this.applyCatalog(cached),
+        () => ({ source: 'cache', activityKinds: cached.activityKinds.length }),
+      );
+    }
+
+    void this.fetchCatalog();
+  }
+
+  private async fetchCatalog(): Promise<void> {
+    const startedAt = performance.now();
+    try {
+      const response = await firstValueFrom(this.http.get<DataResponse<Catalog>>('/api/time/catalog'));
+      this.applyCatalog(response.data);
+      this.writeCache();
+      void this.telemetry.recordAfterPaint('time.catalogue_apply', startedAt, {
+        source: 'server',
+        activityKinds: response.data.activityKinds.length,
+      });
+    } catch (error) {
+      console.error('Failed loading time catalog:', error);
     }
   }
 
-  private persistToCache(): void {
-    this.saveToLocalStorage<Catalog>({
+  private applyCatalog(catalog: Catalog): void {
+    this.activityKinds$$.set(catalog.activityKinds);
+    this.categoryGroups$$.set(catalog.categoryGroups);
+    this.categoryOptions$$.set(catalog.categoryOptions);
+  }
+
+  private writeCache(): void {
+    this.localStorageService.setUserScoped<Catalog>(CATALOGUE_STORAGE_KEY, {
       activityKinds: this.activityKinds$$(),
       categoryGroups: this.categoryGroups$$(),
       categoryOptions: this.categoryOptions$$(),
     });
   }
 
-  private async refreshFromServer(): Promise<void> {
+  // Runs a write request and resolves with its response once the server confirmed it, or null
+  // when it failed — callers only touch local state on a non-null result. The server's own
+  // reason (e.g. "group is still bound to an active activity kind") wins over the generic text.
+  private async send<T>(request$: Observable<T>, messages: MutationMessages): Promise<T | null> {
     try {
-      const response = await firstValueFrom(this.http.get<DataResponse<Catalog>>('/api/time/catalog'));
-      this.activityKinds$$.set(response.data.activityKinds);
-      this.categoryGroups$$.set(response.data.categoryGroups);
-      this.categoryOptions$$.set(response.data.categoryOptions);
-      this.persistToCache();
+      const response = await firstValueFrom(request$);
+      this.notificationService.addNotification('success', messages.success);
+      return response;
     } catch (error) {
-      console.error('Failed loading time catalog:', error);
+      console.error(`${messages.error}:`, error);
+      this.notificationService.addNotification('error', serverErrorReason(error) ?? messages.error);
+      return null;
     }
   }
 
-  public createActivityKind(input: ActivityKindInput): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — activity kind not saved');
-      return;
-    }
+  //                                                       ~~~ ACTIVITY KINDS ~~~
 
-    const tempId = -Date.now();
-    const snapshot = this.activityKinds$$();
+  public async createActivityKind(input: ActivityKindInput): Promise<boolean> {
+    const response = await this.send(this.http.post<CreateResponse>('/api/time/activity-kinds', input), {
+      success: 'Activity kind added',
+      error: 'Failed to save activity kind',
+    });
+    if (!response) return false;
+    const now = new Date().toISOString();
     this.activityKinds$$.update((kinds) => [
       ...kinds,
-      { ...input, id: tempId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { ...input, id: response.data.id, createdAt: now, updatedAt: now },
     ]);
-    this.persistToCache();
-
-    this.addSyncOperation({
-      type: SyncOperationType.CREATE,
-      endpoint: '/api/time/activity-kinds',
-      data: input,
-      successCallback: (response: DataResponse<{ id: number }>) => {
-        this.activityKinds$$.update((kinds) =>
-          kinds.map((kind) => (kind.id === tempId ? { ...kind, id: response.data.id } : kind)),
-        );
-        this.persistToCache();
-      },
-      rollbackCallback: () => {
-        this.activityKinds$$.set(snapshot);
-        this.persistToCache();
-      },
-      feedback: {
-        successMessage: 'Activity kind added',
-        errorMessage: 'Failed to save activity kind',
-        pendingMessage: 'Saving activity kind...',
-      },
-    });
+    this.writeCache();
+    return true;
   }
 
-  public updateActivityKind(kindId: number, input: ActivityKindInput): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — changes not saved');
-      return;
-    }
-
-    const previous = this.activityKinds$$().find((kind) => kind.id === kindId);
-    if (!previous) return;
-
+  public async updateActivityKind(kindId: number, input: ActivityKindInput): Promise<boolean> {
+    const response = await this.send(this.http.put(`/api/time/activity-kinds/${kindId}`, input), {
+      success: 'Changes saved',
+      error: 'Failed to save changes',
+    });
+    if (!response) return false;
     this.activityKinds$$.update((kinds) => kinds.map((kind) => (kind.id === kindId ? { ...kind, ...input } : kind)));
-    this.persistToCache();
-
-    this.addSyncOperation({
-      type: SyncOperationType.UPDATE,
-      endpoint: `/api/time/activity-kinds/${kindId}`,
-      data: input,
-      rollbackCallback: () => {
-        this.activityKinds$$.update((kinds) => kinds.map((kind) => (kind.id === kindId ? previous : kind)));
-        this.persistToCache();
-      },
-      feedback: {
-        successMessage: 'Changes saved',
-        errorMessage: 'Failed to save changes',
-        pendingMessage: 'Saving changes...',
-      },
-    });
+    this.writeCache();
+    return true;
   }
 
-  public createCategoryGroup(input: CategoryGroupInput): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — group not saved');
-      return;
-    }
+  //                                                      ~~~ CATEGORY GROUPS ~~~
 
-    const tempId = -Date.now();
-    const snapshot = this.categoryGroups$$();
+  public async createCategoryGroup(input: CategoryGroupInput): Promise<boolean> {
+    const response = await this.send(this.http.post<CreateResponse>('/api/time/category-groups', input), {
+      success: 'Group added',
+      error: 'Failed to save group',
+    });
+    if (!response) return false;
+    const now = new Date().toISOString();
     this.categoryGroups$$.update((groups) => [
       ...groups,
-      { ...input, id: tempId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { ...input, id: response.data.id, createdAt: now, updatedAt: now },
     ]);
-    this.persistToCache();
-
-    this.addSyncOperation({
-      type: SyncOperationType.CREATE,
-      endpoint: '/api/time/category-groups',
-      data: input,
-      successCallback: (response: DataResponse<{ id: number }>) => {
-        this.categoryGroups$$.update((groups) =>
-          groups.map((group) => (group.id === tempId ? { ...group, id: response.data.id } : group)),
-        );
-        this.persistToCache();
-      },
-      rollbackCallback: () => {
-        this.categoryGroups$$.set(snapshot);
-        this.persistToCache();
-      },
-      feedback: {
-        successMessage: 'Group added',
-        errorMessage: 'Failed to save group',
-        pendingMessage: 'Saving group...',
-      },
-    });
+    this.writeCache();
+    return true;
   }
 
-  public updateCategoryGroup(groupId: number, input: CategoryGroupInput): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — changes not saved');
-      return;
-    }
-
-    const previous = this.categoryGroups$$().find((group) => group.id === groupId);
-    if (!previous) return;
-
-    // Archiving can be rejected by the backend (group still bound to an
-    // active ActivityKind) — the generic rollbackCallback below restores
-    // `previous` on any failure, including that 409, so the optimistic
-    // isArchived flip is never left dangling locally.
-    this.categoryGroups$$.update((groups) => groups.map((group) => (group.id === groupId ? { ...group, ...input } : group)));
-    this.persistToCache();
-
-    this.addSyncOperation({
-      type: SyncOperationType.UPDATE,
-      endpoint: `/api/time/category-groups/${groupId}`,
-      data: input,
-      rollbackCallback: () => {
-        this.categoryGroups$$.update((groups) => groups.map((group) => (group.id === groupId ? previous : group)));
-        this.persistToCache();
-      },
-      feedback: {
-        successMessage: 'Changes saved',
-        errorMessage: 'Failed to save changes',
-        pendingMessage: 'Saving changes...',
-      },
+  public async updateCategoryGroup(groupId: number, input: CategoryGroupInput): Promise<boolean> {
+    const response = await this.send(this.http.put(`/api/time/category-groups/${groupId}`, input), {
+      success: 'Changes saved',
+      error: 'Failed to save changes',
     });
+    if (!response) return false;
+    this.categoryGroups$$.update((groups) =>
+      groups.map((group) => (group.id === groupId ? { ...group, ...input } : group)),
+    );
+    this.writeCache();
+    return true;
   }
 
-  public deleteCategoryGroup(groupId: number): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — group not deleted');
-      return;
-    }
-
-    const snapshot = this.categoryGroups$$();
+  public async deleteCategoryGroup(groupId: number): Promise<boolean> {
+    const response = await this.send(this.http.delete(`/api/time/category-groups/${groupId}`), {
+      success: 'Group deleted',
+      error: 'Failed to delete group (still has options or is bound to an activity kind)',
+    });
+    if (!response) return false;
     this.categoryGroups$$.update((groups) => groups.filter((group) => group.id !== groupId));
-    this.persistToCache();
-
-    this.addSyncOperation({
-      type: SyncOperationType.DELETE,
-      endpoint: `/api/time/category-groups/${groupId}`,
-      data: null,
-      rollbackCallback: () => {
-        this.categoryGroups$$.set(snapshot);
-        this.persistToCache();
-      },
-      feedback: {
-        successMessage: 'Group deleted',
-        errorMessage: 'Failed to delete group (still has options or is bound to an activity kind)',
-        pendingMessage: 'Deleting group...',
-      },
-    });
+    this.writeCache();
+    return true;
   }
 
-  public createCategoryOption(input: CategoryOptionInput): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — option not saved');
-      return;
-    }
+  //                                                     ~~~ CATEGORY OPTIONS ~~~
 
-    const tempId = -Date.now();
-    const snapshot = this.categoryOptions$$();
+  public async createCategoryOption(input: CategoryOptionInput): Promise<boolean> {
+    const response = await this.send(this.http.post<CreateResponse>('/api/time/category-options', input), {
+      success: 'Option added',
+      error: 'Failed to save option',
+    });
+    if (!response) return false;
+    const now = new Date().toISOString();
     this.categoryOptions$$.update((options) => [
       ...options,
-      { ...input, id: tempId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { ...input, id: response.data.id, createdAt: now, updatedAt: now },
     ]);
-    this.persistToCache();
-
-    this.addSyncOperation({
-      type: SyncOperationType.CREATE,
-      endpoint: '/api/time/category-options',
-      data: input,
-      successCallback: (response: DataResponse<{ id: number }>) => {
-        this.categoryOptions$$.update((options) =>
-          options.map((option) => (option.id === tempId ? { ...option, id: response.data.id } : option)),
-        );
-        this.persistToCache();
-      },
-      rollbackCallback: () => {
-        this.categoryOptions$$.set(snapshot);
-        this.persistToCache();
-      },
-      feedback: {
-        successMessage: 'Option added',
-        errorMessage: 'Failed to save option',
-        pendingMessage: 'Saving option...',
-      },
-    });
+    this.writeCache();
+    return true;
   }
 
-  public updateCategoryOption(optionId: number, input: CategoryOptionInput): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — changes not saved');
-      return;
-    }
-
-    const previous = this.categoryOptions$$().find((option) => option.id === optionId);
-    if (!previous) return;
-
+  public async updateCategoryOption(optionId: number, input: CategoryOptionInput): Promise<boolean> {
+    const response = await this.send(this.http.put(`/api/time/category-options/${optionId}`, input), {
+      success: 'Changes saved',
+      error: 'Failed to save changes',
+    });
+    if (!response) return false;
     this.categoryOptions$$.update((options) =>
       options.map((option) => (option.id === optionId ? { ...option, ...input } : option)),
     );
-    this.persistToCache();
-
-    this.addSyncOperation({
-      type: SyncOperationType.UPDATE,
-      endpoint: `/api/time/category-options/${optionId}`,
-      data: input,
-      rollbackCallback: () => {
-        this.categoryOptions$$.update((options) => options.map((option) => (option.id === optionId ? previous : option)));
-        this.persistToCache();
-      },
-      feedback: {
-        successMessage: 'Changes saved',
-        errorMessage: 'Failed to save changes',
-        pendingMessage: 'Saving changes...',
-      },
-    });
+    this.writeCache();
+    return true;
   }
 
-  public deleteCategoryOption(optionId: number): void {
-    if (!this.checkNetworkAvailability()) {
-      this.notificationService.addNotification('error', 'No connection — option not deleted');
-      return;
-    }
-
-    const snapshot = this.categoryOptions$$();
+  public async deleteCategoryOption(optionId: number): Promise<boolean> {
+    const response = await this.send(this.http.delete(`/api/time/category-options/${optionId}`), {
+      success: 'Option deleted',
+      error: 'Failed to delete option (used by existing entries)',
+    });
+    if (!response) return false;
     this.categoryOptions$$.update((options) => options.filter((option) => option.id !== optionId));
-    this.persistToCache();
-
-    this.addSyncOperation({
-      type: SyncOperationType.DELETE,
-      endpoint: `/api/time/category-options/${optionId}`,
-      data: null,
-      rollbackCallback: () => {
-        this.categoryOptions$$.set(snapshot);
-        this.persistToCache();
-      },
-      feedback: {
-        successMessage: 'Option deleted',
-        errorMessage: 'Failed to delete option (used by existing entries)',
-        pendingMessage: 'Deleting option...',
-      },
-    });
+    this.writeCache();
+    return true;
   }
+}
+
+// Backend errors come back as `{ success: false, error: "<message>" }`.
+function serverErrorReason(error: unknown): string | null {
+  if (!(error instanceof HttpErrorResponse)) return null;
+  const body: unknown = error.error;
+  if (typeof body !== 'object' || body === null || !('error' in body)) return null;
+  return typeof body.error === 'string' ? body.error : null;
 }

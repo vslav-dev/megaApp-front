@@ -1,5 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { TimeCatalogueService } from '@app/services/time/time-catalogue.service';
 import { CategoryGroup, CategoryGroupInput, CategoryGroupKind } from '@app/shared/time-types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -11,8 +10,7 @@ import { VTooltip } from '@ui-kit/components/v-tooltip/v-tooltip';
 @Component({
   selector: 'category-group-form',
   templateUrl: './category-group-form.html',
-  imports: [FormsModule, VButton, VCheckbox, VIcon, VInput, VTooltip],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VButton, VCheckbox, VIcon, VInput, VTooltip],
 })
 export class CategoryGroupForm {
   public readonly categoryGroupInput = input<CategoryGroup | null>(null);
@@ -77,7 +75,7 @@ export class CategoryGroupForm {
     () => `Can't set as area group — "${this.conflictingAreaGroupName$$()}" already is. Unset it there first.`,
   );
 
-  constructor() {
+  public constructor() {
     effect(() => {
       const group = this.categoryGroupInput();
       if (group) {
@@ -88,7 +86,7 @@ export class CategoryGroupForm {
     });
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     if (!this.name$$()) return;
 
     const input: CategoryGroupInput = {
@@ -98,12 +96,12 @@ export class CategoryGroupForm {
     };
 
     const current = this.categoryGroupInput();
-    if (current) {
-      this.timeCatalogueService.updateCategoryGroup(current.id, input);
-    } else {
-      this.timeCatalogueService.createCategoryGroup(input);
+    const isSaved = current
+      ? await this.timeCatalogueService.updateCategoryGroup(current.id, input)
+      : await this.timeCatalogueService.createCategoryGroup(input);
+    if (isSaved) {
+      this.savedOutput.emit();
     }
-    this.savedOutput.emit();
   }
 
   protected cancel(): void {

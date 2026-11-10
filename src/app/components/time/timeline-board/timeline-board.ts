@@ -1,11 +1,9 @@
 import { NgTemplateOutlet } from '@angular/common';
 import {
-  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   ElementRef,
   Injector,
-  NgZone,
   afterNextRender,
   computed,
   effect,
@@ -16,14 +14,15 @@ import {
 } from '@angular/core';
 import { TimeCatalogueService } from '@app/services/time/time-catalogue.service';
 import { TimeDisplayPrefsService } from '@app/services/time/time-display-prefs.service';
-import { TimeDayLanes, TimeEntriesService } from '@app/services/time/time-entries.service';
+import { isConfirmedEntry, TimeDayLanes, TimeEntriesService } from '@app/services/time/time-entries.service';
 import { ActivityKind, CategoryOption, TimeEntry, TimeTrack } from '@app/shared/time-types';
+import { parseIsoParts } from '@app/shared/utils';
 import { computeTooltipPosition } from '@ui-kit/components/v-tooltip/tooltip-position';
-import { ZLayerService } from '@ui-kit/services/z-layer.service';
+import { VTopLayerDirective } from '@ui-kit/directives/top-layer.directive';
 import {
   StructuredActivityPicker,
   StructuredActivitySelection,
-} from '../structured-activity-picker/structured-activity-picker';
+} from '@app/components/time/structured-activity-picker/structured-activity-picker';
 import { SegmentLabel } from './segment-label/segment-label';
 
 const MINUTES_PER_DAY = 1440;
@@ -95,8 +94,7 @@ interface HoveredSegment {
   selector: 'timeline-board',
   templateUrl: './timeline-board.html',
   styleUrl: './timeline-board.scss',
-  imports: [NgTemplateOutlet, SegmentLabel, StructuredActivityPicker],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [NgTemplateOutlet, SegmentLabel, StructuredActivityPicker, VTopLayerDirective],
 })
 export class TimelineBoard {
   public readonly snapMinutesInput = input<number>(15);
@@ -109,25 +107,18 @@ export class TimelineBoard {
   private readonly tooltipPanelElem = viewChild<ElementRef<HTMLDivElement>>('tooltipPanelElem');
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly ngZone = inject(NgZone);
   private readonly timeEntriesService = inject(TimeEntriesService);
   private readonly timeCatalogueService = inject(TimeCatalogueService);
   protected readonly timeDisplayPrefsService = inject(TimeDisplayPrefsService);
 
   // Single shared tooltip for the whole board instead of one v-tooltip component
   // per segment — hundreds of segments used to mean hundreds of components, each
-  // with its own document:click listener and z-layer registration.
-  private readonly tooltipLayer = inject(ZLayerService).registerLayer('tooltip');
-  protected readonly tooltipZIndex = this.tooltipLayer.zIndex;
+  // with its own document:click listener and top-layer popover.
   protected readonly hoveredSegment$$ = signal<HoveredSegment | null>(null);
   protected readonly tooltipPlacement$$ = signal<'top' | 'bottom'>('top');
   protected readonly isTooltipPositioned$$ = signal(false);
   protected readonly tooltipTopPx$$ = signal(0);
   protected readonly tooltipLeftPx$$ = signal(0);
-
-  constructor() {
-    this.destroyRef.onDestroy(() => this.tooltipLayer.destroy());
-  }
 
   protected readonly isLoaded$$ = computed(() => this.timeEntriesService.isLoaded$$());
   private readonly todayDayNumber = this.dayIsoToDayNumber(this.todayIso());
@@ -149,54 +140,46 @@ export class TimelineBoard {
   // days$$() can grow into the hundreds as older days load, but the DOM must not.
   protected readonly scrollTop$$ = signal(0);
   private readonly scrollContainerHeightPx$$ = signal(600);
-  private readonly setupContainerResizeObserver = afterNextRender(
-    () => {
-      const scrollEl = this.timelineScrollElem()?.nativeElement;
-      if (!scrollEl) return;
-      this.scrollContainerHeightPx$$.set(scrollEl.clientHeight);
-      const observer = new ResizeObserver((entries) => {
-        const entry = entries[0];
-        if (entry) this.scrollContainerHeightPx$$.set(entry.contentRect.height);
-      });
-      observer.observe(scrollEl);
-      this.destroyRef.onDestroy(() => observer.disconnect());
-    },
-    { injector: this.injector },
-  );
+  private readonly setupContainerResizeObserver = afterNextRender(() => {
+    const scrollEl = this.timelineScrollElem()?.nativeElement;
+    if (!scrollEl) return;
+    this.scrollContainerHeightPx$$.set(scrollEl.clientHeight);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) this.scrollContainerHeightPx$$.set(entry.contentRect.height);
+    });
+    observer.observe(scrollEl);
+    this.destroyRef.onDestroy(() => observer.disconnect());
+  });
 
-  // Native passive listener registered outside the Angular zone instead of an
-  // Angular (scroll) template binding — a bare template binding would re-enter
-  // the zone (and trigger a full ApplicationRef.tick()) on every single scroll
-  // event. rAF-coalescing caps that to once per frame; the zone is re-entered
-  // only for the one signal write that actually needs to reach the view.
-  private readonly setupScrollListener = afterNextRender(
-    () => {
-      const scrollEl = this.timelineScrollElem()?.nativeElement;
-      if (!scrollEl) return;
+  // Native passive listener instead of an Angular (scroll) template binding — a
+  // template binding marks the view dirty on every single scroll event.
+  // rAF-coalescing caps the signal writes that drive the view to once per frame.
+  private readonly setupScrollListener = afterNextRender(() => {
+    const scrollEl = this.timelineScrollElem()?.nativeElement;
+    if (!scrollEl) return;
 
-      let pendingScrollTop: number | null = null;
-      let rafScheduled = false;
-      const flushScroll = () => {
-        rafScheduled = false;
-        if (pendingScrollTop === null) return;
-        const scrollTop = pendingScrollTop;
-        pendingScrollTop = null;
-        this.ngZone.run(() => this.handleScrollTop(scrollEl, scrollTop));
-      };
+    let pendingScrollTop: number | null = null;
+    let rafScheduled = false;
+    const flushScroll = () => {
+      rafScheduled = false;
+      if (pendingScrollTop === null) return;
+      const scrollTop = pendingScrollTop;
+      pendingScrollTop = null;
+      this.handleScrollTop(scrollEl, scrollTop);
+    };
 
-      const onScroll = () => {
-        pendingScrollTop = scrollEl.scrollTop;
-        if (!rafScheduled) {
-          rafScheduled = true;
-          requestAnimationFrame(flushScroll);
-        }
-      };
+    const onScroll = () => {
+      pendingScrollTop = scrollEl.scrollTop;
+      if (!rafScheduled) {
+        rafScheduled = true;
+        requestAnimationFrame(flushScroll);
+      }
+    };
 
-      this.ngZone.runOutsideAngular(() => scrollEl.addEventListener('scroll', onScroll, { passive: true }));
-      this.destroyRef.onDestroy(() => scrollEl.removeEventListener('scroll', onScroll));
-    },
-    { injector: this.injector },
-  );
+    scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    this.destroyRef.onDestroy(() => scrollEl.removeEventListener('scroll', onScroll));
+  });
 
   private readonly rowHeightPx$$ = computed(() => {
     const gap = this.timeDisplayPrefsService.compactMode$$() ? 0 : ROW_GAP_PX;
@@ -248,13 +231,13 @@ export class TimelineBoard {
   });
 
   protected isWeekend(dayIso: string): boolean {
-    const [year, month, day] = dayIso.split('-').map(Number);
+    const [year, month, day] = parseIsoParts(dayIso);
     const weekday = new Date(year, month - 1, day).getDay();
     return weekday === 0 || weekday === 6;
   }
 
   protected dayLabel(dayIso: string): DayLabel {
-    const [year, month, day] = dayIso.split('-').map(Number);
+    const [year, month, day] = parseIsoParts(dayIso);
     const date = new Date(year, month - 1, day);
     return {
       weekday: date.toLocaleDateString('en-US', { weekday: 'short' }),
@@ -491,16 +474,20 @@ export class TimelineBoard {
     return this.timeEntriesService.entries$$().find((entry) => entry.id === entryId);
   }
 
+  // An entry whose create the server hasn't confirmed yet has no real id to address — it can't be
+  // moved, resized, edited or deleted until it has one.
   protected onSegmentPointerDown(event: PointerEvent, entry: TimeEntry): void {
     this.closeTooltip();
     const target = event.target as HTMLElement;
     if (target.closest('.handle') || target.closest('.seg-delete')) return;
+    if (!isConfirmedEntry(entry)) return;
     this.startMove(event, entry);
   }
 
   protected onHandlePointerDown(event: PointerEvent, entry: TimeEntry, side: 'left' | 'right'): void {
     event.stopPropagation();
     this.closeTooltip();
+    if (!isConfirmedEntry(entry)) return;
     this.startResize(event, entry, side);
   }
 
@@ -562,8 +549,7 @@ export class TimelineBoard {
     });
 
     // pointermove fires far more often than a frame renders — coalescing to
-    // rAF and running the listener itself outside the Angular zone means a
-    // drag no longer triggers a full ApplicationRef.tick() on every pixel.
+    // rAF means a drag writes the signal (and re-renders) at most once per frame.
     let pendingAdjustment: ActiveAdjustment | null = null;
     let rafScheduled = false;
     const flushAdjustment = () => {
@@ -571,7 +557,7 @@ export class TimelineBoard {
       if (!pendingAdjustment) return;
       const next = pendingAdjustment;
       pendingAdjustment = null;
-      this.ngZone.run(() => this.activeAdjustment$$.set(next));
+      this.activeAdjustment$$.set(next);
     };
 
     const onMove = (moveEvent: PointerEvent) => {
@@ -584,7 +570,7 @@ export class TimelineBoard {
       )?.closest('.lane') as HTMLElement | null;
       if (hoverLaneEl?.dataset['dayIso']) {
         if (moveEvent.shiftKey) lockedTrack = (hoverLaneEl.dataset['track'] as TimeTrack) ?? lockedTrack;
-        const hoverDayNumber = this.dayIsoToDayNumber(hoverLaneEl.dataset['dayIso']!);
+        const hoverDayNumber = this.dayIsoToDayNumber(hoverLaneEl.dataset['dayIso']);
         rowDeltaMinutes = (hoverDayNumber - originDayNumber) * MINUTES_PER_DAY;
       }
 
@@ -604,36 +590,29 @@ export class TimelineBoard {
     };
 
     const onUp = (upEvent: PointerEvent) => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      this.ngZone.run(() => {
-        if (pendingAdjustment) {
-          this.activeAdjustment$$.set(pendingAdjustment);
-          pendingAdjustment = null;
-        }
-        const adjustment = this.activeAdjustment$$();
-        this.activeAdjustment$$.set(null);
-        if (!moved) {
-          // A plain click (no drag) on the segment body opens the picker in
-          // edit mode — matches the plan's "on edit selection open the same
-          // picker" without introducing a separate click handler that would
-          // race with the drag's pointerdown.
-          this.pickerState$$.set({ mode: 'edit', entryId: entry.id, x: upEvent.clientX, y: upEvent.clientY });
-          return;
-        }
-        if (!adjustment) return;
-        this.timeEntriesService.updateEntryTime(entry.id, {
-          track: adjustment.track,
-          startAt: this.fromAbsoluteMinutes(adjustment.startAbs),
-          endAt: this.fromAbsoluteMinutes(adjustment.endAbs),
-        });
+      if (pendingAdjustment) {
+        this.activeAdjustment$$.set(pendingAdjustment);
+        pendingAdjustment = null;
+      }
+      const adjustment = this.activeAdjustment$$();
+      this.activeAdjustment$$.set(null);
+      if (!moved) {
+        // A plain click (no drag) on the segment body opens the picker in
+        // edit mode — matches the plan's "on edit selection open the same
+        // picker" without introducing a separate click handler that would
+        // race with the drag's pointerdown.
+        this.pickerState$$.set({ mode: 'edit', entryId: entry.id, x: upEvent.clientX, y: upEvent.clientY });
+        return;
+      }
+      if (!adjustment) return;
+      this.timeEntriesService.updateEntryTime(entry.id, {
+        track: adjustment.track,
+        startAt: this.fromAbsoluteMinutes(adjustment.startAbs),
+        endAt: this.fromAbsoluteMinutes(adjustment.endAbs),
       });
     };
 
-    this.ngZone.runOutsideAngular(() => {
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
-    });
+    this.listenToDrag(onMove, onUp);
   }
 
   private startResize(event: PointerEvent, entry: TimeEntry, side: 'left' | 'right'): void {
@@ -670,7 +649,7 @@ export class TimelineBoard {
       if (!pendingAdjustment) return;
       const next = pendingAdjustment;
       pendingAdjustment = null;
-      this.ngZone.run(() => this.activeAdjustment$$.set(next));
+      this.activeAdjustment$$.set(next);
     };
 
     const onMove = (moveEvent: PointerEvent) => {
@@ -704,28 +683,35 @@ export class TimelineBoard {
     };
 
     const onUp = () => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-      this.ngZone.run(() => {
-        if (pendingAdjustment) {
-          this.activeAdjustment$$.set(pendingAdjustment);
-          pendingAdjustment = null;
-        }
-        const adjustment = this.activeAdjustment$$();
-        this.activeAdjustment$$.set(null);
-        if (!moved || !adjustment) return;
-        this.timeEntriesService.updateEntryTime(entry.id, {
-          track: entry.track,
-          startAt: this.fromAbsoluteMinutes(adjustment.startAbs),
-          endAt: this.fromAbsoluteMinutes(adjustment.endAbs),
-        });
+      if (pendingAdjustment) {
+        this.activeAdjustment$$.set(pendingAdjustment);
+        pendingAdjustment = null;
+      }
+      const adjustment = this.activeAdjustment$$();
+      this.activeAdjustment$$.set(null);
+      if (!moved || !adjustment) return;
+      this.timeEntriesService.updateEntryTime(entry.id, {
+        track: entry.track,
+        startAt: this.fromAbsoluteMinutes(adjustment.startAbs),
+        endAt: this.fromAbsoluteMinutes(adjustment.endAbs),
       });
     };
 
-    this.ngZone.runOutsideAngular(() => {
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
-    });
+    this.listenToDrag(onMove, onUp);
+  }
+
+  // One drag gesture's pointer listeners live on document: removed on pointerup, or when the
+  // board is destroyed mid-drag so they never write into a destroyed component.
+  private listenToDrag(onMove: (event: PointerEvent) => void, onUp: (event: PointerEvent) => void): void {
+    const drag = new AbortController();
+    const stopOnDestroy = this.destroyRef.onDestroy(() => drag.abort());
+    const finish = (event: PointerEvent): void => {
+      drag.abort();
+      stopOnDestroy();
+      onUp(event);
+    };
+    document.addEventListener('pointermove', onMove, { signal: drag.signal });
+    document.addEventListener('pointerup', finish, { signal: drag.signal });
   }
 
   protected onLaneMouseMove(event: MouseEvent, dayIso: string, track: TimeTrack): void {
@@ -917,8 +903,7 @@ export class TimelineBoard {
   }
 
   private minutesOfDay(iso: string): number {
-    const [hours, minutes] = iso.slice(11, 16).split(':').map(Number);
-    return hours * 60 + minutes;
+    return Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16));
   }
 
   private toAbsoluteMinutes(iso: string): number {
@@ -954,7 +939,7 @@ export class TimelineBoard {
   }
 
   private dayIsoToDayNumber(dayIso: string): number {
-    const [year, month, day] = dayIso.split('-').map(Number);
+    const [year, month, day] = parseIsoParts(dayIso);
     return Math.round(new Date(year, month - 1, day).getTime() / 86_400_000);
   }
 

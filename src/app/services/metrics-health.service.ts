@@ -1,15 +1,14 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Service, computed, inject, signal } from '@angular/core';
 import { MetricsSettingsService } from '@app/services/metrics-settings.service';
-import { NetworkService } from '@app/services/network.service';
+import { MetricsBinaryFrameType, NetworkService } from '@app/services/network.service';
 import { DEFAULT_SEVERITY_THRESHOLDS, SeverityThresholds } from '@app/shared/metrics-severity';
-import { MetricsHealthSeverity, ServiceHealth, ServiceLatest, WebSocketMessageType } from '@app/shared/types';
+import { decodeMetricsWireToLatestSnapshot } from '@app/shared/metrics-wire';
+import { MetricsHealthSeverity, ServiceHealth, ServiceLatest } from '@app/shared/types';
 
 const SEVERITY_RANK: Record<MetricsHealthSeverity, number> = { ok: 0, warn: 1, error: 2 };
 const NOW_TICK_INTERVAL_MS = 30_000;
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class MetricsHealthService {
   public readonly services$$ = computed<ServiceHealth[]>(() => {
     const nowSeconds = Math.floor(this.now$$() / 1000);
@@ -34,10 +33,10 @@ export class MetricsHealthService {
   private readonly now$$ = signal(Date.now());
   private readonly nowTickIntervalId = setInterval(() => this.now$$.set(Date.now()), NOW_TICK_INTERVAL_MS);
 
-  constructor() {
-    this.networkService.wsMessages$.subscribe((message) => {
-      if (message.type === WebSocketMessageType.METRICS_LATEST) {
-        this.latestServices$$.set(message.payload.services);
+  public constructor() {
+    this.networkService.metricsBinaryFrames$.subscribe((frame) => {
+      if (frame.frameType === MetricsBinaryFrameType.Latest) {
+        this.latestServices$$.set(decodeMetricsWireToLatestSnapshot(frame.payload).services);
       }
     });
   }

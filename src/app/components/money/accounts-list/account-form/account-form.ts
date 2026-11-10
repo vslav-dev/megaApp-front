@@ -1,5 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { MoneyService } from '@app/services/money.service';
 import { Account, AccountKind, Currency, Organization } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -10,8 +9,7 @@ import { VInput } from '@ui-kit/components/v-input/v-input';
 @Component({
   selector: 'account-form',
   templateUrl: './account-form.html',
-  imports: [FormsModule, VButton, VDropdown, VCheckbox, VInput],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VButton, VDropdown, VCheckbox, VInput],
 })
 export class AccountForm {
   public readonly accountInput = input<Account | null>(null);
@@ -21,6 +19,8 @@ export class AccountForm {
   public readonly savedOutput = output<void>();
   public readonly cancelledOutput = output<void>();
 
+  private readonly moneyService = inject(MoneyService);
+
   protected readonly title$$ = signal('');
   protected readonly currencyId$$ = signal<string | null>(null);
   protected readonly isInvest$$ = signal(false);
@@ -28,7 +28,7 @@ export class AccountForm {
   protected readonly kind$$ = signal<AccountKind | ''>('');
   protected readonly organizationId$$ = signal<string | null>(null);
 
-  constructor(private moneyService: MoneyService) {
+  public constructor() {
     effect(() => {
       const currentAccount = this.accountInput();
       if (currentAccount) {
@@ -39,7 +39,7 @@ export class AccountForm {
     });
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     if (!this.isFormValid()) return;
 
     const accountData: Account = {
@@ -54,17 +54,13 @@ export class AccountForm {
     const currentAccount = this.accountInput();
     if (currentAccount?.id) {
       accountData.id = currentAccount.id;
-      this.moneyService.updateAccount(accountData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.updateAccount(accountData)) {
+        this.savedOutput.emit();
+      }
     } else {
-      this.moneyService.createAccount(accountData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.createAccount(accountData)) {
+        this.savedOutput.emit();
+      }
     }
   }
 

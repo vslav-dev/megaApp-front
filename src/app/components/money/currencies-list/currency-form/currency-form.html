@@ -3,40 +3,27 @@
 <div class="flex flex-col gap-4">
   <div class="flex gap-4">
     <v-input class="flex-1"
-             [config]="{
-                 label: 'Title',
-                 placeholder: 'US Dollar',
-                 type: 'text',
-               }"
-             [ngModel]="title$$()"
-             (ngModelChange)="title$$.set($event)" />
+             label="Title"
+             placeholder="US Dollar"
+             [(value)]="title$$" />
 
     <v-input class="flex-1"
-             [config]="{
-                 label: 'Ticker',
-                 placeholder: 'USD',
-                 type: 'text',
-               }"
-             [ngModel]="ticker$$()"
-             (ngModelChange)="ticker$$.set($event)" />
+             label="Ticker"
+             placeholder="USD"
+             [(value)]="ticker$$" />
   </div>
 
   <div class="flex gap-4">
     <v-input class="flex-1"
-             [config]="{
-                 label: 'Symbol',
-                 placeholder: '$',
-                 type: 'text',
-               }"
-             [ngModel]="symbol$$()"
-             (ngModelChange)="symbol$$.set($event)" />
+             label="Symbol"
+             placeholder="$"
+             [(value)]="symbol$$" />
 
     <v-dropdown class="flex-1"
                 [label]="'Symbol Position'"
                 [placeholder]="'Select position'"
                 [items]="symbolPositionItems()"
-                [ngModel]="symbolPosEnum$$()"
-                (ngModelChange)="symbolPosEnum$$.set($event)"></v-dropdown>
+                [(value)]="symbolPosEnum$$"></v-dropdown>
   </div>
 
   <v-checkbox [value]="whitespace$$()"
@@ -46,15 +33,13 @@
 
   <div class="flex justify-end gap-2">
     <v-button class="v-primary"
-              [config]="{
-                  isDisabled: !title$$() || !ticker$$() || !symbol$$(),
-                }"
-              (onClick)="save()">
+              [isDisabled]="!title$$() || !ticker$$() || !symbol$$()"
+              (clickOutput)="save()">
       {{ isEditing() ? 'Update' : 'Create' }}
     </v-button>
 
-    <v-button class="v-flat"
-              (onClick)="cancel()">
+    <v-button surface="flat"
+              (clickOutput)="cancel()">
       Cancel
     </v-button>
   </div>

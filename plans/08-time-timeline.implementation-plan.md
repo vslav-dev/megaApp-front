@@ -522,3 +522,49 @@ Backend остаётся финальным validator. Frontend validation ну�
 - `category-options-list` не отдельный самостоятельный пункт левой колонки, а рендерится условно под `category-groups-list` при выборе строки группы (клик по названию) — прямая реализация «Options выбранной group» из плана.
 - Цвет/лейбл сегмента берутся из нового computed `optionById$$` в `TimeCatalogueService` (план не называл его явно, но того требовала логика цвета из раздела «Rendering entries»).
 - Полный текст лейбла (`kind · option1, option2`) используется одновременно как видимый текст в `segment-label` и как `[title]` для hover-tooltip — «tooltip показывает full semantic summary» решено переиспользованием одной и той же строки, без отдельного вычисления summary.
+
+## Слияние с release 2.9.1 (11.11.2026)
+
+Ветка `time-track-feature` (база `425f136`, 12.07) влита с `release` (175 коммитов). Фича портирована на текущую архитектуру фронта. Номер плана 08 совпадает с `08-global-metrics-delta-history` из release — историческое совпадение, не переименовано.
+
+Решения:
+
+- `SyncQueueService` удалён в release (93ba1e4) → time-сервисы на `SyncEngineService`, `BaseTimeService` повторяет `BaseFoodService` (inject, `SyncOperationInput`, режим `Optimistic`).
+- Из правок ветки в sync-queue перенесён только `PATCH` (в движок, с тестом). 4xx без ретраев — уже есть в движке (`isRetryable`). Текст ошибки сервера в тосте — отброшен: движок показывает `feedback.errorMessage`.
+- `concurrent`-флаг отброшен: движок single-flight и хранит одну in-flight операцию для повтора после перезагрузки. Правки drag/resize идут в общей очереди.
+- DELETE шлёт `data: {}`: движок кладёт `operationId` в тело каждого запроса. Бэку тайм-модуля (ветка `143-timetrack-schema`) нужен приём `operationId`.
+- Prefs отображения → `persistedSignal` (план 27): значения перечитываются при смене сессии, а не однажды под guest-ключом.
+- `selectedChapterTime` → core-неймспейс настроек (`UserSettings`, `KeyOfUserSettings` как `as const`), чекбокс в settings на `linkedSignal`. Бэку нужно поле `selectedChapterTime` в `CoreSettings` (`DisallowUnknownFields`).
+- Шаблоны → ui-kit без `[config]`: отдельные инпуты, `clickOutput`, `surface`, `v-input` через `value`, `v-tooltip` через `v-panel`. Общий тултип доски — top-layer popover (`vTopLayer`) вместо удалённого `ZLayerService`.
+- `measureTextWidth` → `measureTextWidthPx` из `shared/text-measure` (дубликат). `kind` группы сужен до `CategoryGroupKind | null` (бэк принимает только `area`).
+- Angular 22/lint: без явного OnPush, `public constructor`, `@empty`, `model()` в `time-option-chips`, `parseIsoParts` под `noUncheckedIndexedAccess`.
+
+- ✅ Снять текстовые конфликты (7 файлов) и тихие мис-мержи (guard, меню).
+- ✅ Перевести time-сервисы на `SyncEngineService`, добавить `PATCH` в движок.
+- ✅ Перевести шаблоны и компоненты на текущий ui-kit и lint.
+- ✅ `npm run lint`, `tsc` app/spec, `ng build`, `npm test` — зелёные.
+- ⭕ Бэк: слить `143-timetrack-schema` с release, добавить `selectedChapterTime` в `CoreSettings`, принять `operationId` в time-эндпоинтах.
+
+## Полное приведение к курсу release (11.11.2026)
+
+Дополняет раздел выше: там исправлено только то, что ловят сборка и lint. Здесь — сверка с решениями планов 23, 24, 27, 29, 37 и с устройством раздела «Деньги» как образца.
+
+Решения:
+
+- Ключи кэша фичи (8 шт.) зарегистрированы в `CACHE_KEY_VERSIONS` (план 23). Без этого `buildCacheKey` бросал исключение при первой записи — фича падала в рантайме, сборка этого не видела.
+- Загрузка — `loadData()` при входе на экран, как в «Деньгах». Раньше данные грузились один раз в конструкторе сервиса и после выхода и повторного входа не возвращались.
+- Записи — оптимистично через sync engine, как транзакции денег. Записи с операциями в очереди защищены от перезаписи свежим ответом сервера. Защита — счётчик на запись, а не набор id: по одной записи в очереди может быть drag и смена выбора.
+- Справочник (виды деятельности, группы, опции) — `async`-методы с `Promise<boolean>`, как справочники денег. Форма закрывается только после подтверждения сервера. При отказе показывается причина от сервера, если она есть. Базовый `BaseTimeService` удалён: общего кода у двух сервисов не осталось.
+- Проверки сети перед операциями удалены: в release их нет нигде, связью занимается sync engine.
+- Телеметрия (план 36): `time.screen_ready`, `time.entries_apply`, `time.catalogue_apply` по образцу денег.
+- Zoneless: `NgZone` удалён из доски. `Injector` остался только для `afterNextRender` вне контекста внедрения.
+- Пикер — top-layer popover (`vTopLayer`) вместо `z-index: 50`. Начальный выбор заполняется в `ngOnInit` вместо `effect` с флагом.
+- Шаблоны: `[(value)]`, `@let` вместо повторных вызовов и `@if (…; as)`, прямой вызов сервиса вместо обёрток-пробросов.
+- Тема (план 24): тени — `--v-shadow-color-dark-strong`, превью слота — `--v-color-contrast`, звёздочка — `--v-color-danger`, выбранный чип — `--v-color-text-on-accent`. Фон hover-панели меняется вместе с темой. Белые линии и затемнения поверх цветных сегментов оставлены: сегменты одинаковы в обеих темах.
+- Тесты (план 29): `time-entries.service.spec` (загрузка, хвост, создание и откат, защита записей в очереди, сброс при выходе), `time-catalogue.service.spec` (загрузка, подтверждённое создание, отказ с причиной и без, удаление).
+
+- ✅ Ключи кэша, загрузка при входе, защита записей в очереди.
+- ✅ Справочник на `async`, без базового класса и проверок сети.
+- ✅ Zoneless, top-layer пикер, `ngOnInit` вместо `effect`, шаблоны.
+- ✅ Токены темы, телеметрия, тесты.
+- ✅ `npm run lint` 0, `tsc` app/spec, `ng build`, `npm test` (536) — зелёные.

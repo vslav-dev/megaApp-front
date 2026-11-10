@@ -1,21 +1,59 @@
 <div class="flex flex-col gap-4">
-  <div class="flex justify-end">
+  <div class="flex items-end justify-between">
+    <v-button [isLabelHidden]="true"
+              surface="flat"
+              [borderRadius]="7"
+              [padding]="3"
+              (clickOutput)="openHeightModal()">
+      <v-icon v-prefix
+              [name]="Icon.Settings"
+              [size]="6" />
+    </v-button>
+
     <v-input class="w-1/3"
-             [formControl]="form.controls.bodyWeight"
-             [config]="{
-               type: 'text',
-               inputmode: 'decimal',
-               label: 'Вес',
-               fontSize: '20px',
-               fontWeight: 500,
-               textAlign: 'right',
-               isAutoSubmitEnabled: true,
-               autoSubmitResult: autoSubmitResult$$(),
-             }"
-             (onAutoSubmit)="onAutoSubmit()">
+             #bodyWeightInputElem
+             [formField]="weightForm.bodyWeight"
+             inputmode="decimal"
+             label="Вес"
+             fontSize="20px"
+             [fontWeight]="500"
+             textAlign="right"
+             [isAutoSubmitEnabled]="true"
+             [autoSubmitResult]="autoSubmitResult$$()"
+             (autoSubmitOutput)="onAutoSubmit()">
       <span v-postfix
             class="ml-1 mr-3 cursor-pointer select-none"
             (click)="focusInput()"> кг </span>
     </v-input>
   </div>
 </div>
+
+<form-modal [isModalOpen]="isHeightModalOpen$$()"
+            (closeOutput)="closeHeightModal()">
+  <form [formRoot]="heightForm"
+        class="flex flex-col gap-4">
+    <div class="text-xl font-medium text-center">Рост</div>
+
+    <v-input [formField]="heightForm.height"
+             #heightInputElem
+             inputmode="numeric"
+             label="Рост"
+             fontSize="20px"
+             [fontWeight]="500"
+             textAlign="right"
+             [isAutoSubmitEnabled]="true"
+             [autoSubmitResult]="heightAutoSubmitResult$$()"
+             (autoSubmitOutput)="onHeightAutoSubmit()">
+      <span v-postfix
+            class="ml-1 mr-3 cursor-pointer select-none"
+            (click)="focusHeightInput()"> см </span>
+    </v-input>
+
+    <v-checkbox mode="switch"
+                [isDisabled]="!hasHeight$$()"
+                [value]="isBmiBandsEnabled$$()"
+                (changedOutput)="onBmiBandsChange($event)">
+      <span class="select-none">BMI-полосы на графике веса</span>
+    </v-checkbox>
+  </form>
+</form-modal>

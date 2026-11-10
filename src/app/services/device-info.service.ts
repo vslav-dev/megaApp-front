@@ -1,6 +1,7 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, Service, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { fromEvent } from 'rxjs';
-import { distinctUntilChanged, map, startWith } from 'rxjs/operators';
+import { map, startWith } from 'rxjs/operators';
 
 interface DeviceInfo {
   isMobile: boolean;
@@ -14,11 +15,22 @@ const SCREEN_MOBILE_BREAKPOINT_PX = 768;
 const KEYBOARD_DETECTION_HEIGHT_THRESHOLD_PX = 150;
 const KEYBOARD_CLOSE_DEBOUNCE_MS = 150; // don't show buttons between food diary selections
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class DeviceInfoService {
-  public readonly isMobileScreen$$ = signal(false);
+  private readonly viewportIsMobile$$ = toSignal(
+    fromEvent(window, 'resize').pipe(
+      startWith(null),
+      map(() => window.innerWidth < SCREEN_MOBILE_BREAKPOINT_PX),
+    ),
+    { requireSync: true },
+  );
+
+  // Lets a screen with its own layout logic (e.g. food diary's column-fit grid) decide
+  // mobile/desktop for the whole app shell instead of the global viewport breakpoint below.
+  // null hands control back to the viewport breakpoint — see setMobileOverride.
+  private readonly mobileOverride$$ = signal<boolean | null>(null);
+
+  public readonly isMobileScreen$$ = computed(() => this.mobileOverride$$() ?? this.viewportIsMobile$$());
   public readonly isDesktopScreen$$ = computed(() => !this.isMobileScreen$$());
 
   public readonly isMobileDevice$$ = computed(() => this.isDeviceMobile());
@@ -28,25 +40,23 @@ export class DeviceInfoService {
 
   public readonly isKeyboardOpen$$ = signal(false);
 
+  // Shared by every fixed-position mobile FAB (nav hamburger, food add/toggle buttons) — keyboard
+  // opening pushes the viewport up, so FABs slide off-screen rather than floating over the keyboard.
+  public readonly shouldHideFabButtons$$ = computed(() => !this.isDesktopScreen$$() && this.isKeyboardOpen$$());
+
   private deviceInfo: DeviceInfo | null = null;
   private initialViewportHeight: number = 0;
   private keyboardCloseTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  constructor() {
-    this.setupResizeListener();
+  public constructor() {
     this.setupKeyboardDetection();
   }
 
-  private setupResizeListener(): void {
-    fromEvent(window, 'resize')
-      .pipe(
-        startWith(null),
-        map(() => window.innerWidth < SCREEN_MOBILE_BREAKPOINT_PX),
-        distinctUntilChanged(),
-      )
-      .subscribe((isMobile) => {
-        this.isMobileScreen$$.set(isMobile);
-      });
+  // isMobile: force mobile/desktop for the whole app shell. null: hand control back to the
+  // window.innerWidth breakpoint. Callers must clear their override (pass null) when they stop
+  // being relevant (e.g. route leave / ngOnDestroy), or every other screen stays stuck on it.
+  public setMobileOverride(isMobile: boolean | null): void {
+    this.mobileOverride$$.set(isMobile);
   }
 
   private setupKeyboardDetection(): void {
@@ -96,7 +106,7 @@ export class DeviceInfoService {
     }
 
     const isMobile = this.isDeviceMobile();
-    const hasMediaDevices = Boolean(navigator.mediaDevices?.getUserMedia);
+    const hasMediaDevices = Boolean(navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices);
     return (isMobile || isTouchDevice) && hasMediaDevices;
   }
 
@@ -124,7 +134,7 @@ export class DeviceInfoService {
 
     const isTouchDevice = this.isTouchDevice();
     const isMobile = this.isDeviceMobile();
-    const platform = this.detectPlatform();
+    const platform = this.getDevicePlatform();
     const { hasRearCamera, hasFrontCamera } = await this.detectCameras();
 
     this.deviceInfo = {
@@ -141,7 +151,7 @@ export class DeviceInfoService {
   public logDeviceInfo(): void {
     const isMobile = this.isDeviceMobile();
     const isTouchDevice = this.isTouchDevice();
-    const hasMediaDevices = Boolean(navigator.mediaDevices?.getUserMedia);
+    const hasMediaDevices = Boolean(navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices);
     const userAgent = navigator.userAgent;
     const shouldShow = this.shouldShowCameraButton();
 
@@ -151,11 +161,11 @@ export class DeviceInfoService {
       isTouchDevice,
       hasMediaDevices,
       shouldShowCameraButton: shouldShow,
-      platform: this.detectPlatform(),
+      platform: this.getDevicePlatform(),
     });
   }
 
-  private detectPlatform(): 'mobile' | 'tablet' | 'desktop' {
+  public getDevicePlatform(): 'mobile' | 'tablet' | 'desktop' {
     const userAgent = navigator.userAgent.toLowerCase();
 
     if (/iphone|android.*mobile/.test(userAgent)) {

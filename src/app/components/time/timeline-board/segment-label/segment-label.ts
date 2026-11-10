@@ -1,15 +1,5 @@
-import {
-  afterNextRender,
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  DestroyRef,
-  ElementRef,
-  inject,
-  input,
-  signal,
-} from '@angular/core';
-import { measureTextWidth } from '@app/shared/utils';
+import { afterNextRender, Component, computed, DestroyRef, ElementRef, inject, input, signal } from '@angular/core';
+import { measureTextWidthPx } from '@app/shared/text-measure';
 
 const MIN_GAP_PX = 4;
 const NBSP = ' ';
@@ -20,7 +10,6 @@ type DisclosureLevel = 0 | 1 | 2 | 3;
   selector: 'segment-label',
   templateUrl: './segment-label.html',
   styleUrl: './segment-label.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SegmentLabel {
   public readonly name = input.required<string>();
@@ -44,10 +33,10 @@ export class SegmentLabel {
     if (!font) return 0;
 
     const width = this.containerWidthPx$$();
-    const nameW = measureTextWidth(this.nameText$$(), font);
-    const durationW = measureTextWidth(this.durationChunkText$$(), font);
-    const startW = measureTextWidth(this.startChunkText$$(), font);
-    const endW = measureTextWidth(this.endText$$(), font);
+    const nameW = measureTextWidthPx(this.nameText$$(), font);
+    const durationW = measureTextWidthPx(this.durationChunkText$$(), font);
+    const startW = measureTextWidthPx(this.startChunkText$$(), font);
+    const endW = measureTextWidthPx(this.endText$$(), font);
 
     if (nameW + durationW + startW + MIN_GAP_PX + endW <= width) return 3;
     if (nameW + durationW + MIN_GAP_PX + endW <= width) return 2;
@@ -55,12 +44,12 @@ export class SegmentLabel {
     return 0;
   });
 
-  private readonly hostElement = inject(ElementRef<HTMLElement>).nativeElement;
+  private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly destroyRef = inject(DestroyRef);
   private readonly containerWidthPx$$ = signal(0);
   private readonly fontString$$ = signal('');
 
-  constructor() {
+  public constructor() {
     afterNextRender(() => {
       this.containerWidthPx$$.set(this.hostElement.getBoundingClientRect().width);
       this.fontString$$.set(getComputedStyle(this.hostElement).font);

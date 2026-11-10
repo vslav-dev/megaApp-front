@@ -6,8 +6,8 @@ export interface SeverityThresholds {
 }
 
 export const DEFAULT_SEVERITY_THRESHOLDS: SeverityThresholds = {
-  warnAfterSeconds: 90,
-  errorAfterSeconds: 180,
+  warnAfterSeconds: 150,
+  errorAfterSeconds: 300,
 };
 
 export function severityDotClass(severity: MetricsHealthSeverity | null): string {

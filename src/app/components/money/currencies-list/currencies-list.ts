@@ -1,19 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
-import { MoneyService } from '../../../services/money.service';
-import { DefaultModal } from '../../../shared/components/default-modal/default-modal';
-import { FormModal } from '../../../shared/components/form-modal/form-modal';
-import { Currency } from '../../../shared/types';
-import { ICON_BUTTON } from '../money.const';
+import { MoneyService } from '@app/services/money.service';
+import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
+import { FormModal } from '@app/shared/components/form-modal/form-modal';
+import { Currency } from '@app/shared/types';
+import { ICON_BUTTON } from '@app/components/money/money.const';
 import { CurrencyForm } from './currency-form/currency-form';
 
 @Component({
   selector: 'currencies-list',
   templateUrl: './currencies-list.html',
   imports: [CurrencyForm, DefaultModal, FormModal, VButton, VCard, VIcon],
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CurrenciesList {
   protected readonly Icon = IconName;
@@ -71,7 +70,7 @@ export class CurrenciesList {
     this.pendingDeleteId$$.set(null);
     if (!id) return;
     if (!this.canDeleteCurrency(id)) return;
-    this.moneyService.deleteCurrency(id).subscribe((success) => {});
+    void this.moneyService.deleteCurrency(id);
   }
 
   protected canDeleteCurrency(currencyId: number): boolean {

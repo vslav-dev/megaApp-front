@@ -1,227 +1,283 @@
-import { HttpClient } from '@angular/common/http';
-import { inject, Injectable, signal, WritableSignal } from '@angular/core';
-import { LocalStorageService } from '@app/services/local-storage.service';
-import { NotificationService } from '@app/services/notification.service';
+import { computed, Service, Signal, WritableSignal } from '@angular/core';
+import { NamespaceSettingsStore } from '@app/services/settings/namespace-settings-store';
+import { persistedSignal } from '@app/services/settings/persisted-signal';
+import { DEFAULT_METRIC_CHART_MODE, MetricChartMode } from '@app/shared/metrics-chart-mode';
+import { MAX_SNAP_TOLERANCE_RATIO } from '@app/shared/metrics-series';
 import { SeverityThresholds } from '@app/shared/metrics-severity';
 import { MetricGranularity } from '@app/shared/types';
-import { firstValueFrom } from 'rxjs';
 
 export type DashboardMetricSelection = Record<string, Record<string, number>>;
 export type DashboardServiceSelection = Record<string, number>;
 export type SeverityThresholdsOverrides = Record<string, SeverityThresholds>;
 export type ServiceHeaderVisibility = Record<string, boolean>;
+export interface ServiceCustomLabel {
+  short: string;
+  long: string;
+}
+export type ServiceCustomLabels = Record<string, ServiceCustomLabel>;
+export type MetricChartModeOverrides = Record<string, Record<string, MetricChartMode>>;
 
-interface StoredMetricsSettings {
-  cardWidthPx: number;
-  cardHeightPx: number;
-  granularity: MetricGranularity;
-  syncCrosshairEnabled: boolean;
-  forceZeroBaselineEnabled: boolean;
-  dashboardSelection: DashboardMetricSelection;
-  dashboardServiceSelection: DashboardServiceSelection;
-  severityThresholds: SeverityThresholdsOverrides;
-  serviceHeaderVisibility: ServiceHeaderVisibility;
+export const CardLayoutMode = {
+  Compact: 'compact',
+  Wide: 'wide',
+} as const;
+export type CardLayoutMode = (typeof CardLayoutMode)[keyof typeof CardLayoutMode];
+
+export const TooltipMode = {
+  Nearest: 'nearest',
+  Vertical: 'vertical',
+} as const;
+export type TooltipMode = (typeof TooltipMode)[keyof typeof TooltipMode];
+
+export interface CardSize {
+  widthPx: number;
+  heightPx: number;
+  expandedHeightPx: number;
 }
 
-const STORAGE_KEY = 'metrics_settings';
-const SETTINGS_ENDPOINT = '/api/metrics-settings/';
-const SAVE_DEBOUNCE_MS = 5_000;
-const DEFAULT_CARD_WIDTH_PX = 304;
-const DEFAULT_CHART_HEIGHT_PX = 112;
+// Server-synced via a batched (explicit-save) namespace store — plan 11's "Save" button flow,
+// unchanged, just riding the generic mechanism instead of a bespoke fetch/put pair.
+interface StoredMetricsSettings {
+  cardSize: CardSize;
+  syncCrosshairEnabled: boolean;
+  dashboardSelection: DashboardMetricSelection;
+  dashboardServiceSelection: DashboardServiceSelection;
+  metricChartModeOverrides: MetricChartModeOverrides;
+  severityThresholds: SeverityThresholdsOverrides;
+  serviceHeaderVisibility: ServiceHeaderVisibility;
+  serviceCustomLabels: ServiceCustomLabels;
+  // Percent of the value mass the anomaly corridor (Y-axis clamp, see
+  // valueCorridor in metrics-series.ts) must keep visible — the only knob left
+  // after simplifying this from a per-point Hampel/MAD outlier filter down to
+  // a plain display-range trim.
+  anomalyCorridorPercent: number;
+}
 
-const DEFAULTS: StoredMetricsSettings = {
-  cardWidthPx: DEFAULT_CARD_WIDTH_PX,
-  cardHeightPx: DEFAULT_CHART_HEIGHT_PX,
-  granularity: 'minute',
-  syncCrosshairEnabled: false,
-  forceZeroBaselineEnabled: false,
-  dashboardSelection: {},
-  dashboardServiceSelection: {},
-  severityThresholds: {},
-  serviceHeaderVisibility: {},
+const GRANULARITY_STORAGE_KEY = 'metrics_granularity';
+const DEFAULT_GRANULARITY: MetricGranularity = 'minute';
+const ACTIVE_CARD_LAYOUT_MODE_STORAGE_KEY = 'metrics_active_card_layout_mode';
+const DEFAULT_CARD_LAYOUT_MODE: CardLayoutMode = CardLayoutMode.Compact;
+const ACTIVE_TOOLTIP_MODE_STORAGE_KEY = 'metrics_active_tooltip_mode';
+const DEFAULT_ACTIVE_TOOLTIP_MODE: TooltipMode = TooltipMode.Nearest;
+const FORCE_ZERO_BASELINE_ENABLED_STORAGE_KEY = 'metrics_force_zero_baseline_enabled';
+const DEFAULT_FORCE_ZERO_BASELINE_ENABLED = false;
+const ANOMALY_CORRIDOR_ENABLED_STORAGE_KEY = 'metrics_anomaly_corridor_enabled';
+const DEFAULT_ANOMALY_CORRIDOR_ENABLED = false;
+const DEFAULT_ANOMALY_CORRIDOR_PERCENT = 95;
+// Extra horizontal gridlines drawn between a chart's Y-axis min/max labels — see
+// buildIntermediateYTicks in metrics-series.ts for how their values are chosen.
+const Y_TICK_COUNT_CARD_STORAGE_KEY = 'metrics_y_tick_count_card';
+const DEFAULT_Y_TICK_COUNT_CARD = 1;
+const Y_TICK_COUNT_FULL_WIDTH_STORAGE_KEY = 'metrics_y_tick_count_full_width';
+const DEFAULT_Y_TICK_COUNT_FULL_WIDTH = 2;
+// How far a tick may drift from its ideal evenly-spaced position, as % of the axis's min..max
+// span — see snapYTickValue in metrics-series.ts. Capped at MAX_SNAP_TOLERANCE_RATIO (50%):
+// beyond that the drift already reaches the axis's own min/max, so there's nothing more to gain.
+const Y_TICK_SNAP_TOLERANCE_PERCENT_STORAGE_KEY = 'metrics_y_tick_snap_tolerance_percent';
+const DEFAULT_Y_TICK_SNAP_TOLERANCE_PERCENT = 5;
+const MAX_Y_TICK_SNAP_TOLERANCE_PERCENT = MAX_SNAP_TOLERANCE_RATIO * 100;
+const DEFAULT_CARD_WIDTH_PX = 304;
+const DEFAULT_CARD_HEIGHT_PX = 112;
+const DEFAULT_CARD_EXPANDED_HEIGHT_PX = 400;
+
+const DEFAULT_CARD_SIZE: CardSize = {
+  widthPx: DEFAULT_CARD_WIDTH_PX,
+  heightPx: DEFAULT_CARD_HEIGHT_PX,
+  expandedHeightPx: DEFAULT_CARD_EXPANDED_HEIGHT_PX,
 };
 
-// Old per-field keys from before settings were combined into STORAGE_KEY — deleted once, never read.
-// metrics_selected_service/metrics_settings_expanded are here too: which panel was expanded is no
-// longer persisted anywhere — every page load opens on the Dashboard panel, collapsed Settings.
-const OBSOLETE_KEYS = [
-  'metrics_expanded_services',
-  'metrics_selected_service',
-  'metrics_settings_expanded',
-  'metrics_card_width_px',
-  'metrics_card_height_px',
-  'metrics_granularity',
-  'metrics_sync_crosshair_enabled',
-  'metrics_dashboard_selection',
-  'metrics_dashboard_service_selection',
-  'metrics_severity_thresholds',
-];
+const DEFAULTS: StoredMetricsSettings = {
+  cardSize: DEFAULT_CARD_SIZE,
+  syncCrosshairEnabled: false,
+  dashboardSelection: {},
+  dashboardServiceSelection: {},
+  metricChartModeOverrides: {},
+  severityThresholds: {},
+  serviceHeaderVisibility: {},
+  serviceCustomLabels: {},
+  anomalyCorridorPercent: DEFAULT_ANOMALY_CORRIDOR_PERCENT,
+};
 
-// Every setter does signal.set() + a synchronous localStorage write, the same
-// way SettingsService does it — no effect() anywhere. An effect that reacts to
-// this state and also writes back into it (even indirectly) is how the
-// previous version of this service produced an infinite loop on page load.
-//
-// Server sync is debounced (SAVE_DEBOUNCE_MS after the last change) and sends
-// the full settings object, not a per-field diff — simpler than SyncQueueService's
-// retry queue, appropriate for a low-traffic, single-in-flight-request save.
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class MetricsSettingsService {
-  public readonly cardWidthPx$$: WritableSignal<number>;
-  public readonly cardHeightPx$$: WritableSignal<number>;
-  public readonly granularity$$: WritableSignal<MetricGranularity>;
-  public readonly syncCrosshairEnabled$$: WritableSignal<boolean>;
-  public readonly forceZeroBaselineEnabled$$: WritableSignal<boolean>;
-  public readonly dashboardSelection$$: WritableSignal<DashboardMetricSelection>;
-  public readonly dashboardServiceSelection$$: WritableSignal<DashboardServiceSelection>;
-  public readonly severityThresholdOverrides$$: WritableSignal<SeverityThresholdsOverrides>;
-  public readonly serviceHeaderVisibility$$: WritableSignal<ServiceHeaderVisibility>;
-  public readonly isSaving$$: WritableSignal<boolean> = signal(false);
+  private readonly store = new NamespaceSettingsStore<StoredMetricsSettings>('metrics', DEFAULTS);
 
-  private readonly http = inject(HttpClient);
-  private readonly localStorageService = inject(LocalStorageService);
-  private readonly notificationService = inject(NotificationService);
+  public readonly cardSize$$: Signal<CardSize> = computed(() => this.store.value$$().cardSize);
+  public readonly syncCrosshairEnabled$$: Signal<boolean> = computed(() => this.store.value$$().syncCrosshairEnabled);
+  public readonly anomalyCorridorPercent$$: Signal<number> = computed(
+    () => this.store.value$$().anomalyCorridorPercent,
+  );
+  public readonly dashboardSelection$$: Signal<DashboardMetricSelection> = computed(
+    () => this.store.value$$().dashboardSelection,
+  );
+  public readonly dashboardServiceSelection$$: Signal<DashboardServiceSelection> = computed(
+    () => this.store.value$$().dashboardServiceSelection,
+  );
+  public readonly metricChartModeOverrides$$: Signal<MetricChartModeOverrides> = computed(
+    () => this.store.value$$().metricChartModeOverrides,
+  );
+  public readonly severityThresholdOverrides$$: Signal<SeverityThresholdsOverrides> = computed(
+    () => this.store.value$$().severityThresholds,
+  );
+  public readonly serviceHeaderVisibility$$: Signal<ServiceHeaderVisibility> = computed(
+    () => this.store.value$$().serviceHeaderVisibility,
+  );
+  public readonly serviceCustomLabels$$: Signal<ServiceCustomLabels> = computed(
+    () => this.store.value$$().serviceCustomLabels,
+  );
+  public readonly isSaving$$: WritableSignal<boolean> = this.store.isSaving$$;
+  public readonly isDirty$$: Signal<boolean> = this.store.isDirty$$;
 
-  private lastConfirmed: StoredMetricsSettings = DEFAULTS;
-  private saveTimeoutId: ReturnType<typeof setTimeout> | null = null;
-
-  constructor() {
-    for (const key of OBSOLETE_KEYS) {
-      this.localStorageService.removeUserScoped(key);
-    }
-
-    const stored = this.localStorageService.getUserScoped<Partial<StoredMetricsSettings>>(STORAGE_KEY);
-    const initial: StoredMetricsSettings = { ...DEFAULTS, ...stored };
-    this.lastConfirmed = initial;
-
-    this.cardWidthPx$$ = signal(initial.cardWidthPx);
-    this.cardHeightPx$$ = signal(initial.cardHeightPx);
-    this.granularity$$ = signal(initial.granularity);
-    this.syncCrosshairEnabled$$ = signal(initial.syncCrosshairEnabled);
-    this.forceZeroBaselineEnabled$$ = signal(initial.forceZeroBaselineEnabled);
-    this.dashboardSelection$$ = signal(initial.dashboardSelection);
-    this.dashboardServiceSelection$$ = signal(initial.dashboardServiceSelection);
-    this.severityThresholdOverrides$$ = signal(initial.severityThresholds);
-    this.serviceHeaderVisibility$$ = signal(initial.serviceHeaderVisibility);
-
-    this.loadFromServer();
-  }
+  // Device-local, never synced — unchanged from before this refactor, just riding the shared
+  // persistedSignal primitive instead of hand-rolled "signal + write to localStorage" wiring.
+  public readonly cardLayoutMode$$: WritableSignal<CardLayoutMode> = persistedSignal(
+    ACTIVE_CARD_LAYOUT_MODE_STORAGE_KEY,
+    DEFAULT_CARD_LAYOUT_MODE,
+  );
+  public readonly activeTooltipMode$$: WritableSignal<TooltipMode> = persistedSignal(
+    ACTIVE_TOOLTIP_MODE_STORAGE_KEY,
+    DEFAULT_ACTIVE_TOOLTIP_MODE,
+  );
+  public readonly granularity$$: WritableSignal<MetricGranularity> = persistedSignal(
+    GRANULARITY_STORAGE_KEY,
+    DEFAULT_GRANULARITY,
+  );
+  public readonly forceZeroBaselineEnabled$$: WritableSignal<boolean> = persistedSignal(
+    FORCE_ZERO_BASELINE_ENABLED_STORAGE_KEY,
+    DEFAULT_FORCE_ZERO_BASELINE_ENABLED,
+  );
+  public readonly anomalyCorridorEnabled$$: WritableSignal<boolean> = persistedSignal(
+    ANOMALY_CORRIDOR_ENABLED_STORAGE_KEY,
+    DEFAULT_ANOMALY_CORRIDOR_ENABLED,
+  );
+  public readonly yTickCountCard$$: WritableSignal<number> = persistedSignal(
+    Y_TICK_COUNT_CARD_STORAGE_KEY,
+    DEFAULT_Y_TICK_COUNT_CARD,
+  );
+  public readonly yTickCountFullWidth$$: WritableSignal<number> = persistedSignal(
+    Y_TICK_COUNT_FULL_WIDTH_STORAGE_KEY,
+    DEFAULT_Y_TICK_COUNT_FULL_WIDTH,
+  );
+  public readonly yTickSnapTolerancePercent$$: WritableSignal<number> = persistedSignal(
+    Y_TICK_SNAP_TOLERANCE_PERCENT_STORAGE_KEY,
+    DEFAULT_Y_TICK_SNAP_TOLERANCE_PERCENT,
+  );
 
   public setCardWidthPx(value: number): void {
-    this.cardWidthPx$$.set(value);
-    this.persist();
+    this.updateCardSize({ widthPx: value });
   }
 
   public setCardHeightPx(value: number): void {
-    this.cardHeightPx$$.set(value);
-    this.persist();
+    this.updateCardSize({ heightPx: value });
+  }
+
+  public setCardExpandedHeightPx(value: number): void {
+    this.updateCardSize({ expandedHeightPx: value });
+  }
+
+  public setCardLayoutMode(mode: CardLayoutMode): void {
+    this.cardLayoutMode$$.set(mode);
+  }
+
+  public cycleCardLayoutMode(): void {
+    this.setCardLayoutMode(
+      this.cardLayoutMode$$() === CardLayoutMode.Compact ? CardLayoutMode.Wide : CardLayoutMode.Compact,
+    );
+  }
+
+  public setActiveTooltipMode(mode: TooltipMode): void {
+    this.activeTooltipMode$$.set(mode);
+  }
+
+  public cycleActiveTooltipMode(): void {
+    this.setActiveTooltipMode(
+      this.activeTooltipMode$$() === TooltipMode.Nearest ? TooltipMode.Vertical : TooltipMode.Nearest,
+    );
   }
 
   public setGranularity(value: MetricGranularity): void {
     this.granularity$$.set(value);
-    this.persist();
   }
 
   public setSyncCrosshairEnabled(value: boolean): void {
-    this.syncCrosshairEnabled$$.set(value);
-    this.persist();
+    this.store.stage('syncCrosshairEnabled', value);
   }
 
   public setForceZeroBaselineEnabled(value: boolean): void {
     this.forceZeroBaselineEnabled$$.set(value);
-    this.persist();
+  }
+
+  public setAnomalyCorridorEnabled(value: boolean): void {
+    this.anomalyCorridorEnabled$$.set(value);
+  }
+
+  public setAnomalyCorridorPercent(value: number): void {
+    this.store.stage('anomalyCorridorPercent', value);
+  }
+
+  public setYTickCountCard(value: number): void {
+    this.yTickCountCard$$.set(value);
+  }
+
+  public setYTickCountFullWidth(value: number): void {
+    this.yTickCountFullWidth$$.set(value);
+  }
+
+  public setYTickSnapTolerancePercent(value: number): void {
+    const clamped = Math.min(value, MAX_Y_TICK_SNAP_TOLERANCE_PERCENT);
+    // Skips the write once already at the ceiling — holding the input's increment key past 50%
+    // would otherwise keep re-triggering every visible chart's tick recompute for no visual change.
+    if (clamped === this.yTickSnapTolerancePercent$$()) return;
+    this.yTickSnapTolerancePercent$$.set(clamped);
   }
 
   public setDashboardSelection(value: DashboardMetricSelection): void {
-    this.dashboardSelection$$.set(value);
-    this.persist();
+    this.store.stage('dashboardSelection', value);
   }
 
   public setDashboardServiceSelection(value: DashboardServiceSelection): void {
-    this.dashboardServiceSelection$$.set(value);
-    this.persist();
+    this.store.stage('dashboardServiceSelection', value);
+  }
+
+  public setMetricChartModeOverrides(value: MetricChartModeOverrides): void {
+    this.store.stage('metricChartModeOverrides', value);
+  }
+
+  public metricChartMode(service: string, name: string): MetricChartMode {
+    return this.metricChartModeOverrides$$()[service]?.[name] ?? DEFAULT_METRIC_CHART_MODE;
   }
 
   public setSeverityThresholdOverrides(value: SeverityThresholdsOverrides): void {
-    this.severityThresholdOverrides$$.set(value);
-    this.persist();
+    this.store.stage('severityThresholds', value);
   }
 
   public setServiceHeaderVisibility(value: ServiceHeaderVisibility): void {
-    this.serviceHeaderVisibility$$.set(value);
-    this.persist();
+    this.store.stage('serviceHeaderVisibility', value);
   }
 
-  private persist(): void {
-    this.persistLocalOnly();
-    this.scheduleSave();
+  public setServiceCustomLabels(value: ServiceCustomLabels): void {
+    this.store.stage('serviceCustomLabels', value);
   }
 
-  private persistLocalOnly(): void {
-    this.localStorageService.setUserScoped(STORAGE_KEY, this.snapshot());
-  }
+  public setServiceCustomLabel(service: string, patch: Partial<ServiceCustomLabel>): void {
+    const current = this.serviceCustomLabels$$();
+    const existing = current[service];
+    const merged: ServiceCustomLabel = { short: existing?.short ?? '', long: existing?.long ?? '', ...patch };
 
-  private snapshot(): StoredMetricsSettings {
-    return {
-      cardWidthPx: this.cardWidthPx$$(),
-      cardHeightPx: this.cardHeightPx$$(),
-      granularity: this.granularity$$(),
-      syncCrosshairEnabled: this.syncCrosshairEnabled$$(),
-      forceZeroBaselineEnabled: this.forceZeroBaselineEnabled$$(),
-      dashboardSelection: this.dashboardSelection$$(),
-      dashboardServiceSelection: this.dashboardServiceSelection$$(),
-      severityThresholds: this.severityThresholdOverrides$$(),
-      serviceHeaderVisibility: this.serviceHeaderVisibility$$(),
-    };
-  }
-
-  private applySnapshot(value: StoredMetricsSettings): void {
-    this.cardWidthPx$$.set(value.cardWidthPx);
-    this.cardHeightPx$$.set(value.cardHeightPx);
-    this.granularity$$.set(value.granularity);
-    this.syncCrosshairEnabled$$.set(value.syncCrosshairEnabled);
-    this.forceZeroBaselineEnabled$$.set(value.forceZeroBaselineEnabled);
-    this.dashboardSelection$$.set(value.dashboardSelection);
-    this.dashboardServiceSelection$$.set(value.dashboardServiceSelection);
-    this.severityThresholdOverrides$$.set(value.severityThresholds);
-    this.serviceHeaderVisibility$$.set(value.serviceHeaderVisibility);
-    this.localStorageService.setUserScoped(STORAGE_KEY, value);
-  }
-
-  private scheduleSave(): void {
-    if (this.saveTimeoutId !== null) {
-      clearTimeout(this.saveTimeoutId);
+    const next = { ...current };
+    if (merged.short.trim() || merged.long.trim()) {
+      next[service] = merged;
+    } else {
+      delete next[service];
     }
-    this.saveTimeoutId = setTimeout(() => this.save(), SAVE_DEBOUNCE_MS);
+    this.setServiceCustomLabels(next);
   }
 
-  private async save(): Promise<void> {
-    this.saveTimeoutId = null;
-    const snapshot = this.snapshot();
-
-    this.isSaving$$.set(true);
-    try {
-      await firstValueFrom(this.http.put(SETTINGS_ENDPOINT, snapshot));
-      this.lastConfirmed = snapshot;
-    } catch (error) {
-      console.error('Failed to save metrics settings:', error);
-      this.applySnapshot(this.lastConfirmed);
-      this.notificationService.showSyncError('Failed to save metrics settings');
-    } finally {
-      this.isSaving$$.set(false);
-    }
+  public async saveNow(): Promise<void> {
+    return this.store.saveNow();
   }
 
-  private async loadFromServer(): Promise<void> {
-    try {
-      const response = await firstValueFrom(this.http.get<Partial<StoredMetricsSettings>>(SETTINGS_ENDPOINT));
-      const merged: StoredMetricsSettings = { ...DEFAULTS, ...response };
-      this.lastConfirmed = merged;
-      this.applySnapshot(merged);
-    } catch (error) {
-      console.error('Failed to fetch metrics settings from server:', error);
-    }
+  private updateCardSize(patch: Partial<CardSize>): void {
+    this.store.stage('cardSize', { ...this.cardSize$$(), ...patch });
   }
 }

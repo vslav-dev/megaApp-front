@@ -1,19 +1,22 @@
-import { MetricAggregation } from '@app/shared/metrics-aggregation';
-import { MetricChartMode } from '@app/shared/metrics-chart-mode';
 import { MetricUnit } from '@app/shared/metric-units';
+import { MetricAggregation } from '@app/shared/metrics-aggregation';
 import { DEFAULT_METRIC_COLOR, MetricConfig, MetricsServiceDefinition } from '@app/shared/metrics-catalog-metric';
+import { CYCLE_BOOKS_FETCHER_BOT_METRICS_DEFINITION } from '@app/shared/metrics-catalog.cycle-books-fetcher-bot';
 import { HARDWARE_METRICS_DEFINITION } from '@app/shared/metrics-catalog.hardware';
+import { LIVE_BOOKS_FETCHER_BOT_METRICS_DEFINITION } from '@app/shared/metrics-catalog.live-books-fetcher-bot';
 import { MEGAAPP_METRICS_DEFINITION } from '@app/shared/metrics-catalog.megaapp';
+import { MM_BOT_METRICS_DEFINITION } from '@app/shared/metrics-catalog.mm-bot';
 import { SOZVON_KONSPEKT_METRICS_DEFINITION } from '@app/shared/metrics-catalog.sozvon-konspekt';
 import { SPREAD_CAPTURE_BOT_METRICS_DEFINITION } from '@app/shared/metrics-catalog.spread-capture-bot';
 import { SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION } from '@app/shared/metrics-catalog.spread-capture-bot-v4';
+import { TG_TRANSCRIBER_BOT_METRICS_DEFINITION } from '@app/shared/metrics-catalog.tg-transcriber-bot';
 
 export type { MetricsGroupDefinition, MetricsServiceDefinition } from '@app/shared/metrics-catalog-metric';
 
 const UNCATALOGUED_DEFAULTS = {
-  aggregation: 'avgRound' as MetricAggregation,
+  aggregation: 'avg' as MetricAggregation,
+  integerValued: true,
   unit: 'count' as MetricUnit,
-  chartMode: 'sparse-line' as MetricChartMode,
   color: DEFAULT_METRIC_COLOR,
   description: 'Метрика ещё не описана в каталоге — показано значение по умолчанию.',
 };
@@ -39,8 +42,12 @@ function buildCatalog(definition: MetricsServiceDefinition): ResolvedCatalog {
 const STATIC_CATALOGS: ResolvedCatalog[] = [
   buildCatalog(SPREAD_CAPTURE_BOT_METRICS_DEFINITION),
   buildCatalog(SPREAD_CAPTURE_BOT_V4_METRICS_DEFINITION),
+  buildCatalog(MM_BOT_METRICS_DEFINITION),
   buildCatalog(MEGAAPP_METRICS_DEFINITION),
   buildCatalog(SOZVON_KONSPEKT_METRICS_DEFINITION),
+  buildCatalog(CYCLE_BOOKS_FETCHER_BOT_METRICS_DEFINITION),
+  buildCatalog(LIVE_BOOKS_FETCHER_BOT_METRICS_DEFINITION),
+  buildCatalog(TG_TRANSCRIBER_BOT_METRICS_DEFINITION),
 ];
 
 const STATIC_CATALOG_BY_SERVICE = new Map<string, ResolvedCatalog>(
@@ -50,17 +57,12 @@ const STATIC_CATALOG_BY_SERVICE = new Map<string, ResolvedCatalog>(
 const HARDWARE_CATALOG = buildCatalog(HARDWARE_METRICS_DEFINITION);
 const HARDWARE_SERVICE_PREFIX = 'hardware:';
 
-const METRICS_SERVICE_VARIANTS: Record<string, { baseService: string; label: string }> = {
-  'megaapp-test': { baseService: 'megaapp', label: 'MegaApp Test' },
+const METRICS_SERVICE_VARIANTS: Record<string, { baseService: string }> = {
+  'megaapp-test': { baseService: 'megaapp' },
 };
 
 function isHardwareService(service: string): boolean {
   return service.startsWith(HARDWARE_SERVICE_PREFIX);
-}
-
-function hardwareServiceLabel(service: string): string {
-  const suffix = service.slice(HARDWARE_SERVICE_PREFIX.length).trim();
-  return suffix ? `Hardware: ${suffix}` : HARDWARE_CATALOG.definition.label;
 }
 
 function resolveCatalog(service: string): ResolvedCatalog | null {
@@ -74,20 +76,13 @@ function resolveCatalog(service: string): ResolvedCatalog | null {
   return null;
 }
 
-export function metricsServiceLabel(service: string): string {
-  if (isHardwareService(service)) return hardwareServiceLabel(service);
-  const variant = METRICS_SERVICE_VARIANTS[service];
-  if (variant) return variant.label;
-  return STATIC_CATALOG_BY_SERVICE.get(service)?.definition.label ?? service;
-}
-
 export function metricsServiceDefinition(service: string | null | undefined): MetricsServiceDefinition | null {
   if (!service) return null;
   const catalog = resolveCatalog(service);
   if (!catalog) return null;
   if (service === catalog.definition.service) return catalog.definition;
-  // Динамический hardware-хост или megaapp-test-вариант — те же группы/метрики, другие service/label.
-  return { ...catalog.definition, service, label: metricsServiceLabel(service) };
+  // Динамический hardware-хост или megaapp-test-вариант — те же группы/метрики, другой service.
+  return { ...catalog.definition, service };
 }
 
 export function metricsServiceDefinitions(): MetricsServiceDefinition[] {
@@ -108,11 +103,19 @@ export function metricLabel(service: string, name: string): string {
 }
 
 export function metricDescription(service: string, name: string): string {
-  return lookupMetric(service, name)?.description ?? UNCATALOGUED_DEFAULTS.description;
+  const config = lookupMetric(service, name);
+  if (!config) return UNCATALOGUED_DEFAULTS.description;
+  if (!config.removed) return config.description;
+  const note = config.removedNote ?? 'замены нет';
+  return `${config.description}\n\nМетрика удалена, больше не собирается. ${note}.`;
 }
 
 export function metricAggregation(service: string, name: string): MetricAggregation {
   return lookupMetric(service, name)?.aggregation ?? UNCATALOGUED_DEFAULTS.aggregation;
+}
+
+export function metricIntegerValued(service: string, name: string): boolean {
+  return lookupMetric(service, name)?.integerValued ?? UNCATALOGUED_DEFAULTS.integerValued;
 }
 
 export function metricUnit(service: string, name: string): MetricUnit {
@@ -121,8 +124,4 @@ export function metricUnit(service: string, name: string): MetricUnit {
 
 export function metricColor(service: string, name: string): string {
   return lookupMetric(service, name)?.color ?? UNCATALOGUED_DEFAULTS.color;
-}
-
-export function metricChartMode(service: string, name: string): MetricChartMode {
-  return lookupMetric(service, name)?.chartMode ?? UNCATALOGUED_DEFAULTS.chartMode;
 }

@@ -1,24 +1,22 @@
 import {
-  ChangeDetectionStrategy,
   Component,
   effect,
   ElementRef,
+  inject,
   input,
   output,
   signal,
   viewChild,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { VButton } from '@ui-kit/components/v-button/v-button';
 import { VInput } from '@ui-kit/components/v-input/v-input';
-import { MoneyService } from '../../../../services/money.service';
-import { Organization } from '../../../../shared/types';
+import { MoneyService } from '@app/services/money.service';
+import { Organization } from '@app/shared/types';
 
 @Component({
   selector: 'organization-form',
   templateUrl: './organization-form.html',
-  imports: [FormsModule, VButton, VInput],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [VButton, VInput],
 })
 export class OrganizationForm {
   public readonly organizationInput = input<Organization | null>(null);
@@ -26,12 +24,13 @@ export class OrganizationForm {
   public readonly savedOutput = output<void>();
   public readonly cancelledOutput = output<void>();
 
+  private readonly moneyService = inject(MoneyService);
   private readonly fileInputElem = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
   protected readonly title$$ = signal('');
   protected readonly logoBase64$$ = signal<string | null>(null);
 
-  constructor(private moneyService: MoneyService) {
+  public constructor() {
     effect(() => {
       const current = this.organizationInput();
       if (current) {
@@ -60,7 +59,7 @@ export class OrganizationForm {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      const base64 = result.split(',')[1] ?? result;
       this.logoBase64$$.set(base64);
     };
     reader.readAsDataURL(file);
@@ -84,7 +83,7 @@ export class OrganizationForm {
     return `data:image/png;base64,${logo}`;
   }
 
-  protected save(): void {
+  protected async save(): Promise<void> {
     if (!this.isFormValid()) return;
 
     const organizationData: Organization = {
@@ -95,17 +94,13 @@ export class OrganizationForm {
     const current = this.organizationInput();
     if (current?.id) {
       organizationData.id = current.id;
-      this.moneyService.updateOrganization(organizationData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.updateOrganization(organizationData)) {
+        this.savedOutput.emit();
+      }
     } else {
-      this.moneyService.createOrganization(organizationData).subscribe((success) => {
-        if (success) {
-          this.savedOutput.emit();
-        }
-      });
+      if (await this.moneyService.createOrganization(organizationData)) {
+        this.savedOutput.emit();
+      }
     }
   }
 
