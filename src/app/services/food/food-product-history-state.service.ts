@@ -29,17 +29,18 @@ export class FoodProductHistoryStateService implements OnDestroy {
   // product renamed, archived or restored meanwhile (here or on another device) shows its current state.
   // An id missing from the catalogue stays here but is neither shown nor requested: on a cold start the
   // selection comes from the URL before the catalogue does, and dropping those ids would wipe the URL.
-  private readonly trackedIds$$: WritableSignal<number[]> = signal([], { equal: isSameIdList });
-  public readonly selectedIds$$ = this.trackedIds$$.asReadonly();
+  // Naming: "selected" — these raw ids; "tracked" — the selected products found in the catalogue.
+  private readonly selectedIdsState$$: WritableSignal<number[]> = signal([], { equal: isSameIdList });
+  public readonly selectedIds$$ = this.selectedIdsState$$.asReadonly();
 
   public readonly trackedProducts$$ = computed(() => {
     const catalogue = this.foodCatalogueService.catalogue$$();
-    return this.trackedIds$$()
+    return this.selectedIdsState$$()
       .map((id) => catalogue[id])
       .filter((product): product is CatalogueEntry => Boolean(product));
   });
 
-  // The ids the history is requested for: tracked and present in the catalogue. Compared by content, so
+  // The ids the history is requested for: selected and present in the catalogue. Compared by content, so
   // a catalogue change that keeps this set (a rename, an archive) costs nothing, while the catalogue
   // arriving after a selection taken from the URL loads that selection's history.
   private readonly requestedIds$$ = computed(() => this.trackedProducts$$().map((product) => product.id), {
@@ -109,22 +110,22 @@ export class FoodProductHistoryStateService implements OnDestroy {
     const shownIds = this.requestedIds$$();
     if (shownIds.includes(product.id) || this.isLimitReached$$()) return;
 
-    this.trackedIds$$.set([...shownIds, product.id]);
+    this.selectedIdsState$$.set([...shownIds, product.id]);
   }
 
   public removeProduct(catalogueId: number): void {
-    this.trackedIds$$.set(this.requestedIds$$().filter((id) => id !== catalogueId));
+    this.selectedIdsState$$.set(this.requestedIds$$().filter((id) => id !== catalogueId));
   }
 
   // Replaces the whole selection, e.g. with the one from a bookmarked URL. Expects distinct positive ids,
   // at most MAX_TRACKED_PRODUCTS of them (parseProductsParam guarantees that).
   public selectProducts(catalogueIds: number[]): void {
-    this.trackedIds$$.set(catalogueIds);
+    this.selectedIdsState$$.set(catalogueIds);
   }
 
   private reset(): void {
     this.activeRequestSub?.unsubscribe();
-    this.trackedIds$$.set([]);
+    this.selectedIdsState$$.set([]);
     this.entries$$.set([]);
     this.isLoading$$.set(false);
     this.error$$.set(null);

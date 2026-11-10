@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
+import { Event as RouterEvent, NavigationEnd, NavigationStart, Router } from '@angular/router';
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { LocalStorageService } from '@app/services/local-storage.service';
 import { Subject } from 'rxjs';
@@ -14,7 +14,8 @@ const ANSWER_STORED_ALL = { received: 1, stored: 1, rejected: [] };
 
 // `savedQueue` — what the user's local storage already holds from an earlier visit
 function setup(savedQueue: unknown = null, routerUrl = '/money') {
-  const routerFake: Pick<Router, 'url' | 'events'> = { url: routerUrl, events: new Subject() };
+  const routerEvents = new Subject<RouterEvent>();
+  const routerFake: Pick<Router, 'url' | 'events'> = { url: routerUrl, events: routerEvents };
   const deviceInfoFake: Pick<DeviceInfoService, 'getDevicePlatform' | 'isMobileDevice$$' | 'isMobileScreen$$'> = {
     getDevicePlatform: () => 'desktop',
     isMobileDevice$$: (() => false) as DeviceInfoService['isMobileDevice$$'],
@@ -38,6 +39,7 @@ function setup(savedQueue: unknown = null, routerUrl = '/money') {
   return {
     service: TestBed.inject(TelemetryService),
     httpMock: TestBed.inject(HttpTestingController),
+    routerEvents,
   };
 }
 
@@ -370,5 +372,29 @@ describe('TelemetryService — route attribution', () => {
     expect((request.request.body as RequestBody).events[0]?.data['route']).toBe('/food');
     request.flush(ANSWER_STORED_ALL);
     httpMock.verify();
+  });
+});
+
+describe('TelemetryService — route timing', () => {
+  it('times a navigation only when it changes the path', async () => {
+    const { service, routerEvents } = setup();
+    const record = vi.spyOn(service, 'record').mockImplementation(() => undefined);
+    // The router subscription starts after the first render.
+    TestBed.tick();
+
+    const navigate = (id: number, url: string): void => {
+      routerEvents.next(new NavigationStart(id, url));
+      routerEvents.next(new NavigationEnd(id, url, url));
+    };
+    navigate(1, '/food');
+    navigate(2, '/food?products=1,2');
+    navigate(3, '/money');
+
+    await vi.waitFor(() => {
+      const timedRoutes = record.mock.calls
+        .filter(([operation]) => operation === 'app.route_ready')
+        .map(([, , attributes]) => attributes?.['route']);
+      expect(timedRoutes).toEqual(['/food', '/money']);
+    });
   });
 });
