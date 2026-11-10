@@ -35,7 +35,6 @@
               "src/ui-kit/styles/vars.css",
               "src/ui-kit/styles/flat-style.css",
               "src/ui-kit/styles/flat-blue.css",
-              "src/ui-kit/styles/top-layer.css",
               "src/styles.scss"
             ],
             "allowedCommonJsDependencies": [],

@@ -73,3 +73,21 @@
 
 - ✅ Директива без input и слушателя; тосты сами поднимаются на событие открытия модалки
 - ✅ lint, `tsc` (app + spec), build, `npm test`
+
+## Прыжок раскладки при открытии модалки (10.11.2026)
+
+- Баг: `overflow: hidden` у `html` при открытой модалке убирает полосу прокрутки → viewport шире → блоки страницы «прыгают» на всю ширину.
+- Заменяет пункт «Блокировка прокрутки» в части побочного эффекта: блокировка остаётся.
+- Решение: `scrollbar-gutter: stable` у `html` — место под полосу резервируется всегда.
+
+- ✅ `scrollbar-gutter: stable` в `top-layer.css`
+- ✅ lint, `tsc` (app + spec)
+
+### Уточнение (10.11.2026): `scrollbar-gutter` не помог
+
+- Замер в Chrome: при кастомном `::-webkit-scrollbar` `scrollbar-gutter: stable` место не резервирует → `overflow: hidden` на `html` всё равно расширяет viewport (1702 → 1710 px). Заменяет решение выше.
+- Решение: у `html` и так `overflow-y-scroll` (полоса всегда), правило `overflow: hidden` и `top-layer.css` удалены. Цепочку прокрутки рвёт сам диалог: полноэкранный scroll-контейнер (`overflow: auto`) с `overscroll-behavior: contain`.
+- Проверено в браузере: ширина не меняется, колесо под модалкой страницу не прокручивает.
+
+- ✅ Удалить `top-layer.css` и запись в `angular.json`
+- ✅ `v-modal`: `overflow: auto` + `overscroll-behavior: contain`
