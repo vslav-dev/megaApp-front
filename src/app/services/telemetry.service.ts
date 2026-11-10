@@ -34,6 +34,12 @@ const REQUEST_OVERHEAD_BYTES = 64;
 const FALLBACK_STREAM = 'misc';
 const STREAM_PATTERN = /^[a-z0-9._-]{1,64}$/;
 
+// The route an event is attributed to: the path only. The query carries state, not a place in the app
+// (e.g. /food?products=… — the product-history selection, plan 53).
+function routePath(url: string): string {
+  return url.replace(/[?#].*$/, '');
+}
+
 @Service()
 export class TelemetryService {
   private readonly http = inject(HttpClient);
@@ -49,6 +55,7 @@ export class TelemetryService {
   private nextCycleAllowedAt = 0;
   private sending = false;
   private readonly routeStarts = new Map<number, number>();
+  private lastNavigatedRoute: string | null = null;
   private readonly suppressedErrorCounts = new Map<string, number>();
   private readonly errorSignatureLastSentAt = new Map<string, number>();
 
@@ -119,7 +126,7 @@ export class TelemetryService {
       operation,
       elapsedMs: Math.max(0, Math.round(elapsedMs)),
       ...(renderMs === undefined ? {} : { renderMs: Math.max(0, Math.round(renderMs)) }),
-      route: this.router.url,
+      route: routePath(this.router.url),
       outcome,
       ...(attributes && Object.keys(attributes).length > 0 ? { attributes } : {}),
       device: this.deviceContext(),
@@ -149,7 +156,7 @@ export class TelemetryService {
       timestampMs: Date.now(),
       sessionId: this.sessionId,
       operation: `log.${name}`,
-      route: this.router.url,
+      route: routePath(this.router.url),
       message,
       ...(attributes && Object.keys(attributes).length > 0 ? { attributes } : {}),
       device: this.deviceContext(),
@@ -176,7 +183,7 @@ export class TelemetryService {
       timestampMs: now,
       sessionId: this.sessionId,
       operation,
-      route: this.router.url,
+      route: routePath(this.router.url),
       outcome: 'error',
       message,
       stack,
@@ -279,8 +286,11 @@ export class TelemetryService {
     if (event instanceof NavigationEnd) {
       const startedAt = this.routeStarts.get(event.id);
       this.routeStarts.delete(event.id);
-      if (startedAt !== undefined)
-        void this.recordAfterPaint('app.route_ready', startedAt, { route: event.urlAfterRedirects });
+      const route = routePath(event.urlAfterRedirects);
+      // A query-only navigation reuses the route's component and renders nothing new — not a route to time.
+      const isRouteChange = route !== this.lastNavigatedRoute;
+      this.lastNavigatedRoute = route;
+      if (startedAt !== undefined && isRouteChange) void this.recordAfterPaint('app.route_ready', startedAt, { route });
       return;
     }
     if (event instanceof NavigationCancel || event instanceof NavigationError) {

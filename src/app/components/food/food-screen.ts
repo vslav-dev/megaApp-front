@@ -20,6 +20,7 @@ import { FoodStatsColumns } from '@app/components/food/stats/food-stats-columns/
 import { DeviceInfoService } from '@app/services/device-info.service';
 import { FoodAddModalService, ModalState } from '@app/services/food/food-add-modal.service';
 import { FoodCatalogueService } from '@app/services/food/food-catalogue.service';
+import { syncProductHistoryWithUrl } from '@app/services/food/food-product-history-url';
 import { FoodScreenMobileTab, FoodScreenModeService } from '@app/services/food/food-screen-mode.service';
 import { FoodSyncCoordinatorService } from '@app/services/food/food-sync-coordinator.service';
 import { TelemetryService } from '@app/services/telemetry.service';
@@ -110,6 +111,7 @@ export class FoodScreen implements OnInit, OnDestroy {
   );
 
   public constructor() {
+    syncProductHistoryWithUrl();
     effect(() => this.foodScreenModeService.isSingleColumnLayout$$.set(this.totalColumnCount$$() === 1));
     effect(() => this.deviceInfoService.setMobileOverride(this.totalColumnCount$$() === 1));
   }

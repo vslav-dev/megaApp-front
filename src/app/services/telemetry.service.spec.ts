@@ -13,8 +13,8 @@ const BATCH_WINDOW_MS = 60 * 1000;
 const ANSWER_STORED_ALL = { received: 1, stored: 1, rejected: [] };
 
 // `savedQueue` — what the user's local storage already holds from an earlier visit
-function setup(savedQueue: unknown = null) {
-  const routerFake: Pick<Router, 'url' | 'events'> = { url: '/money', events: new Subject() };
+function setup(savedQueue: unknown = null, routerUrl = '/money') {
+  const routerFake: Pick<Router, 'url' | 'events'> = { url: routerUrl, events: new Subject() };
   const deviceInfoFake: Pick<DeviceInfoService, 'getDevicePlatform' | 'isMobileDevice$$' | 'isMobileScreen$$'> = {
     getDevicePlatform: () => 'desktop',
     isMobileDevice$$: (() => false) as DeviceInfoService['isMobileDevice$$'],
@@ -359,3 +359,16 @@ function readBlob(blob: Blob): Promise<string> {
     reader.readAsText(blob);
   });
 }
+
+describe('TelemetryService — route attribution', () => {
+  it('attributes an event to the path only, without the query or fragment', () => {
+    const { service, httpMock } = setup(null, '/food?products=12,45#top');
+
+    service.record('food.screen_ready', 1);
+
+    const request = httpMock.expectOne(EVENTS_URL);
+    expect((request.request.body as RequestBody).events[0]?.data['route']).toBe('/food');
+    request.flush(ANSWER_STORED_ALL);
+    httpMock.verify();
+  });
+});
