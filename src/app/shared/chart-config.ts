@@ -8,7 +8,30 @@ import {
 import { formatMetricUnitValue, MetricUnit } from '@app/shared/metric-units';
 import { formatMetricTickLabel } from '@app/shared/metrics-series';
 import { MetricGranularity, PaletteTuning } from '@app/shared/types';
-import { ChartConfiguration, TooltipItem } from 'chart.js';
+import { ChartConfiguration, ChartType, Tooltip, TooltipItem, TooltipPositionerFunction } from 'chart.js';
+
+declare module 'chart.js' {
+  interface TooltipPositionerMap {
+    sideOfCursor: TooltipPositionerFunction<ChartType>;
+  }
+}
+
+// Default Chart.js alignment falls back to a centered tooltip (top/bottom + center) once it doesn't
+// fit horizontally, which covers the hovered column. This positioner pins the tooltip vertically
+// centered on the cursor and always on one side of the hovered element (the side with more room),
+// so the hovered spot is never covered. Chart.js clamps the final box into the canvas.
+Tooltip.positioners.sideOfCursor = function (items, eventPosition) {
+  const element = items[0]?.element;
+  if (!element) return false;
+  const halfWidth = ((element as { width?: number }).width ?? 0) / 2;
+  const toTheRight = element.x <= this.chart.width / 2;
+  return {
+    x: element.x + (toTheRight ? halfWidth : -halfWidth),
+    y: eventPosition.y,
+    xAlign: toTheRight ? 'left' : 'right',
+    yAlign: 'center',
+  };
+};
 
 // A balance dataset can carry the real values next to the plotted (stacked) ones.
 export interface DatasetWithRawValues {
@@ -287,6 +310,7 @@ export function createBalanceChartConfig(colors: ChartColors): ChartConfiguratio
       plugins: {
         legend: { display: false },
         tooltip: {
+          position: 'sideOfCursor',
           mode: 'index',
           intersect: false,
           footerAlign: 'right',
@@ -336,6 +360,7 @@ export function createIncomeChartConfig(colors: ChartColors): ChartConfiguration
       plugins: {
         legend: { display: false },
         tooltip: {
+          position: 'sideOfCursor',
           mode: 'index',
           intersect: false,
           footerAlign: 'right',
@@ -427,6 +452,7 @@ export function createExpenseChartConfig(colors: ChartColors): ChartConfiguratio
       plugins: {
         legend: { display: false },
         tooltip: {
+          position: 'sideOfCursor',
           itemSort: (a, b) => b.datasetIndex - a.datasetIndex,
           mode: 'index',
           intersect: false,
@@ -484,7 +510,7 @@ export function createMetricSparklineConfig(color: string, colors: ChartColors):
       elements: { line: { tension: 0.3 } },
       plugins: {
         legend: { display: false },
-        tooltip: { mode: 'nearest', intersect: false },
+        tooltip: { position: 'sideOfCursor', mode: 'nearest', intersect: false },
       },
       scales: {
         x: {
