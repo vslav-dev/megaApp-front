@@ -46,7 +46,7 @@
                   <span class="text-[color:var(--v-color-danger)]">*</span>
                 }
               </div>
-              <time-option-chips [options]="optionsForGroup(groupId)"
+              <time-option-chips [optionsInput]="optionsForGroup(groupId)"
                                   [value]="selectedOptions$$().get(groupId) ?? null"
                                   (valueChange)="setOption(groupId, $event)" />
             </div>

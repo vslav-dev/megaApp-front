@@ -106,20 +106,20 @@
             [class.major]="line.major"
             [style.left.%]="line.leftPct"></span>
     }
-    <segment-label [name]="segment.label"
-                   [durationLabel]="segment.durationLabel"
-                   [startClock]="segment.startClock"
-                   [endClock]="segment.endClock"
-                   [isTrueStart]="segment.isTrueStart"
-                   [isTrueEnd]="segment.isTrueEnd" />
+    <segment-label [nameInput]="segment.label"
+                   [durationLabelInput]="segment.durationLabel"
+                   [startClockInput]="segment.startClock"
+                   [endClockInput]="segment.endClock"
+                   [isTrueStartInput]="segment.isTrueStart"
+                   [isTrueEndInput]="segment.isTrueEnd" />
     <button type="button"
             class="seg-delete"
             (pointerdown)="$event.stopPropagation()"
             (click)="deleteEntry(segment.entry)">×</button>
     <span class="handle handle-l"
-          (pointerdown)="onHandlePointerDown($event, segment.entry, 'left')"></span>
+          (pointerdown)="onHandlePointerDown($event, segment.entry, HandleSide.Left)"></span>
     <span class="handle handle-r"
-          (pointerdown)="onHandlePointerDown($event, segment.entry, 'right')"></span>
+          (pointerdown)="onHandlePointerDown($event, segment.entry, HandleSide.Right)"></span>
   </div>
 </ng-template>
 
@@ -127,18 +127,16 @@
   <div vTopLayer
        #tooltipPanelElem
        class="seg-tooltip-panel"
-       [class.below]="tooltipPlacement$$() === 'bottom'"
+       [class.below]="isTooltipBelow$$()"
        [class.visible]="isTooltipPositioned$$()"
        [style.top.px]="tooltipTopPx$$()"
        [style.left.px]="tooltipLeftPx$$()">{{ hovered.text }}</div>
 }
 
 @if (pickerState$$(); as picker) {
-  @let editedEntry = picker.mode === 'edit' ? editingEntry(picker.entryId) : undefined;
-  <structured-activity-picker [x]="picker.x"
-                              [y]="picker.y"
-                              [initialActivityKindId]="editedEntry?.activityKindId ?? null"
-                              [initialOptions]="editedEntry?.options ?? []"
+  <structured-activity-picker [xInput]="picker.x"
+                              [yInput]="picker.y"
+                              [initialSelectionInput]="pickerInitialSelection$$()"
                               (confirmOutput)="onPickerConfirm($event)"
                               (closeOutput)="closePicker()" />
 }

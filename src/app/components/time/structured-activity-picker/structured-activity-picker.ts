@@ -35,21 +35,20 @@ export interface StructuredActivitySelection {
   imports: [TimeOptionChips, VButton, VTopLayerDirective],
 })
 export class StructuredActivityPicker implements OnInit {
-  public readonly x = input.required<number>();
-  public readonly y = input.required<number>();
-  // Edit mode: pass the entry's current selection so it's shown as-is
-  // instead of a runtime preselect. Create mode: leave both at defaults.
-  public readonly initialActivityKindId = input<number | null>(null);
-  public readonly initialOptions = input<EntryOption[]>([]);
+  public readonly xInput = input.required<number>();
+  public readonly yInput = input.required<number>();
+  // Edit mode: the entry's current selection, shown as-is instead of a runtime preselect.
+  // Create mode: null.
+  public readonly initialSelectionInput = input<StructuredActivitySelection | null>(null);
 
   public readonly confirmOutput = output<StructuredActivitySelection>();
   public readonly closeOutput = output<void>();
 
+  private readonly panelElem = viewChild<ElementRef<HTMLElement>>('panelElem');
+
+  protected readonly timeDisplayPrefsService = inject(TimeDisplayPrefsService);
   private readonly timeCatalogueService = inject(TimeCatalogueService);
   private readonly timeEntriesService = inject(TimeEntriesService);
-  protected readonly timeDisplayPrefsService = inject(TimeDisplayPrefsService);
-
-  protected readonly panelElem = viewChild<ElementRef<HTMLElement>>('panelElem');
 
   protected readonly selectedKindId$$ = signal<number | null>(null);
   protected readonly selectedOptions$$ = signal<Map<number, number>>(new Map());
@@ -96,10 +95,10 @@ export class StructuredActivityPicker implements OnInit {
   // A create-mode instance has no initial kind and stays unselected until the user clicks one,
   // which goes through selectKind()'s runtime preselect.
   public ngOnInit(): void {
-    const kindId = this.initialActivityKindId();
-    if (kindId === null) return;
-    this.selectedKindId$$.set(kindId);
-    this.selectedOptions$$.set(new Map(this.initialOptions().map((option) => [option.groupId, option.optionId])));
+    const initial = this.initialSelectionInput();
+    if (!initial) return;
+    this.selectedKindId$$.set(initial.activityKindId);
+    this.selectedOptions$$.set(new Map(initial.options.map((option) => [option.groupId, option.optionId])));
   }
 
   // Prefers dropping below the click point; flips above only if it doesn't
@@ -109,11 +108,11 @@ export class StructuredActivityPicker implements OnInit {
     if (!panel) return;
     const rect = panel.getBoundingClientRect();
 
-    const fitsBelow = this.y() + rect.height + VIEWPORT_MARGIN_PX <= window.innerHeight;
-    const top = fitsBelow ? this.y() : Math.max(VIEWPORT_MARGIN_PX, this.y() - rect.height);
+    const fitsBelow = this.yInput() + rect.height + VIEWPORT_MARGIN_PX <= window.innerHeight;
+    const top = fitsBelow ? this.yInput() : Math.max(VIEWPORT_MARGIN_PX, this.yInput() - rect.height);
 
     const maxLeft = window.innerWidth - rect.width - VIEWPORT_MARGIN_PX;
-    const left = Math.min(Math.max(this.x(), VIEWPORT_MARGIN_PX), Math.max(maxLeft, VIEWPORT_MARGIN_PX));
+    const left = Math.min(Math.max(this.xInput(), VIEWPORT_MARGIN_PX), Math.max(maxLeft, VIEWPORT_MARGIN_PX));
 
     this.fixedTop$$.set(top);
     this.fixedLeft$$.set(left);

@@ -13,7 +13,7 @@ import { VInput } from '@ui-kit/components/v-input/v-input';
 })
 export class CategoryOptionForm {
   public readonly categoryOptionInput = input<CategoryOption | null>(null);
-  public readonly groupId = input.required<number>();
+  public readonly groupIdInput = input.required<number>();
 
   public readonly savedOutput = output<void>();
   public readonly cancelledOutput = output<void>();
@@ -28,7 +28,7 @@ export class CategoryOptionForm {
   // kind='area' group's selected option — a color on an option from any other
   // group is never read anywhere, so the field is pointless there.
   protected readonly isAreaGroup$$ = computed(
-    () => this.timeCatalogueService.groupById$$().get(this.groupId())?.kind === CategoryGroupKind.Area,
+    () => this.timeCatalogueService.groupById$$().get(this.groupIdInput())?.kind === CategoryGroupKind.Area,
   );
 
   public constructor() {
@@ -46,7 +46,7 @@ export class CategoryOptionForm {
     if (!this.name$$()) return;
 
     const input: CategoryOptionInput = {
-      groupId: this.groupId(),
+      groupId: this.groupIdInput(),
       name: this.name$$(),
       color: this.isAreaGroup$$() ? this.color$$() : null,
       isArchived: this.isArchived$$(),

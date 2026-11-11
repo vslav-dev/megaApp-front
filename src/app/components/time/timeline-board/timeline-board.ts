@@ -39,6 +39,18 @@ const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21, 24] as const;
 const GRID_LINE_HOURS = Array.from({ length: 23 }, (_, i) => i + 1);
 const SHORT_SEGMENT_MINUTES = 120;
 
+const PickerMode = {
+  Create: 'create',
+  Edit: 'edit',
+} as const;
+
+const HandleSide = {
+  Left: 'left',
+  Right: 'right',
+} as const;
+
+type HandleSide = (typeof HandleSide)[keyof typeof HandleSide];
+
 interface SegmentGridLine {
   hour: number;
   leftPct: number;
@@ -75,8 +87,16 @@ interface PreviewSlot {
 }
 
 type PickerState =
-  | { mode: 'create'; dayIso: string; track: TimeTrack; startMinute: number; endMinute: number; x: number; y: number }
-  | { mode: 'edit'; entryId: number; x: number; y: number };
+  | {
+      mode: typeof PickerMode.Create;
+      dayIso: string;
+      track: TimeTrack;
+      startMinute: number;
+      endMinute: number;
+      x: number;
+      y: number;
+    }
+  | { mode: typeof PickerMode.Edit; entryId: number; x: number; y: number };
 
 interface DayLabel {
   weekday: string;
@@ -99,12 +119,14 @@ interface HoveredSegment {
 export class TimelineBoard {
   public readonly snapMinutesInput = input<number>(15);
 
+  private readonly timelineScrollElem = viewChild<ElementRef<HTMLDivElement>>('timelineScrollElem');
+  private readonly tooltipPanelElem = viewChild<ElementRef<HTMLDivElement>>('tooltipPanelElem');
+
   protected readonly Track = TimeTrack;
+  protected readonly HandleSide = HandleSide;
   protected readonly hourTicks = HOUR_TICKS;
   protected readonly gridLineHours = GRID_LINE_HOURS;
 
-  private readonly timelineScrollElem = viewChild<ElementRef<HTMLDivElement>>('timelineScrollElem');
-  private readonly tooltipPanelElem = viewChild<ElementRef<HTMLDivElement>>('tooltipPanelElem');
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private readonly timeEntriesService = inject(TimeEntriesService);
@@ -115,7 +137,7 @@ export class TimelineBoard {
   // per segment — hundreds of segments used to mean hundreds of components, each
   // with its own document:click listener and top-layer popover.
   protected readonly hoveredSegment$$ = signal<HoveredSegment | null>(null);
-  protected readonly tooltipPlacement$$ = signal<'top' | 'bottom'>('top');
+  protected readonly isTooltipBelow$$ = signal(false);
   protected readonly isTooltipPositioned$$ = signal(false);
   protected readonly tooltipTopPx$$ = signal(0);
   protected readonly tooltipLeftPx$$ = signal(0);
@@ -221,6 +243,13 @@ export class TimelineBoard {
   protected readonly activeAdjustment$$ = signal<ActiveAdjustment | null>(null);
   protected readonly previewSlot$$ = signal<PreviewSlot | null>(null);
   protected readonly pickerState$$ = signal<PickerState | null>(null);
+  // The edited entry's current selection pre-fills the picker; a new entry starts empty.
+  protected readonly pickerInitialSelection$$ = computed((): StructuredActivitySelection | null => {
+    const picker = this.pickerState$$();
+    if (picker?.mode !== PickerMode.Edit) return null;
+    const entry = this.timeEntriesService.entries$$().find((candidate) => candidate.id === picker.entryId);
+    return entry ? { activityKindId: entry.activityKindId, options: entry.options } : null;
+  });
   protected readonly isInitialScrollReady$$ = signal(false);
 
   private hasScrolledToInitialBottom = false;
@@ -470,10 +499,6 @@ export class TimelineBoard {
     return '#868E96';
   }
 
-  protected editingEntry(entryId: number): TimeEntry | undefined {
-    return this.timeEntriesService.entries$$().find((entry) => entry.id === entryId);
-  }
-
   // An entry whose create the server hasn't confirmed yet has no real id to address — it can't be
   // moved, resized, edited or deleted until it has one.
   protected onSegmentPointerDown(event: PointerEvent, entry: TimeEntry): void {
@@ -484,7 +509,7 @@ export class TimelineBoard {
     this.startMove(event, entry);
   }
 
-  protected onHandlePointerDown(event: PointerEvent, entry: TimeEntry, side: 'left' | 'right'): void {
+  protected onHandlePointerDown(event: PointerEvent, entry: TimeEntry, side: HandleSide): void {
     event.stopPropagation();
     this.closeTooltip();
     if (!isConfirmedEntry(entry)) return;
@@ -516,7 +541,7 @@ export class TimelineBoard {
     if (!hovered || !panel) return;
 
     const position = computeTooltipPosition(hovered.triggerRect, panel.getBoundingClientRect());
-    this.tooltipPlacement$$.set(position.placement);
+    this.isTooltipBelow$$.set(position.placement === 'bottom');
     this.tooltipTopPx$$.set(position.top);
     this.tooltipLeftPx$$.set(position.left);
     this.isTooltipPositioned$$.set(true);
@@ -601,7 +626,7 @@ export class TimelineBoard {
         // edit mode — matches the plan's "on edit selection open the same
         // picker" without introducing a separate click handler that would
         // race with the drag's pointerdown.
-        this.pickerState$$.set({ mode: 'edit', entryId: entry.id, x: upEvent.clientX, y: upEvent.clientY });
+        this.pickerState$$.set({ mode: PickerMode.Edit, entryId: entry.id, x: upEvent.clientX, y: upEvent.clientY });
         return;
       }
       if (!adjustment) return;
@@ -615,7 +640,7 @@ export class TimelineBoard {
     this.listenToDrag(onMove, onUp);
   }
 
-  private startResize(event: PointerEvent, entry: TimeEntry, side: 'left' | 'right'): void {
+  private startResize(event: PointerEvent, entry: TimeEntry, side: HandleSide): void {
     event.preventDefault();
     const laneEl = (event.currentTarget as HTMLElement).closest('.lane') as HTMLElement;
     const laneRect = laneEl.getBoundingClientRect();
@@ -655,7 +680,7 @@ export class TimelineBoard {
     const onMove = (moveEvent: PointerEvent) => {
       moved = true;
       const dxMinutes = ((moveEvent.clientX - startClientX) / laneRect.width) * MINUTES_PER_DAY;
-      if (side === 'left') {
+      if (side === HandleSide.Left) {
         const candidateStart = this.snapValue(originStartAbs + dxMinutes);
         const newStart = Math.max(lower, Math.min(candidateStart, originEndAbs - MIN_DURATION_MINUTES));
         pendingAdjustment = {
@@ -765,7 +790,7 @@ export class TimelineBoard {
     if (!slot) return;
 
     this.pickerState$$.set({
-      mode: 'create',
+      mode: PickerMode.Create,
       dayIso,
       track,
       startMinute: slot.start,
@@ -780,7 +805,7 @@ export class TimelineBoard {
     this.pickerState$$.set(null);
     if (!picker) return;
 
-    if (picker.mode === 'edit') {
+    if (picker.mode === PickerMode.Edit) {
       this.timeEntriesService.updateEntrySelection(picker.entryId, selection);
       return;
     }

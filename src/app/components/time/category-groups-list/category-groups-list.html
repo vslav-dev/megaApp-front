@@ -107,7 +107,7 @@
             (closeOutput)="onOptionCancelled()">
   @if (optionFormGroupId$$(); as groupId) {
     <category-option-form [categoryOptionInput]="editingOption$$()"
-                           [groupId]="groupId"
+                           [groupIdInput]="groupId"
                            (savedOutput)="onOptionSaved()"
                            (cancelledOutput)="onOptionCancelled()">
     </category-option-form>

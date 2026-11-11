@@ -12,21 +12,21 @@ type DisclosureLevel = 0 | 1 | 2 | 3;
   styleUrl: './segment-label.scss',
 })
 export class SegmentLabel {
-  public readonly name = input.required<string>();
-  public readonly durationLabel = input.required<string>();
-  public readonly startClock = input.required<string>();
-  public readonly endClock = input.required<string>();
-  public readonly isTrueStart = input.required<boolean>();
-  public readonly isTrueEnd = input.required<boolean>();
+  public readonly nameInput = input.required<string>();
+  public readonly durationLabelInput = input.required<string>();
+  public readonly startClockInput = input.required<string>();
+  public readonly endClockInput = input.required<string>();
+  public readonly isTrueStartInput = input.required<boolean>();
+  public readonly isTrueEndInput = input.required<boolean>();
 
-  protected readonly nameText$$ = computed(() => (this.isTrueStart() ? '' : '◂ ') + this.name());
+  protected readonly nameText$$ = computed(() => (this.isTrueStartInput() ? '' : '◂ ') + this.nameInput());
   // Leading char is NBSP, not a regular space — each chunk is its own flex
   // item, and a plain leading space there gets trimmed by CSS whitespace
   // collapsing at the box edge, making the dot look glued to the previous
   // chunk. NBSP isn't collapsible, so it survives.
-  protected readonly durationChunkText$$ = computed(() => `${NBSP}· ${this.durationLabel()}`);
-  protected readonly startChunkText$$ = computed(() => `${NBSP}· ${this.startClock()}`);
-  protected readonly endText$$ = computed(() => this.endClock() + (this.isTrueEnd() ? '' : ' ▸'));
+  protected readonly durationChunkText$$ = computed(() => `${NBSP}· ${this.durationLabelInput()}`);
+  protected readonly startChunkText$$ = computed(() => `${NBSP}· ${this.startClockInput()}`);
+  protected readonly endText$$ = computed(() => this.endClockInput() + (this.isTrueEndInput() ? '' : ' ▸'));
 
   protected readonly disclosureLevel$$ = computed<DisclosureLevel>(() => {
     const font = this.fontString$$();

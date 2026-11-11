@@ -10,19 +10,19 @@ const FILTER_THRESHOLD_DEFAULT = 8;
   imports: [VInput],
 })
 export class TimeOptionChips {
-  public readonly options = input.required<CategoryOption[]>();
-  public readonly filterThreshold = input<number>(FILTER_THRESHOLD_DEFAULT);
+  public readonly optionsInput = input.required<CategoryOption[]>();
+  public readonly filterThresholdInput = input<number>(FILTER_THRESHOLD_DEFAULT);
 
   public readonly value = model<number | null>(null);
 
   protected readonly filterText$$ = signal('');
 
-  protected readonly isFilterVisible$$ = computed(() => this.options().length > this.filterThreshold());
+  protected readonly isFilterVisible$$ = computed(() => this.optionsInput().length > this.filterThresholdInput());
 
   protected readonly visibleOptions$$ = computed(() => {
     const filter = this.filterText$$().trim().toLowerCase();
-    if (!filter) return this.options();
-    return this.options().filter((option) => option.name.toLowerCase().includes(filter));
+    if (!filter) return this.optionsInput();
+    return this.optionsInput().filter((option) => option.name.toLowerCase().includes(filter));
   });
 
   protected select(optionId: number): void {
