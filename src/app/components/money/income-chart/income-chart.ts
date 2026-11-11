@@ -12,10 +12,16 @@ import {
 } from '@angular/core';
 import { ChartThemeService } from '@app/services/chart-theme.service';
 import { MoneyComputeService } from '@app/services/money-compute.service';
+import {
+  MAX_MONEY_CHART_HEIGHT_PX,
+  MIN_MONEY_CHART_HEIGHT_PX,
+  MoneyLayoutPrefsService,
+} from '@app/services/money-layout-prefs.service';
 import { MoneyService } from '@app/services/money.service';
 import { TelemetryService } from '@app/services/telemetry.service';
 import { CATEGORY_DIM_ALPHA, SeriesColor, seriesColorById } from '@app/shared/categorical-palette';
 import { createCategoryHoverHighlight } from '@app/shared/category-hover-highlight';
+import { BlockTitle } from '@app/shared/components/block-title/block-title';
 import { ChartColors, createIncomeChartConfig, formatMonthYearLabel } from '@app/shared/chart-config';
 import { IncomeChartCategorySeries, IncomeChartData } from '@app/shared/types';
 import { VButton } from '@ui-kit/components/v-button/v-button';
@@ -37,7 +43,7 @@ Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip, L
 @Component({
   selector: 'income-chart',
   templateUrl: './income-chart.html',
-  imports: [VButton, VCheckbox],
+  imports: [BlockTitle, VButton, VCheckbox],
 })
 export class IncomeChart implements AfterViewInit, OnDestroy {
   public readonly dataInput = input.required<IncomeChartData>();
@@ -48,6 +54,9 @@ export class IncomeChart implements AfterViewInit, OnDestroy {
   protected readonly chart$$ = signal<Chart | null>(null);
   protected readonly enabledIds$$ = computed(() => this.moneyService.enabledIncomeSeriesIds$$());
   protected readonly yearlyMode$$ = computed(() => this.moneyService.yearlyMode$$());
+  protected readonly heightPx$$ = inject(MoneyLayoutPrefsService).incomeChartHeightPx$$;
+  protected readonly minHeightPx = MIN_MONEY_CHART_HEIGHT_PX;
+  protected readonly maxHeightPx = MAX_MONEY_CHART_HEIGHT_PX;
 
   private readonly chartThemeService = inject(ChartThemeService);
   private readonly moneyService = inject(MoneyService);

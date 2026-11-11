@@ -11,8 +11,14 @@ import {
   viewChild,
 } from '@angular/core';
 import { ChartThemeService } from '@app/services/chart-theme.service';
+import {
+  MAX_MONEY_CHART_HEIGHT_PX,
+  MIN_MONEY_CHART_HEIGHT_PX,
+  MoneyLayoutPrefsService,
+} from '@app/services/money-layout-prefs.service';
 import { MoneyService, SuspensionFilter } from '@app/services/money.service';
 import { TelemetryService } from '@app/services/telemetry.service';
+import { BlockTitle } from '@app/shared/components/block-title/block-title';
 import {
   ChartColors,
   balanceCategoricalPalette,
@@ -44,7 +50,7 @@ Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineContro
 @Component({
   selector: 'balances-chart',
   templateUrl: './balances-chart.html',
-  imports: [VButton, VCheckbox, VToggle],
+  imports: [BlockTitle, VButton, VCheckbox, VToggle],
 })
 export class BalancesChart implements AfterViewInit, OnDestroy {
   public readonly dataInput = input.required<BalanceChartData>();
@@ -55,6 +61,9 @@ export class BalancesChart implements AfterViewInit, OnDestroy {
   protected readonly showByAccount$$ = computed(() => this.moneyService.showByAccount$$());
   protected readonly suspensionFilter$$ = computed(() => this.moneyService.suspensionFilter$$());
   protected readonly disabledAccountIds$$ = computed(() => this.moneyService.disabledAccountIds$$());
+  protected readonly heightPx$$ = inject(MoneyLayoutPrefsService).balancesChartHeightPx$$;
+  protected readonly minHeightPx = MIN_MONEY_CHART_HEIGHT_PX;
+  protected readonly maxHeightPx = MAX_MONEY_CHART_HEIGHT_PX;
 
   private readonly moneyService = inject(MoneyService);
   private readonly chartThemeService = inject(ChartThemeService);

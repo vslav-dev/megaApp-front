@@ -1,6 +1,10 @@
 <div class="flex flex-col gap-3">
   <div class="flex items-center justify-between">
-    <div class="text-lg font-semibold">Account Balances</div>
+    <block-title titleInput="Account Balances"
+                 [heightPxInput]="heightPx$$()"
+                 [minHeightPxInput]="minHeightPx"
+                 [maxHeightPxInput]="maxHeightPx"
+                 (heightPxOutput)="heightPx$$.set($event)" />
     <div class="flex items-center gap-2">
       <v-toggle [items]="suspensionToggleItems"
                 [value]="suspensionToggleValue()"
@@ -12,7 +16,7 @@
     </div>
   </div>
 
-  <div class='h-[190px]'>
+  <div [style.height.px]="heightPx$$()">
     <canvas #chartCanvas></canvas>
   </div>
 

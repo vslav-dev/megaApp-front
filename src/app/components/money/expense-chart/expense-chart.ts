@@ -12,10 +12,16 @@ import {
 } from '@angular/core';
 import { ChartThemeService } from '@app/services/chart-theme.service';
 import { MoneyComputeService } from '@app/services/money-compute.service';
+import {
+  MAX_MONEY_CHART_HEIGHT_PX,
+  MIN_MONEY_CHART_HEIGHT_PX,
+  MoneyLayoutPrefsService,
+} from '@app/services/money-layout-prefs.service';
 import { MoneyService } from '@app/services/money.service';
 import { TelemetryService } from '@app/services/telemetry.service';
 import { CATEGORY_DIM_ALPHA, SeriesColor, seriesColorById } from '@app/shared/categorical-palette';
 import { createCategoryHoverHighlight } from '@app/shared/category-hover-highlight';
+import { BlockTitle } from '@app/shared/components/block-title/block-title';
 import {
   ChartColors,
   EXPENSE_SERIES_ORDER,
@@ -53,7 +59,7 @@ interface ExpenseChartSeries {
 @Component({
   selector: 'expense-chart',
   templateUrl: './expense-chart.html',
-  imports: [VButton, VCheckbox, VInput, VToggle],
+  imports: [BlockTitle, VButton, VCheckbox, VInput, VToggle],
 })
 export class ExpenseChart implements AfterViewInit, OnDestroy {
   public readonly dataInput = input.required<ExpenseChartData>();
@@ -66,6 +72,9 @@ export class ExpenseChart implements AfterViewInit, OnDestroy {
   protected readonly chart$$ = signal<Chart | null>(null);
   protected readonly enabledIds$$ = computed(() => this.moneyService.enabledExpenseSeriesIds$$());
   protected readonly yearlyMode$$ = computed(() => this.moneyService.yearlyMode$$());
+  protected readonly heightPx$$ = inject(MoneyLayoutPrefsService).expenseChartHeightPx$$;
+  protected readonly minHeightPx = MIN_MONEY_CHART_HEIGHT_PX;
+  protected readonly maxHeightPx = MAX_MONEY_CHART_HEIGHT_PX;
 
   private readonly moneyService = inject(MoneyService);
   private readonly moneyComputeService = inject(MoneyComputeService);

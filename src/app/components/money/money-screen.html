@@ -155,7 +155,8 @@
                        [currencySymbolInput]="displayCurrencySymbol$$()"
                        [currencyTickerInput]="displayCurrency$$()" />
       } @else {
-        <div class="h-[400px] flex items-center justify-center">
+        <div class="flex items-center justify-center"
+             [style.height.px]="expensePlaceholderHeightPx$$()">
           <div class="border-t-transparent animate-spin w-8 h-8 border-2 rounded-full"
                style="border-color: var(--v-color-primary); border-top-color: transparent;"></div>
         </div>
@@ -170,7 +171,8 @@
                       [monthRangeInput]="monthRangeForCharts$$()"
                       [currencySymbolInput]="displayCurrencySymbol$$()" />
       } @else {
-        <div class="h-[286px] flex items-center justify-center">
+        <div class="flex items-center justify-center"
+             [style.height.px]="incomePlaceholderHeightPx$$()">
           <div class="border-t-transparent animate-spin w-8 h-8 border-2 rounded-full"
                style="border-color: var(--v-color-primary); border-top-color: transparent;"></div>
         </div>
@@ -184,7 +186,8 @@
         <balances-chart [dataInput]="balanceChartDataClipped$$()"
                         [currencySymbolInput]="displayCurrencySymbol$$()" />
       } @else {
-        <div class="h-[294px] flex items-center justify-center">
+        <div class="flex items-center justify-center"
+             [style.height.px]="balancesPlaceholderHeightPx$$()">
           <div class="border-t-transparent animate-spin w-8 h-8 border-2 rounded-full"
                style="border-color: var(--v-color-primary); border-top-color: transparent;"></div>
         </div>

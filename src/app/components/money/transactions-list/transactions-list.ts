@@ -11,8 +11,14 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { KeyboardService } from '@app/services/keyboard.service';
 import { MoneyComputeService } from '@app/services/money-compute.service';
+import {
+  MAX_TRANSACTIONS_LIST_HEIGHT_PX,
+  MIN_TRANSACTIONS_LIST_HEIGHT_PX,
+  MoneyLayoutPrefsService,
+} from '@app/services/money-layout-prefs.service';
 import { MoneyService } from '@app/services/money.service';
 import { TelemetryService } from '@app/services/telemetry.service';
+import { BlockTitle } from '@app/shared/components/block-title/block-title';
 import { DefaultModal } from '@app/shared/components/default-modal/default-modal';
 import { FormModal } from '@app/shared/components/form-modal/form-modal';
 import { sumDayTotals } from '@app/shared/day-totals';
@@ -56,7 +62,7 @@ interface GroupMeasurement {
   selector: 'transactions-list',
   templateUrl: './transactions-list.html',
   styleUrl: './transactions-list.scss',
-  imports: [DefaultModal, FormModal, TransactionForm, VButton, VCard, VIcon],
+  imports: [BlockTitle, DefaultModal, FormModal, TransactionForm, VButton, VCard, VIcon],
 })
 export class TransactionsList {
   protected readonly Icon = IconName;
@@ -143,7 +149,9 @@ export class TransactionsList {
   private readonly GROUP_BOTTOM_MARGIN = 16;
   private readonly BUFFER_PX = 1200;
 
-  protected readonly containerHeight = 893;
+  protected readonly heightPx$$ = inject(MoneyLayoutPrefsService).transactionsListHeightPx$$;
+  protected readonly minHeightPx = MIN_TRANSACTIONS_LIST_HEIGHT_PX;
+  protected readonly maxHeightPx = MAX_TRANSACTIONS_LIST_HEIGHT_PX;
 
   private readonly scrollTop$$ = signal(0);
 
@@ -173,7 +181,7 @@ export class TransactionsList {
     () => {
       const measurements = this.groupMeasurements$$();
       const scrollTop = this.scrollTop$$();
-      const visibleBottom = scrollTop + this.containerHeight;
+      const visibleBottom = scrollTop + this.heightPx$$();
       return measurements.filter(
         (m) => m.startY + m.height > scrollTop - this.BUFFER_PX && m.startY < visibleBottom + this.BUFFER_PX,
       );

@@ -6,6 +6,7 @@ import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 import { VSlider, VSliderRangeValue } from '@ui-kit/components/v-slider/v-slider';
 import { VToggleItem } from '@ui-kit/components/v-toggle/v-toggle';
 import { MoneyComputeService } from '@app/services/money-compute.service';
+import { MoneyLayoutPrefsService } from '@app/services/money-layout-prefs.service';
 import { MoneyService } from '@app/services/money.service';
 import { TelemetryService } from '@app/services/telemetry.service';
 import { parseIsoParts } from '@app/shared/utils';
@@ -64,6 +65,12 @@ export class MoneyScreen implements OnInit {
   private screenReadyRecorded = false;
 
   protected readonly isChartDataReady$$ = computed(() => this.moneyService.isChartDataReady$$());
+
+  // Loading placeholders match each chart card's height: chart canvas + its title and legend.
+  private readonly layoutPrefs = inject(MoneyLayoutPrefsService);
+  protected readonly expensePlaceholderHeightPx$$ = computed(() => this.layoutPrefs.expenseChartHeightPx$$() + 100);
+  protected readonly incomePlaceholderHeightPx$$ = computed(() => this.layoutPrefs.incomeChartHeightPx$$() + 96);
+  protected readonly balancesPlaceholderHeightPx$$ = computed(() => this.layoutPrefs.balancesChartHeightPx$$() + 104);
 
   private readonly screenReadyEffect$$ = effect(() => {
     if (!this.isChartDataReady$$() || this.screenReadyRecorded) return;

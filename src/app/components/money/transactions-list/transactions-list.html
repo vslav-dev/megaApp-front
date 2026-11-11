@@ -2,7 +2,11 @@
   <v-card [borderRadius]="2"
           [padding]="4">
     <div class="flex items-center justify-between mb-1">
-      <div class="text-lg font-semibold">Transactions</div>
+      <block-title titleInput="Transactions"
+                   [heightPxInput]="heightPx$$()"
+                   [minHeightPxInput]="minHeightPx"
+                   [maxHeightPxInput]="maxHeightPx"
+                   (heightPxOutput)="heightPx$$.set($event)" />
       <div class="flex items-center gap-2">
         <v-button surface="flat"
                   [paddingY]="1"
@@ -18,7 +22,7 @@
     <div #scrollContainer
          class="overflow-y-scroll"
          [class.at-top]="isAtTop$$()"
-         [style.height.px]="containerHeight"
+         [style.height.px]="heightPx$$()"
          (scroll)="onScroll($event)">
       <div [class.pr-1]="!isAtTop$$()"
            [style.height.px]="totalScrollHeight$$()">
