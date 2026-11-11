@@ -2,7 +2,15 @@ import { Component, computed, inject } from '@angular/core';
 import { MoneyService } from '@app/services/money.service';
 import { convertAmount, parseTransactionDetails } from '@app/shared/money-utils';
 import { groupNumberText } from '@app/shared/number-format';
-import { Account, AccountKind, Organization, SymbolPosition, Transaction, TransactionKind } from '@app/shared/types';
+import {
+  Account,
+  AccountKind,
+  Currency,
+  Organization,
+  SymbolPosition,
+  Transaction,
+  TransactionKind,
+} from '@app/shared/types';
 import { VCard } from '@ui-kit/components/v-card/v-card';
 import { IconName, VIcon } from '@ui-kit/components/v-icon/v-icon';
 
@@ -50,6 +58,24 @@ export class AccountsBalance {
     return balances;
   });
 
+  private readonly displayCurrencyInfo$$ = computed(() =>
+    this.currencies$$().find((c) => c.ticker === this.displayCurrency$$()),
+  );
+
+  // Sum of the listed accounts, always in the display currency at the latest rates: rows may show
+  // native amounts, but the accounts span several currencies.
+  protected readonly totalBalance$$ = computed((): string | null => {
+    const accounts = this.activeAccounts$$();
+    if (!accounts.length) return null;
+    let total = 0;
+    for (const account of accounts) {
+      if (!account.id) continue;
+      const balance = this.balancesMap$$().get(account.id) ?? 0;
+      total += this.toDisplayAmount(balance, this.getCurrency(account));
+    }
+    return this.formatDisplayAmount(total);
+  });
+
   protected getKindIcon(account: Account): IconName {
     switch (account.kind) {
       case AccountKind.CASH:
@@ -79,24 +105,35 @@ export class AccountsBalance {
   protected getBalance(account: Account): string {
     if (!account.id) return '';
     const balance = this.balancesMap$$().get(account.id) ?? 0;
-    const currency = this.currencies$$().find((c) => c.id === account.currencyId);
+    const currency = this.getCurrency(account);
     if (!currency) return this.formatNumber(balance);
 
     if (!this.convertToUnifiedCurrency$$() || currency.ticker === this.displayCurrency$$()) {
-      const ws = currency.whitespace ? ' ' : '';
-      const formatted = this.formatNumber(balance);
-      if (currency.symbolPosEnum === SymbolPosition.BEFORE) return `${currency.symbol}${ws}${formatted}`;
-      return `${formatted}${ws}${currency.symbol}`;
+      return this.formatWithCurrency(balance, currency);
     }
+    return this.formatDisplayAmount(this.toDisplayAmount(balance, currency));
+  }
 
-    const displayTicker = this.displayCurrency$$();
-    const converted = convertAmount(balance, currency.ticker, displayTicker, this.latestRates$$());
-    const displayCurrency = this.currencies$$().find((c) => c.ticker === displayTicker);
-    if (!displayCurrency) return this.formatNumber(converted);
-    const ws = displayCurrency.whitespace ? ' ' : '';
-    const formatted = this.formatNumber(converted);
-    if (displayCurrency.symbolPosEnum === SymbolPosition.BEFORE) return `${displayCurrency.symbol}${ws}${formatted}`;
-    return `${formatted}${ws}${displayCurrency.symbol}`;
+  private getCurrency(account: Account): Currency | undefined {
+    return this.currencies$$().find((c) => c.id === account.currencyId);
+  }
+
+  // An account without a currency has nothing to convert from, so its amount stays as is.
+  private toDisplayAmount(amount: number, currency: Currency | undefined): number {
+    if (!currency) return amount;
+    return convertAmount(amount, currency.ticker, this.displayCurrency$$(), this.latestRates$$());
+  }
+
+  private formatDisplayAmount(amount: number): string {
+    const currency = this.displayCurrencyInfo$$();
+    return currency ? this.formatWithCurrency(amount, currency) : this.formatNumber(amount);
+  }
+
+  private formatWithCurrency(amount: number, currency: Currency): string {
+    const ws = currency.whitespace ? ' ' : '';
+    const formatted = this.formatNumber(amount);
+    if (currency.symbolPosEnum === SymbolPosition.BEFORE) return `${currency.symbol}${ws}${formatted}`;
+    return `${formatted}${ws}${currency.symbol}`;
   }
 
   private formatNumber(amount: number): string {

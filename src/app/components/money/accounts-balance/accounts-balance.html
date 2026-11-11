@@ -1,6 +1,11 @@
 <v-card [borderRadius]="2"
         [padding]="4">
-  <div class="mb-1 text-lg font-semibold">Balances</div>
+  <div class="group relative flex items-center mb-1">
+    <div class="text-lg font-semibold">Balances</div>
+    @if (totalBalance$$(); as total) {
+      <div class="hover-actions text-sm font-semibold">{{ total }}</div>
+    }
+  </div>
 
   @for (account of activeAccounts$$(); track account.id) {
     <div class="last:border-b-0 py-1 last:pb-0 border-b border-[rgba(0,0,0,0.1)]">

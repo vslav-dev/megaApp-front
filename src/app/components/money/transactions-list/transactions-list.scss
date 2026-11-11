@@ -1,22 +1,3 @@
-.hover-actions {
-  position: absolute;
-  inset-block: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding-left: 2.5rem;
-  background: linear-gradient(to left, var(--v-color-surface) 60%, transparent);
-  opacity: 0;
-  transition:
-    opacity 150ms,
-    background var(--v-theme-transition-duration, 0s);
-
-  .group:hover & {
-    opacity: 1;
-  }
-}
-
 .at-top {
   scrollbar-width: none;
 
